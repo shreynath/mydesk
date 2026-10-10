@@ -1,0 +1,53 @@
+# Build
+build/
+build-*/
+out/
+cmake-build-*/
+.cache/
+compile_commands.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.user
+*.user.*
+CMakeUserPresets.json
+
+# Packages / deps
+vcpkg_installed/
+.conan/
+.deps/
+
+# Test / agent artifacts
+corpus/
+log/
+plan/
+*.log
+Testing/
+CTestTestfile.cmake
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/
+
+# Packaging output
+artifacts/
+*.dmg
+*.pkg
+*.msi
+*.AppImage
+*.flatpak
+
+# Secrets
+.env
+*.pem
+*.p12
+*.key
+signing/

@@ -1,0 +1,78 @@
+#include "mydesk/draft/snaps.hpp"
+
+#include <cmath>
+
+namespace mydesk::draft {
+
+std::optional<SnapResult> findSnap(const document::Document& doc, geometry::Vec2 cursor,
+                                   const SnapSettings& settings) {
+    SnapResult best;
+    double bestDist = settings.aperture;
+    bool found = false;
+
+    auto consider = [&](geometry::Vec2 p, std::string kind, document::EntityId id) {
+        const double d = cursor.distanceTo(p);
+        if (d <= bestDist) {
+            bestDist = d;
+            best = SnapResult{p, std::move(kind), id};
+            found = true;
+        }
+    };
+
+    for (const auto& entity : doc.entities()) {
+        const auto* layer = doc.findLayer(entity.layerId);
+        if (layer && !layer->visible) {
+            continue;
+        }
+        if (const auto* line = std::get_if<document::LineEntity>(&entity.geometry)) {
+            if (settings.endpoint) {
+                consider(line->start, "endpoint", entity.id);
+                consider(line->end, "endpoint", entity.id);
+            }
+            if (settings.midpoint) {
+                consider((line->start + line->end) * 0.5, "midpoint", entity.id);
+            }
+        } else if (const auto* circle = std::get_if<document::CircleEntity>(&entity.geometry)) {
+            if (settings.center) {
+                consider(circle->center, "center", entity.id);
+            }
+        } else if (const auto* arc = std::get_if<document::ArcEntity>(&entity.geometry)) {
+            if (settings.center) {
+                consider(arc->center, "center", entity.id);
+            }
+            if (settings.endpoint) {
+                consider(document::arcPointAt(*arc, arc->startAngle), "endpoint", entity.id);
+                consider(document::arcPointAt(*arc, arc->endAngle), "endpoint", entity.id);
+            }
+        } else if (const auto* pl = std::get_if<document::PolylineEntity>(&entity.geometry)) {
+            if (settings.endpoint) {
+                for (const auto& v : pl->vertices) {
+                    consider(v, "endpoint", entity.id);
+                }
+            }
+            if (settings.midpoint) {
+                const std::size_t n = document::polylineSegmentCount(*pl);
+                for (std::size_t i = 0; i < n; ++i) {
+                    const auto a = document::polylineSegmentStart(*pl, i);
+                    const auto b = document::polylineSegmentEnd(*pl, i);
+                    consider((a + b) * 0.5, "midpoint", entity.id);
+                }
+            }
+        }
+    }
+
+    if (settings.grid) {
+        const double g = settings.gridSpacing;
+        if (g > 0.0) {
+            const geometry::Vec2 gp{std::round(cursor.x / g) * g, std::round(cursor.y / g) * g};
+            consider(gp, "grid", document::kInvalidEntityId);
+        }
+    }
+
+    if (!found) {
+        return std::nullopt;
+    }
+    return best;
+}
+
+} // namespace mydesk::draft

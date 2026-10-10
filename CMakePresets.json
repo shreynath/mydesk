@@ -1,0 +1,86 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Ninja (local Qt)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/qt;/usr/local/opt/qt"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "default",
+      "displayName": "Release",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "headless",
+      "displayName": "Headless (no Qt UI)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/headless",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_BUILD_DESKTOP": "OFF",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-macos",
+      "inherits": "default",
+      "displayName": "CI macOS",
+      "binaryDir": "${sourceDir}/build/ci"
+    },
+    {
+      "name": "ci-linux",
+      "displayName": "CI Linux",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-windows",
+      "displayName": "CI Windows",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "headless", "configurePreset": "headless" },
+    { "name": "ci-macos", "configurePreset": "ci-macos" },
+    { "name": "ci-linux", "configurePreset": "ci-linux" },
+    { "name": "ci-windows", "configurePreset": "ci-windows" }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

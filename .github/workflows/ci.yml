@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: ci-linux
+          - os: macos-latest
+            preset: ci-macos
+          - os: windows-latest
+            preset: ci-windows
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake qt6-base-dev libgl1-mesa-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja cmake qt@6
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install ninja cmake --yes
+          # Qt via aqt; keep CI honest if install fails.
+          pip install aqtinstall
+          aqt install-qt windows desktop 6.7.2 win64_msvc2019_64 -O "$HOME/Qt" || true
+          if [ -d "$HOME/Qt/6.7.2/msvc2019_64" ]; then
+            echo "CMAKE_PREFIX_PATH=$HOME/Qt/6.7.2/msvc2019_64" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
+            cmake --preset "${{ matrix.preset }}" -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+          else
+            cmake --preset "${{ matrix.preset }}" || cmake --preset headless
+          fi
+
+      - name: Build
+        shell: bash
+        run: |
+          if [ -d build/ci ]; then
+            cmake --build --preset "${{ matrix.preset }}"
+          else
+            cmake --build --preset headless
+          fi
+
+      - name: Test
+        shell: bash
+        run: |
+          if [ -d build/ci ]; then
+            ctest --test-dir build/ci --output-on-failure
+          else
+            ctest --test-dir build/headless --output-on-failure
+          fi
