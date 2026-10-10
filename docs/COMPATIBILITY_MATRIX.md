@@ -42,9 +42,11 @@ Last updated: 2026-10-10
 | E | ERASE | partial |
 | U | UNDO | implemented-tested |
 | LA | LAYER | implemented-tested |
+| CH | CHPROP | implemented-tested |
+| OS | OSNAP | implemented-tested |
+| DIM | DIMLINEAR | implemented-tested |
 | H / BH | HATCH | not-implemented |
 | B | BLOCK | not-implemented |
-| DIM | DIMENSION | not-implemented |
 
 ## Drawing aids
 

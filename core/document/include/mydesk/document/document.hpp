@@ -42,6 +42,8 @@ public:
     bool setLayerLocked(LayerId id, bool locked);
     bool setLayerColor(LayerId id, std::uint32_t colorArgb);
     bool setEntityLayer(EntityId id, LayerId layerId);
+    bool setEntityColor(EntityId id, std::uint32_t colorArgb);
+    [[nodiscard]] std::uint32_t resolvedEntityColor(const Entity& entity) const;
     EntityId addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel = "LINE");
     EntityId addCircle(geometry::Vec2 center, double radius, std::string txLabel = "CIRCLE");
     EntityId addArc(geometry::Vec2 center, double radius, double startAngle, double endAngle,
@@ -51,6 +53,8 @@ public:
     // Closed rectangular polyline (true PLINE).
     EntityId addRectangle(geometry::Vec2 cornerA, geometry::Vec2 cornerB,
                           std::string txLabel = "RECTANGLE");
+    EntityId addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end, geometry::Vec2 dimLine,
+                                std::string txLabel = "DIMLINEAR");
     bool removeEntity(EntityId id, std::string txLabel = "ERASE");
     bool replaceEntity(EntityId id, EntityGeometry geometry, std::string txLabel = "MODIFY");
 

@@ -37,7 +37,14 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
         pair(0, "LAYER");
         pair(2, layer.name);
         pair(70, "0");
-        pair(62, "7");
+        // Map RGB luminance to a coarse ACI index (honest partial — not full ACI palette).
+        const auto rgb = layer.colorArgb & 0xFFFFFFu;
+        const int aci = (rgb == 0xFF0000u)   ? 1
+                        : (rgb == 0x00FF00u) ? 3
+                        : (rgb == 0x0000FFu) ? 5
+                        : (rgb == 0xFFFFFFu) ? 7
+                                             : 7;
+        pair(62, std::to_string(aci));
         pair(6, "CONTINUOUS");
     }
     pair(0, "ENDTAB");
@@ -83,6 +90,8 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
                 pairNum(10, v.x);
                 pairNum(20, v.y);
             }
+        } else if (std::holds_alternative<document::DimensionLinearEntity>(entity.geometry)) {
+            report.warnings.push_back("Skipped DIMLINEAR (not in DXF export subset yet)");
         } else {
             report.warnings.push_back("Skipped unsupported entity during DXF export");
         }
@@ -99,7 +108,7 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
     report.entityCount = doc.entities().size();
     report.layerCount = doc.layers().size();
     report.warnings.push_back(
-        "DXF export is partial: LINE/CIRCLE/ARC/LWPOLYLINE + LAYER; no dims/blocks/xrefs/styles");
+        "DXF export is partial: LINE/CIRCLE/ARC/LWPOLYLINE + LAYER; dims/blocks/xrefs unsupported");
     return report;
 }
 

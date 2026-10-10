@@ -16,12 +16,15 @@ using LayerId = std::uint64_t;
 
 inline constexpr EntityId kInvalidEntityId = 0;
 inline constexpr LayerId kInvalidLayerId = 0;
+// colorArgb == 0 means ByLayer (use owning layer color).
+inline constexpr std::uint32_t kColorByLayer = 0;
 
 enum class EntityKind {
     Line,
     Circle,
     Arc,
     Polyline,
+    DimensionLinear,
 };
 
 struct LineEntity {
@@ -47,11 +50,20 @@ struct PolylineEntity {
     bool closed{false};
 };
 
-using EntityGeometry = std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity>;
+// Aligned linear dimension: measurement between start/end; dimLine locates the dimension line.
+struct DimensionLinearEntity {
+    geometry::Vec2 start;
+    geometry::Vec2 end;
+    geometry::Vec2 dimLine;
+};
+
+using EntityGeometry =
+    std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity, DimensionLinearEntity>;
 
 struct Entity {
     EntityId id{kInvalidEntityId};
     LayerId layerId{kInvalidLayerId};
+    std::uint32_t colorArgb{kColorByLayer};
     EntityGeometry geometry;
 
     [[nodiscard]] EntityKind kind() const;
@@ -69,6 +81,16 @@ struct Layer {
     std::uint32_t colorArgb{0xFFE0E0E0};
 };
 
+struct DimensionLayout {
+    geometry::Vec2 start;
+    geometry::Vec2 end;
+    geometry::Vec2 dimStart;
+    geometry::Vec2 dimEnd;
+    geometry::Vec2 textPos;
+    double measurement{0.0};
+};
+
+[[nodiscard]] DimensionLayout layoutDimension(const DimensionLinearEntity& dim);
 [[nodiscard]] std::string_view entityKindName(EntityKind kind);
 [[nodiscard]] std::size_t polylineSegmentCount(const PolylineEntity& pl);
 [[nodiscard]] geometry::Vec2 polylineSegmentStart(const PolylineEntity& pl, std::size_t i);

@@ -33,9 +33,18 @@ void PropertiesPanel::setDocument(const document::Document& doc) {
             continue;
         }
         const auto kind = document::entityKindName(entity->kind());
+        const auto* layer = doc.findLayer(entity->layerId);
         text += QStringLiteral("#%1 %2\n")
                     .arg(id)
                     .arg(QString::fromUtf8(kind.data(), static_cast<int>(kind.size())));
+        text += QStringLiteral("  layer: %1\n")
+                    .arg(layer ? QString::fromStdString(layer->name) : QStringLiteral("?"));
+        if (entity->colorArgb == document::kColorByLayer) {
+            text += QStringLiteral("  color: ByLayer\n");
+        } else {
+            text += QStringLiteral("  color: #%1\n")
+                        .arg(entity->colorArgb & 0xFFFFFFu, 6, 16, QLatin1Char('0'));
+        }
         if (const auto* line = std::get_if<document::LineEntity>(&entity->geometry)) {
             text += QStringLiteral("  start: %1, %2\n  end: %3, %4\n")
                         .arg(line->start.x)
@@ -58,6 +67,11 @@ void PropertiesPanel::setDocument(const document::Document& doc) {
             text += QStringLiteral("  vertices: %1\n  closed: %2\n")
                         .arg(pl->vertices.size())
                         .arg(pl->closed ? QStringLiteral("yes") : QStringLiteral("no"));
+        } else if (const auto* dim =
+                       std::get_if<document::DimensionLinearEntity>(&entity->geometry)) {
+            const auto layout = document::layoutDimension(*dim);
+            text += QStringLiteral("  measurement: %1\n")
+                        .arg(layout.measurement, 0, 'f', 4);
         }
         text += '\n';
     }

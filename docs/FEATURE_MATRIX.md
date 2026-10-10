@@ -30,8 +30,11 @@ Last updated: 2026-10-10
 | DXF import/export | partial | LINE/CIRCLE/ARC/LWPOLYLINE/LAYER |
 | DWG | unsupported | ADR 0004 |
 | LAYER (`LA`) NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR | implemented-tested | `test_layers.cpp` |
+| CHPROP (`CH`) color / layer | implemented-tested | `test_dims_props_snaps.cpp` |
+| DIMLINEAR (`DIM`) | implemented-tested | `test_dims_props_snaps.cpp` |
+| OSNAP INT/PER (+ END/MID/CEN) | implemented-tested | `test_dims_props_snaps.cpp` |
 | Layer panel (list / activate) | partial | UI |
-| Linetypes / blocks / dims | planned | |
+| Blocks / hatch / linetypes | planned | |
 
 ## Other catalog products
 

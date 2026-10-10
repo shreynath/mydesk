@@ -12,9 +12,13 @@ struct SnapSettings {
     bool endpoint{true};
     bool midpoint{true};
     bool center{true};
+    bool intersection{true};
+    bool perpendicular{true};
     bool grid{false};
     double gridSpacing{10.0};
     double aperture{8.0}; // model units
+    // When set, perpendicular snaps from this point onto nearby geometry.
+    std::optional<geometry::Vec2> fromPoint;
 };
 
 struct SnapResult {

@@ -63,7 +63,17 @@ geometry::Vec2 CanvasWidget::resolveWorld(QPointF screen, bool* snapped) {
     snaps_.gridSpacing = session_.modes().gridSpacing;
     if (session_.modes().objectSnap || session_.modes().gridSnap) {
         snaps_.aperture = 12.0 / scale_;
-        snaps_.endpoint = snaps_.midpoint = snaps_.center = session_.modes().objectSnap;
+        const bool os = session_.modes().objectSnap;
+        snaps_.endpoint = os && session_.modes().snapEndpoint;
+        snaps_.midpoint = os && session_.modes().snapMidpoint;
+        snaps_.center = os && session_.modes().snapCenter;
+        snaps_.intersection = os && session_.modes().snapIntersection;
+        snaps_.perpendicular = os && session_.modes().snapPerpendicular;
+        if (session_.hasActiveCommand() && !session_.context().points().empty()) {
+            snaps_.fromPoint = session_.context().points().back();
+        } else {
+            snaps_.fromPoint.reset();
+        }
         hoverSnap_ = draft::findSnap(session_.document(), world, snaps_);
         if (hoverSnap_) {
             world = hoverSnap_->point;
@@ -117,6 +127,27 @@ void CanvasWidget::drawEntity(QPainter& painter, const document::Entity& entity,
             path.closeSubpath();
         }
         painter.drawPath(path);
+    } else if (const auto* dim = std::get_if<document::DimensionLinearEntity>(&entity.geometry)) {
+        const auto layout = document::layoutDimension(*dim);
+        painter.drawLine(worldToScreen(layout.start), worldToScreen(layout.dimStart));
+        painter.drawLine(worldToScreen(layout.end), worldToScreen(layout.dimEnd));
+        painter.drawLine(worldToScreen(layout.dimStart), worldToScreen(layout.dimEnd));
+        // Arrow ticks
+        const auto ds = worldToScreen(layout.dimStart);
+        const auto de = worldToScreen(layout.dimEnd);
+        const QPointF dir = de - ds;
+        const double dlen = std::hypot(dir.x(), dir.y());
+        if (dlen > 1.0) {
+            const QPointF u = dir / dlen;
+            const QPointF n(-u.y(), u.x());
+            constexpr double tick = 6.0;
+            painter.drawLine(ds, ds + u * tick + n * tick);
+            painter.drawLine(ds, ds + u * tick - n * tick);
+            painter.drawLine(de, de - u * tick + n * tick);
+            painter.drawLine(de, de - u * tick - n * tick);
+        }
+        const auto textPos = worldToScreen(layout.textPos);
+        painter.drawText(textPos, QString::number(layout.measurement, 'f', 2));
     }
 }
 
@@ -165,13 +196,10 @@ void CanvasWidget::paintEvent(QPaintEvent*) {
         }
         const bool selected = selection.count(entity.id) != 0U;
         const bool hovered = entity.id == hoverEntity_;
-        QColor color = QColor(210, 224, 236);
-        if (layer) {
-            const auto argb = layer->colorArgb;
-            color = QColor(static_cast<int>((argb >> 16) & 0xFF),
-                           static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
-                           static_cast<int>((argb >> 24) & 0xFF));
-        }
+        const auto argb = session_.document().resolvedEntityColor(entity);
+        QColor color = QColor(static_cast<int>((argb >> 16) & 0xFF),
+                              static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
+                              static_cast<int>((argb >> 24) & 0xFF));
         double width = 1.6;
         if (selected) {
             color = QColor(255, 196, 72);

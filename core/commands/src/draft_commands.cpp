@@ -410,6 +410,141 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
     return errMsg("LAYER usage: NEW|MAKE|SET|ON|OFF|LOCK|UNLOCK|COLOR|LIST|?");
 }
 
+CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& args) {
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        return errMsg("CHPROP: select objects first");
+    }
+    if (args.empty()) {
+        return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name>");
+    }
+    const std::string op = normalizeToken(args[0]);
+    if (op == "COLOR") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP COLOR requires hex or BYLAYER");
+        }
+        if (normalizeToken(args[1]) == "BYLAYER") {
+            for (const auto id : selected) {
+                ctx.document().setEntityColor(id, document::kColorByLayer);
+            }
+            return okMsg("Color set to ByLayer on " + std::to_string(selected.size()) +
+                         " entity(ies)");
+        }
+        std::uint32_t argb = 0;
+        if (!parseColorToken(args[1], argb)) {
+            return errMsg("CHPROP COLOR expects RRGGBB or BYLAYER");
+        }
+        for (const auto id : selected) {
+            ctx.document().setEntityColor(id, argb);
+        }
+        return okMsg("Color updated on " + std::to_string(selected.size()) + " entity(ies)");
+    }
+    if (op == "LAYER") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP LAYER requires a layer name");
+        }
+        auto* layer = ctx.document().findLayerByName(args[1]);
+        if (!layer) {
+            return errMsg("Unknown layer: " + args[1]);
+        }
+        for (const auto id : selected) {
+            ctx.document().setEntityLayer(id, layer->id);
+        }
+        return okMsg("Layer set to " + layer->name + " on " + std::to_string(selected.size()) +
+                     " entity(ies)");
+    }
+    return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name>");
+}
+
+CommandResult handleDimension(CommandContext& ctx, const std::vector<std::string>& args) {
+    ctx.clearInputs();
+    for (const auto& arg : args) {
+        geometry::Vec2 p;
+        if (!parsePointToken(arg, p)) {
+            return errMsg("DIMLINEAR expects points as x,y");
+        }
+        ctx.pushPoint(p);
+    }
+    if (ctx.points().size() >= 3) {
+        try {
+            const auto id = ctx.document().addDimensionLinear(ctx.points()[0], ctx.points()[1],
+                                                              ctx.points()[2]);
+            ctx.clearInputs();
+            ctx.setPrompt("");
+            return okMsg("DIMLINEAR created #" + std::to_string(id), id);
+        } catch (const std::exception& ex) {
+            return errMsg(ex.what());
+        }
+    }
+    if (ctx.points().size() == 2) {
+        ctx.setPrompt("Specify dimension line location:");
+        return okMsg("DIMLINEAR: need dim line point");
+    }
+    if (ctx.points().size() == 1) {
+        ctx.setPrompt("Specify second extension line origin:");
+        return okMsg("DIMLINEAR: need second point");
+    }
+    ctx.setPrompt("Specify first extension line origin:");
+    return okMsg("DIMLINEAR: need first point");
+}
+
+CommandResult handleOsnap(CommandContext& ctx, const std::vector<std::string>& args) {
+    DraftModes* modes = ctx.modes();
+    if (!modes) {
+        return errMsg("OSNAP unavailable in this context");
+    }
+    if (args.empty() || normalizeToken(args[0]) == "?" || normalizeToken(args[0]) == "LIST") {
+        std::ostringstream oss;
+        oss << "OSNAP master=" << (modes->objectSnap ? "ON" : "OFF")
+            << " END=" << (modes->snapEndpoint ? "ON" : "OFF")
+            << " MID=" << (modes->snapMidpoint ? "ON" : "OFF")
+            << " CEN=" << (modes->snapCenter ? "ON" : "OFF")
+            << " INT=" << (modes->snapIntersection ? "ON" : "OFF")
+            << " PER=" << (modes->snapPerpendicular ? "ON" : "OFF");
+        return okMsg(oss.str());
+    }
+    const std::string tok = normalizeToken(args[0]);
+    if (tok == "ON") {
+        modes->objectSnap = true;
+        return okMsg("Object snap ON");
+    }
+    if (tok == "OFF") {
+        modes->objectSnap = false;
+        return okMsg("Object snap OFF");
+    }
+    auto setFlag = [&](bool& flag, const std::string& name) -> CommandResult {
+        if (args.size() >= 2) {
+            const auto v = normalizeToken(args[1]);
+            if (v == "ON" || v == "1") {
+                flag = true;
+            } else if (v == "OFF" || v == "0") {
+                flag = false;
+            } else {
+                return errMsg("OSNAP " + name + " expects ON|OFF");
+            }
+        } else {
+            flag = !flag;
+        }
+        return okMsg(name + (flag ? " ON" : " OFF"));
+    };
+    if (tok == "END" || tok == "ENDPOINT") {
+        return setFlag(modes->snapEndpoint, "END");
+    }
+    if (tok == "MID" || tok == "MIDPOINT") {
+        return setFlag(modes->snapMidpoint, "MID");
+    }
+    if (tok == "CEN" || tok == "CENTER") {
+        return setFlag(modes->snapCenter, "CEN");
+    }
+    if (tok == "INT" || tok == "INTERSECTION") {
+        return setFlag(modes->snapIntersection, "INT");
+    }
+    if (tok == "PER" || tok == "PERPENDICULAR") {
+        return setFlag(modes->snapPerpendicular, "PER");
+    }
+    return errMsg("OSNAP usage: ON|OFF|END|MID|CEN|INT|PER [?]");
+}
+
 } // namespace
 
 void registerDraftCommands(CommandRegistry& registry) {
@@ -509,11 +644,35 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Command-line layer manager: NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR/LIST",
         .handler = handleLayer,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "CHPROP",
+        .label = "Change properties",
+        .aliases = {"CH"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Change selection COLOR (hex|BYLAYER) or LAYER",
+        .handler = handleChprop,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "DIMLINEAR",
+        .label = "Linear dimension",
+        .aliases = {"DIM", "DIMENSION"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Aligned linear dimension: two origins + dim-line location",
+        .handler = handleDimension,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "OSNAP",
+        .label = "Object snap",
+        .aliases = {"OS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Toggle snap modes END/MID/CEN/INT/PER",
+        .handler = handleOsnap,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
         {"BLOCK", {"B"}},       {"INSERT", {"I"}}, {"HATCH", {"H", "BH"}},
-        {"DIMENSION", {"DIM"}}, {"ZOOM", {"Z"}},   {"ARC", {"A"}},    {"MIRROR", {"MI"}},
-        {"STRETCH", {"S"}}, {"EXPLODE", {"X"}},    {"XLINE", {"XL"}}, {"OSNAP", {"OS"}},
+        {"ZOOM", {"Z"}},   {"ARC", {"A"}},    {"MIRROR", {"MI"}},
+        {"STRETCH", {"S"}}, {"EXPLODE", {"X"}},    {"XLINE", {"XL"}},
         {"PAN", {"P"}},
     };
     for (const auto& [id, aliases] : planned) {

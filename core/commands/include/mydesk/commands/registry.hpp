@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mydesk/commands/draft_modes.hpp"
 #include "mydesk/document/document.hpp"
 #include "mydesk/geometry/vec2.hpp"
 
@@ -38,6 +39,10 @@ public:
     [[nodiscard]] document::Document& document() { return document_; }
     [[nodiscard]] const document::Document& document() const { return document_; }
 
+    void bindModes(DraftModes* modes) { modes_ = modes; }
+    [[nodiscard]] DraftModes* modes() { return modes_; }
+    [[nodiscard]] const DraftModes* modes() const { return modes_; }
+
     void setPrompt(std::string prompt) { prompt_ = std::move(prompt); }
     [[nodiscard]] const std::string& prompt() const { return prompt_; }
 
@@ -56,6 +61,7 @@ public:
 
 private:
     document::Document& document_;
+    DraftModes* modes_{nullptr};
     std::string prompt_;
     std::vector<geometry::Vec2> points_;
     std::vector<double> numbers_;

@@ -8,7 +8,7 @@ namespace mydesk::exchange {
 
 namespace {
 
-constexpr const char* kSchemaVersion = "2";
+constexpr const char* kSchemaVersion = "3";
 
 std::string escapeJson(std::string_view s) {
     std::string out;
@@ -211,7 +211,8 @@ std::string serializeNative(const document::Document& doc) {
     oss << "  \"entities\": [\n";
     for (std::size_t i = 0; i < doc.entities().size(); ++i) {
         const auto& entity = doc.entities()[i];
-        oss << "    {\"id\": " << entity.id << ", \"layerId\": " << entity.layerId << ", \"kind\": \""
+        oss << "    {\"id\": " << entity.id << ", \"layerId\": " << entity.layerId
+            << ", \"colorArgb\": " << entity.colorArgb << ", \"kind\": \""
             << document::entityKindName(entity.kind()) << "\", ";
         if (const auto* line = std::get_if<document::LineEntity>(&entity.geometry)) {
             oss << "\"start\": {\"x\": " << line->start.x << ", \"y\": " << line->start.y
@@ -232,6 +233,11 @@ std::string serializeNative(const document::Document& doc) {
                 }
             }
             oss << "]";
+        } else if (const auto* dim = std::get_if<document::DimensionLinearEntity>(&entity.geometry)) {
+            oss << "\"start\": {\"x\": " << dim->start.x << ", \"y\": " << dim->start.y
+                << "}, \"end\": {\"x\": " << dim->end.x << ", \"y\": " << dim->end.y
+                << "}, \"dimLine\": {\"x\": " << dim->dimLine.x << ", \"y\": " << dim->dimLine.y
+                << "}";
         }
         oss << "}";
         if (i + 1 < doc.entities().size()) {
@@ -311,6 +317,10 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         extractUintAfterKey(obj, "layerId", layerId);
         entity.id = id;
         entity.layerId = layerId;
+        double color = 0;
+        if (extractNumberAfterKey(obj, "colorArgb", color)) {
+            entity.colorArgb = static_cast<std::uint32_t>(color);
+        }
         std::string kind;
         extractStringField(obj, "kind", kind);
         if (kind == "LINE") {
@@ -378,6 +388,26 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
                 continue;
             }
             entity.geometry = pl;
+        } else if (kind == "DIMLINEAR") {
+            document::DimensionLinearEntity dim;
+            const auto startPos = obj.find("\"start\"");
+            const auto endPos = obj.find("\"end\"");
+            const auto dimPos = obj.find("\"dimLine\"");
+            if (startPos == std::string_view::npos || endPos == std::string_view::npos ||
+                dimPos == std::string_view::npos) {
+                report.warnings.push_back("Skipping DIMLINEAR without points");
+                continue;
+            }
+            const auto startSlice = obj.substr(startPos, endPos - startPos);
+            const auto endSlice = obj.substr(endPos, dimPos - endPos);
+            const auto dimSlice = obj.substr(dimPos);
+            extractNumberAfterKey(startSlice, "x", dim.start.x);
+            extractNumberAfterKey(startSlice, "y", dim.start.y);
+            extractNumberAfterKey(endSlice, "x", dim.end.x);
+            extractNumberAfterKey(endSlice, "y", dim.end.y);
+            extractNumberAfterKey(dimSlice, "x", dim.dimLine.x);
+            extractNumberAfterKey(dimSlice, "y", dim.dimLine.y);
+            entity.geometry = dim;
         } else {
             report.warnings.push_back("Unsupported entity kind: " + kind);
             continue;

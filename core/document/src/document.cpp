@@ -154,6 +154,34 @@ bool Document::setEntityLayer(EntityId id, LayerId layerId) {
     return true;
 }
 
+bool Document::setEntityColor(EntityId id, std::uint32_t colorArgb) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    if (existing->colorArgb == colorArgb) {
+        return true;
+    }
+    Entity after = *existing;
+    after.colorArgb = colorArgb;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+std::uint32_t Document::resolvedEntityColor(const Entity& entity) const {
+    if (entity.colorArgb != kColorByLayer) {
+        return entity.colorArgb;
+    }
+    if (const Layer* layer = findLayer(entity.layerId)) {
+        return layer->colorArgb;
+    }
+    return 0xFFE0E0E0u;
+}
+
 EntityId Document::addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel) {
     Entity entity;
     entity.id = allocateEntityId();
@@ -230,6 +258,23 @@ EntityId Document::addRectangle(geometry::Vec2 cornerA, geometry::Vec2 cornerB,
         {minX, minY}, {maxX, minY}, {maxX, maxY}, {minX, maxY},
     };
     return addPolyline(std::move(verts), true, std::move(txLabel));
+}
+
+EntityId Document::addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end,
+                                      geometry::Vec2 dimLine, std::string txLabel) {
+    if (start.nearlyEqual(end)) {
+        throw std::invalid_argument("dimension points must be distinct");
+    }
+    Entity entity;
+    entity.id = allocateEntityId();
+    entity.layerId = activeLayerId_;
+    entity.geometry = DimensionLinearEntity{start, end, dimLine};
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+    commit(std::move(tx));
+    return entity.id;
 }
 
 bool Document::removeEntity(EntityId id, std::string txLabel) {
@@ -338,6 +383,10 @@ Entity transformEntity(Entity entity, const std::function<geometry::Vec2(geometr
         for (auto& v : pl->vertices) {
             v = mapPoint(v);
         }
+    } else if (auto* dim = std::get_if<DimensionLinearEntity>(&entity.geometry)) {
+        dim->start = mapPoint(dim->start);
+        dim->end = mapPoint(dim->end);
+        dim->dimLine = mapPoint(dim->dimLine);
     }
     return entity;
 }

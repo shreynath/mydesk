@@ -52,6 +52,30 @@ geometry::Vec2 polylineSegmentEnd(const PolylineEntity& pl, std::size_t i) {
     return pl.vertices[(i + 1) % pl.vertices.size()];
 }
 
+DimensionLayout layoutDimension(const DimensionLinearEntity& dim) {
+    DimensionLayout layout;
+    layout.start = dim.start;
+    layout.end = dim.end;
+    layout.measurement = dim.start.distanceTo(dim.end);
+    geometry::Vec2 dir = dim.end - dim.start;
+    const double len = dir.length();
+    if (len < 1e-12) {
+        layout.dimStart = dim.start;
+        layout.dimEnd = dim.end;
+        layout.textPos = dim.dimLine;
+        return layout;
+    }
+    dir = dir / len;
+    const geometry::Vec2 perp{-dir.y, dir.x};
+    const geometry::Vec2 mid = (dim.start + dim.end) * 0.5;
+    const geometry::Vec2 toDim = dim.dimLine - mid;
+    const double offset = toDim.x * perp.x + toDim.y * perp.y;
+    layout.dimStart = dim.start + perp * offset;
+    layout.dimEnd = dim.end + perp * offset;
+    layout.textPos = (layout.dimStart + layout.dimEnd) * 0.5 + perp * (offset >= 0 ? 2.0 : -2.0);
+    return layout;
+}
+
 EntityKind Entity::kind() const {
     if (std::holds_alternative<LineEntity>(geometry)) {
         return EntityKind::Line;
@@ -61,6 +85,9 @@ EntityKind Entity::kind() const {
     }
     if (std::holds_alternative<ArcEntity>(geometry)) {
         return EntityKind::Arc;
+    }
+    if (std::holds_alternative<DimensionLinearEntity>(geometry)) {
+        return EntityKind::DimensionLinear;
     }
     return EntityKind::Polyline;
 }
@@ -76,12 +103,21 @@ geometry::BBox Entity::bounds() const {
         geometry::BBox box;
         box.expand(arcPointAt(*arc, arc->startAngle));
         box.expand(arcPointAt(*arc, arc->endAngle));
-        // Include axis extrema if they lie on the arc.
         for (double a : {0.0, kPi * 0.5, kPi, kPi * 1.5}) {
             if (angleOnArc(*arc, a)) {
                 box.expand(arcPointAt(*arc, a));
             }
         }
+        return box;
+    }
+    if (const auto* dim = std::get_if<DimensionLinearEntity>(&geometry)) {
+        const auto layout = layoutDimension(*dim);
+        geometry::BBox box;
+        box.expand(layout.start);
+        box.expand(layout.end);
+        box.expand(layout.dimStart);
+        box.expand(layout.dimEnd);
+        box.expand(layout.textPos);
         return box;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
@@ -106,6 +142,19 @@ bool Entity::hitTest(geometry::Vec2 point, double tol) const {
         }
         const double ang = std::atan2(point.y - arc->center.y, point.x - arc->center.x);
         return angleOnArc(*arc, ang, 1e-6);
+    }
+    if (const auto* dim = std::get_if<DimensionLinearEntity>(&geometry)) {
+        const auto layout = layoutDimension(*dim);
+        if (geometry::Segment{layout.dimStart, layout.dimEnd}.distanceToPoint(point) <= tol) {
+            return true;
+        }
+        if (geometry::Segment{layout.start, layout.dimStart}.distanceToPoint(point) <= tol) {
+            return true;
+        }
+        if (geometry::Segment{layout.end, layout.dimEnd}.distanceToPoint(point) <= tol) {
+            return true;
+        }
+        return layout.textPos.distanceTo(point) <= tol * 2.0;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
     const std::size_t n = polylineSegmentCount(pl);
@@ -165,6 +214,13 @@ bool Entity::intersectsRect(const geometry::BBox& rect, bool crossing) const {
         }
         return true;
     }
+    if (const auto* dim = std::get_if<DimensionLinearEntity>(&geometry)) {
+        const auto layout = layoutDimension(*dim);
+        return segmentCrossesRect({layout.dimStart, layout.dimEnd}, rect) ||
+               segmentCrossesRect({layout.start, layout.dimStart}, rect) ||
+               segmentCrossesRect({layout.end, layout.dimEnd}, rect) ||
+               rect.contains(layout.textPos);
+    }
     const auto& pl = std::get<PolylineEntity>(geometry);
     const std::size_t n = polylineSegmentCount(pl);
     for (std::size_t i = 0; i < n; ++i) {
@@ -185,6 +241,8 @@ std::string_view entityKindName(EntityKind kind) {
         return "ARC";
     case EntityKind::Polyline:
         return "PLINE";
+    case EntityKind::DimensionLinear:
+        return "DIMLINEAR";
     }
     return "UNKNOWN";
 }

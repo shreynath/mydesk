@@ -35,7 +35,12 @@ workflows:
 
   - id: object-snaps
     status: partial
-    notes: endpoint/midpoint/center + grid; aperture basics
+    notes: END/MID/CEN/INT/PER + grid; OSNAP command
+    proof: tests/unit/test_dims_props_snaps.cpp
+
+  - id: chprop-color
+    status: verified
+    proof: tests/unit/test_dims_props_snaps.cpp
 
   - id: dxf-roundtrip
     status: partial
@@ -47,7 +52,9 @@ workflows:
     notes: No DWG claim
 
   - id: dimensions-annotations
-    status: not-started
+    status: partial
+    notes: DIMLINEAR aligned only; no DIMSTYLE/associativity
+    proof: tests/unit/test_dims_props_snaps.cpp
 
   - id: blocks-attributes-xrefs
     status: not-started

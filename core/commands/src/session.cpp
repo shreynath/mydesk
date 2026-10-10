@@ -5,7 +5,9 @@
 namespace mydesk::commands {
 
 Session::Session()
-    : document_(), registry_(CommandRegistry::createDefault()), context_(document_) {}
+    : document_(), registry_(CommandRegistry::createDefault()), context_(document_) {
+    context_.bindModes(&modes_);
+}
 
 geometry::Vec2 Session::applyOrtho(geometry::Vec2 point) const {
     if (!modes_.ortho || context_.points().empty()) {
