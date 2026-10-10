@@ -1,5 +1,6 @@
 add_library(mydesk_mechanical_engine
   src/part_document.cpp
+  src/assembly_document.cpp
 )
 add_library(mydesk::mechanical_engine ALIAS mydesk_mechanical_engine)
 

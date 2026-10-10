@@ -9,6 +9,8 @@ add_executable(mydesk_tests
   unit/test_coordinates.cpp
   unit/test_explode.cpp
   unit/test_linetypes.cpp
+  unit/test_attributes.cpp
+  unit/test_layouts.cpp
   unit/test_snaps.cpp
   unit/test_transforms.cpp
   unit/test_modify.cpp

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "product_id": "coordinate",
+  "product_name": "MyDesk Coordinate",
+  "binary": "MyDeskCoordinate",
+  "target_application": "Navisworks",
+  "target_version": "2025",
+  "note": "Full target inventory. FUNCTIONAL is not complete parity.",
+  "capabilities": [
+    {
+      "id": "NW-HARD-CLASH-DETECTION",
+      "target_application": "Navisworks",
+      "target_version": "2025",
+      "category": "clash",
+      "name": "Federated multi-model hard clash detection with penetration depth",
+      "command": "ClashDetective / HardClash",
+      "reference_behavior": "Executes spatial intersection analysis between element selection sets across disciplines. Identifies overlapping 3D bounding geometry, calculates minimum penetration overlap, and records clash records.",
+      "expected_input": "Structural column and MEP pipe overlapping in 3D space",
+      "expected_output": "1 hard clash detected; penetration depth 0.2 m; clash point recorded",
+      "formats": [
+        ".mydesk-coord",
+        ".bcf"
+      ],
+      "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
+      "tests": [
+        "test_hard_clash_detection_and_penetration"
+      ],
+      "manual_tests": [],
+      "performance": "Interactive bounding box acceleration.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/coordinate/tests/test_coordinate.cpp",
+      "differences": "Detailed triangle-triangle polygonal mesh intersection is planned for subsequent iterations."
+    },
+    {
+      "id": "NW-CLEARANCE-CLASH-DETECTION",
+      "target_application": "Navisworks",
+      "target_version": "2025",
+      "category": "clash",
+      "name": "Clearance buffer proximity violation detection",
+      "command": "ClashDetective / Clearance",
+      "reference_behavior": "Computes Euclidean separation distance between isolated elements and flags clearance violations where distance is less than or equal to the specified buffer threshold.",
+      "expected_input": "Wall and electrical tray separated by 0.02 m with 0.05 m clearance threshold",
+      "expected_output": "1 clearance clash detected with distance 0.02 m",
+      "formats": [
+        ".mydesk-coord"
+      ],
+      "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
+      "tests": [
+        "test_clearance_clash_detection"
+      ],
+      "manual_tests": [],
+      "performance": "Interactive distance computation.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/coordinate/tests/test_coordinate.cpp",
+      "differences": "Complex non-convex clearance sweeps are deferred."
+    },
+    {
+      "id": "NW-BCF-EXPORT-PERSISTENCE",
+      "target_application": "Navisworks",
+      "target_version": "2025",
+      "category": "interoperability",
+      "name": "BIM Collaboration Format (BCF 2.1 XML) export and session persistence",
+      "command": "ExportBCF / SaveSession",
+      "reference_behavior": "Exports clash viewpoints and component identifiers to industry standard BCF XML structure and roundtrips multi-model coordination state natively.",
+      "expected_input": "Coordinated multi-model session with clashes",
+      "expected_output": "Valid BCF 2.1 XML with viewpoints, origin coordinates, and components; restored session",
+      "formats": [
+        ".mydesk-coord",
+        ".bcf"
+      ],
+      "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
+      "tests": [
+        "test_bcf_export_and_session_persistence"
+      ],
+      "manual_tests": [],
+      "performance": "Instantaneous XML export.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/coordinate/tests/test_coordinate.cpp",
+      "differences": "Embedded PNG snapshot thumbnails in BCF archives are planned for GUI release."
+    }
+  ]
+}

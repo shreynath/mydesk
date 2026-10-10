@@ -50,6 +50,18 @@ TypeId ProjectDocument::addDoorType(std::string typeName, double width, double h
     return type.id;
 }
 
+TypeId ProjectDocument::addWindowType(std::string typeName, double width, double height,
+                                       double sillHeight) {
+    WindowType type;
+    type.id = nextTypeId_++;
+    type.name = std::move(typeName);
+    type.width = width;
+    type.height = height;
+    type.sillHeight = sillHeight;
+    windowTypes.push_back(type);
+    return type.id;
+}
+
 ElementId ProjectDocument::addWall(TypeId typeId, LevelId levelId, double x0, double y0, double x1,
                                    double y1) {
     Wall wall;
@@ -72,6 +84,16 @@ ElementId ProjectDocument::addDoor(TypeId typeId, ElementId hostWallId, double o
     door.offsetAlongWall = offsetAlongWall;
     doors.push_back(door);
     return door.id;
+}
+
+ElementId ProjectDocument::addWindow(TypeId typeId, ElementId hostWallId, double offsetAlongWall) {
+    Window win;
+    win.id = nextElementId_++;
+    win.typeId = typeId;
+    win.hostWallId = hostWallId;
+    win.offsetAlongWall = offsetAlongWall;
+    windows.push_back(win);
+    return win.id;
 }
 
 ElementId ProjectDocument::addRoom(LevelId levelId, std::string roomName,
@@ -122,6 +144,33 @@ const WallType* ProjectDocument::findWallType(TypeId id) const {
     return nullptr;
 }
 
+const DoorType* ProjectDocument::findDoorType(TypeId id) const {
+    for (const auto& type : doorTypes) {
+        if (type.id == id) {
+            return &type;
+        }
+    }
+    return nullptr;
+}
+
+const WindowType* ProjectDocument::findWindowType(TypeId id) const {
+    for (const auto& type : windowTypes) {
+        if (type.id == id) {
+            return &type;
+        }
+    }
+    return nullptr;
+}
+
+const Room* ProjectDocument::findRoom(ElementId id) const {
+    for (const auto& room : rooms) {
+        if (room.id == id) {
+            return &room;
+        }
+    }
+    return nullptr;
+}
+
 double ProjectDocument::wallLength(const Wall& wall) const {
     return std::hypot(wall.x1 - wall.x0, wall.y1 - wall.y0);
 }
@@ -138,6 +187,28 @@ double ProjectDocument::wallArea(const Wall& wall) const {
     return wallLength(wall) * wallHeight(wall);
 }
 
+double ProjectDocument::wallNetArea(const Wall& wall) const {
+    double gross = wallArea(wall);
+    double deductions = 0.0;
+    for (const auto& door : doors) {
+        if (door.hostWallId == wall.id) {
+            const auto* dt = findDoorType(door.typeId);
+            if (dt) {
+                deductions += (dt->width * dt->height);
+            }
+        }
+    }
+    for (const auto& win : windows) {
+        if (win.hostWallId == wall.id) {
+            const auto* wt = findWindowType(win.typeId);
+            if (wt) {
+                deductions += (wt->width * wt->height);
+            }
+        }
+    }
+    return std::max(0.0, gross - deductions);
+}
+
 double ProjectDocument::wallBaseElevation(const Wall& wall) const {
     const auto* level = findLevel(wall.baseLevelId);
     return (level ? level->elevation : 0.0) + wall.baseOffset;
@@ -145,6 +216,24 @@ double ProjectDocument::wallBaseElevation(const Wall& wall) const {
 
 double ProjectDocument::wallTopElevation(const Wall& wall) const {
     return wallBaseElevation(wall) + wallHeight(wall);
+}
+
+double ProjectDocument::roomArea(const Room& room) const {
+    if (room.boundary.size() < 3) {
+        return 0.0;
+    }
+    double sum = 0.0;
+    const std::size_t n = room.boundary.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto& [x1, y1] = room.boundary[i];
+        const auto& [x2, y2] = room.boundary[(i + 1) % n];
+        sum += (x1 * y2 - x2 * y1);
+    }
+    return 0.5 * std::abs(sum);
+}
+
+double ProjectDocument::roomVolume(const Room& room, double height) const {
+    return roomArea(room) * (height > 0.0 ? height : 3.0);
 }
 
 std::vector<ScheduleRow> ProjectDocument::wallScheduleByType() const {
@@ -160,6 +249,21 @@ std::vector<ScheduleRow> ProjectDocument::wallScheduleByType() const {
     std::vector<ScheduleRow> out;
     out.reserve(rows.size());
     for (auto& [_, row] : rows) {
+        out.push_back(std::move(row));
+    }
+    return out;
+}
+
+std::vector<RoomScheduleRow> ProjectDocument::roomScheduleByLevel() const {
+    std::vector<RoomScheduleRow> out;
+    out.reserve(rooms.size());
+    for (const auto& room : rooms) {
+        const auto* level = findLevel(room.levelId);
+        RoomScheduleRow row;
+        row.roomName = room.name;
+        row.levelName = level ? level->name : "Unknown";
+        row.area = roomArea(room);
+        row.volume = roomVolume(room);
         out.push_back(std::move(row));
     }
     return out;
@@ -202,6 +306,40 @@ std::string ProjectDocument::serializeNative() const {
         oss << "{\"id\":" << d.id << ",\"typeId\":" << d.typeId << ",\"hostWallId\":"
             << d.hostWallId << ",\"offsetAlongWall\":" << d.offsetAlongWall << "}";
         if (i + 1 < doors.size()) {
+            oss << ",";
+        }
+    }
+    oss << "],\"windowTypes\":[";
+    for (std::size_t i = 0; i < windowTypes.size(); ++i) {
+        const auto& wt = windowTypes[i];
+        oss << "{\"id\":" << wt.id << ",\"name\":\"" << wt.name << "\",\"width\":" << wt.width
+            << ",\"height\":" << wt.height << ",\"sillHeight\":" << wt.sillHeight << "}";
+        if (i + 1 < windowTypes.size()) {
+            oss << ",";
+        }
+    }
+    oss << "],\"windows\":[";
+    for (std::size_t i = 0; i < windows.size(); ++i) {
+        const auto& win = windows[i];
+        oss << "{\"id\":" << win.id << ",\"typeId\":" << win.typeId << ",\"hostWallId\":"
+            << win.hostWallId << ",\"offsetAlongWall\":" << win.offsetAlongWall << "}";
+        if (i + 1 < windows.size()) {
+            oss << ",";
+        }
+    }
+    oss << "],\"rooms\":[";
+    for (std::size_t i = 0; i < rooms.size(); ++i) {
+        const auto& rm = rooms[i];
+        oss << "{\"id\":" << rm.id << ",\"levelId\":" << rm.levelId << ",\"name\":\"" << rm.name
+            << "\",\"boundary\":[";
+        for (std::size_t b = 0; b < rm.boundary.size(); ++b) {
+            oss << "{\"x\":" << rm.boundary[b].first << ",\"y\":" << rm.boundary[b].second << "}";
+            if (b + 1 < rm.boundary.size()) {
+                oss << ",";
+            }
+        }
+        oss << "]}";
+        if (i + 1 < rooms.size()) {
             oss << ",";
         }
     }
@@ -310,9 +448,10 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
     }
 
     cursor = doorsPos;
-    while (cursor != std::string_view::npos) {
+    const auto winTypesPos = json.find("\"windowTypes\"");
+    while (cursor != std::string_view::npos && (winTypesPos == std::string_view::npos || cursor < winTypesPos)) {
         const auto next = json.find("\"offsetAlongWall\"", cursor);
-        if (next == std::string_view::npos) {
+        if (next == std::string_view::npos || (winTypesPos != std::string_view::npos && next > winTypesPos)) {
             break;
         }
         Door door;
@@ -327,6 +466,87 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
         doc.doors.push_back(door);
         doc.nextElementId_ = std::max(doc.nextElementId_, door.id + 1);
         cursor = next + 18;
+    }
+
+    cursor = winTypesPos;
+    const auto windowsPos = json.find("\"windows\"");
+    while (cursor != std::string_view::npos && cursor < windowsPos) {
+        const auto next = json.find("\"sillHeight\"", cursor);
+        if (next == std::string_view::npos || next > windowsPos) {
+            break;
+        }
+        WindowType wt;
+        double id = 0;
+        findNumberAfter("\"id\"", cursor, id);
+        wt.id = static_cast<TypeId>(id);
+        findStringAfter("\"name\"", cursor, wt.name);
+        findNumberAfter("\"width\"", cursor, wt.width);
+        findNumberAfter("\"height\"", cursor, wt.height);
+        findNumberAfter("\"sillHeight\"", cursor, wt.sillHeight);
+        doc.windowTypes.push_back(wt);
+        doc.nextTypeId_ = std::max(doc.nextTypeId_, wt.id + 1);
+        cursor = next + 12;
+    }
+
+    cursor = windowsPos;
+    const auto roomsPos = json.find("\"rooms\"");
+    while (cursor != std::string_view::npos && (roomsPos == std::string_view::npos || cursor < roomsPos)) {
+        const auto next = json.find("\"offsetAlongWall\"", cursor);
+        if (next == std::string_view::npos || (roomsPos != std::string_view::npos && next > roomsPos)) {
+            break;
+        }
+        Window win;
+        double id = 0, typeId = 0, host = 0;
+        findNumberAfter("\"id\"", cursor, id);
+        findNumberAfter("\"typeId\"", cursor, typeId);
+        findNumberAfter("\"hostWallId\"", cursor, host);
+        findNumberAfter("\"offsetAlongWall\"", cursor, win.offsetAlongWall);
+        win.id = static_cast<ElementId>(id);
+        win.typeId = static_cast<TypeId>(typeId);
+        win.hostWallId = static_cast<ElementId>(host);
+        doc.windows.push_back(win);
+        doc.nextElementId_ = std::max(doc.nextElementId_, win.id + 1);
+        cursor = next + 18;
+    }
+
+    cursor = roomsPos;
+    while (cursor != std::string_view::npos) {
+        const auto namePos = json.find("\"name\":", cursor);
+        if (namePos == std::string_view::npos) {
+            break;
+        }
+        Room rm;
+        double id = 0, levelId = 0;
+        findNumberAfter("\"id\"", cursor, id);
+        findNumberAfter("\"levelId\"", cursor, levelId);
+        findStringAfter("\"name\"", cursor, rm.name);
+        rm.id = static_cast<ElementId>(id);
+        rm.levelId = static_cast<LevelId>(levelId);
+
+        const auto bStart = json.find("\"boundary\":[", cursor);
+        if (bStart != std::string_view::npos) {
+            const auto bEnd = json.find(']', bStart);
+            if (bEnd != std::string_view::npos) {
+                std::size_t bCursor = bStart;
+                while (bCursor < bEnd) {
+                    const auto xPos = json.find("\"x\":", bCursor);
+                    const auto yPos = json.find("\"y\":", bCursor);
+                    if (xPos == std::string_view::npos || yPos == std::string_view::npos ||
+                        xPos > bEnd || yPos > bEnd) {
+                        break;
+                    }
+                    double x = 0, y = 0;
+                    findNumberAfter("\"x\"", bCursor, x);
+                    findNumberAfter("\"y\"", bCursor, y);
+                    rm.boundary.emplace_back(x, y);
+                    bCursor = yPos + 4;
+                }
+            }
+        }
+        doc.rooms.push_back(rm);
+        doc.nextElementId_ = std::max(doc.nextElementId_, rm.id + 1);
+        const auto nextRm = json.find("{\"id\":", namePos);
+        cursor = nextRm;
     }
     return doc;
 }
@@ -401,14 +621,17 @@ std::string ProjectDocument::exportIfc4() const {
         const int lenProp = next();
         const int baseProp = next();
         const int topProp = next();
+        const int netProp = next();
         out << "#" << lenProp << "=IFCPROPERTYSINGLEVALUE('Length',$,IFCLENGTHMEASURE("
             << wallLength(wall) << "),$);\n";
         out << "#" << baseProp << "=IFCPROPERTYSINGLEVALUE('BaseElevation',$,IFCLENGTHMEASURE("
             << wallBaseElevation(wall) << "),$);\n";
         out << "#" << topProp << "=IFCPROPERTYSINGLEVALUE('TopElevation',$,IFCLENGTHMEASURE("
             << wallTopElevation(wall) << "),$);\n";
+        out << "#" << netProp << "=IFCPROPERTYSINGLEVALUE('NetArea',$,IFCAREAMEASURE("
+            << wallNetArea(wall) << "),$);\n";
         out << "#" << pset << "=IFCPROPERTYSET('Pset_WallCommon',#,$,$,(#" << lenProp << ",#"
-            << baseProp << ",#" << topProp << "));\n";
+            << baseProp << ",#" << topProp << ",#" << netProp << "));\n";
         const int relProp = next();
         out << "#" << relProp << "=IFCRELDEFINESBYPROPERTIES('RelProps',#,$,$,(#" << wallId
             << "),#" << pset << ");\n";
@@ -434,9 +657,50 @@ std::string ProjectDocument::exportIfc4() const {
         out << "#" << doorId << "=IFCDOOR('Door" << door.id << "',#,$,$,$,$,$,$,$);\n";
         if (findWall(door.hostWallId)) {
             const int voidRel = next();
-            // Host relationship recorded; opening geometry is a later slice.
-            out << "#" << voidRel << "=IFCRELFILLSELEMENT('RelFill',#,$,$,$,#" << doorId << ");\n";
+            out << "#" << voidRel << "=IFCRELFILLSELEMENT('RelFillDoor',#,$,$,$,#" << doorId << ");\n";
         }
+    }
+
+    for (const auto& win : windows) {
+        const int winId = next();
+        out << "#" << winId << "=IFCWINDOW('Window" << win.id << "',#,$,$,$,$,$,$,$);\n";
+        if (findWall(win.hostWallId)) {
+            const int voidRel = next();
+            out << "#" << voidRel << "=IFCRELFILLSELEMENT('RelFillWin',#,$,$,$,#" << winId << ");\n";
+        }
+    }
+
+    std::unordered_map<LevelId, std::vector<int>> roomsByLevel;
+    for (const auto& rm : rooms) {
+        const int spaceId = next();
+        roomsByLevel[rm.levelId].push_back(spaceId);
+        out << "#" << spaceId << "=IFCSPACE('Room_" << escape(rm.name) << "',#,$,$,$,$,$,$,.ELEMENT.,$);\n";
+        const int pset = next();
+        const int areaProp = next();
+        const int volProp = next();
+        out << "#" << areaProp << "=IFCPROPERTYSINGLEVALUE('GrossFloorArea',$,IFCAREAMEASURE("
+            << roomArea(rm) << "),$);\n";
+        out << "#" << volProp << "=IFCPROPERTYSINGLEVALUE('GrossVolume',$,IFCVOLUMEMEASURE("
+            << roomVolume(rm) << "),$);\n";
+        out << "#" << pset << "=IFCPROPERTYSET('Pset_SpaceCommon',#,$,$,(#" << areaProp << ",#" << volProp << "));\n";
+        const int relProp = next();
+        out << "#" << relProp << "=IFCRELDEFINESBYPROPERTIES('RelSpaceProps',#,$,$,(#" << spaceId
+            << "),#" << pset << ");\n";
+    }
+
+    for (const auto& [levelId, spaceIds] : roomsByLevel) {
+        if (levelIfc.count(levelId) == 0U || spaceIds.empty()) {
+            continue;
+        }
+        const int rel = next();
+        out << "#" << rel << "=IFCRELCONTAINEDINSPATIALSTRUCTURE('RelSpaces',#,$,$,(";
+        for (std::size_t i = 0; i < spaceIds.size(); ++i) {
+            out << "#" << spaceIds[i];
+            if (i + 1 < spaceIds.size()) {
+                out << ",";
+            }
+        }
+        out << "),#" << levelIfc[levelId] << ");\n";
     }
 
     out << "ENDSEC;\nEND-ISO-10303-21;\n";

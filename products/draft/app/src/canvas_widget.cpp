@@ -175,6 +175,16 @@ void CanvasWidget::drawEntity(QPainter& painter, const document::Entity& entity,
             painter.fillPath(path, fill);
             painter.strokePath(path, pen);
         }
+    } else if (const auto* attdef = std::get_if<document::AttdefEntity>(&entity.geometry)) {
+        painter.save();
+        const auto pos = worldToScreen(attdef->position);
+        painter.translate(pos);
+        painter.rotate(-attdef->rotationDeg);
+        QFont font = painter.font();
+        font.setPointSizeF(std::max(6.0, attdef->height * scale_ * 0.75));
+        painter.setFont(font);
+        painter.drawText(QPointF(0, 0), QString::fromStdString(attdef->tag));
+        painter.restore();
     } else if (const auto* insert = std::get_if<document::InsertEntity>(&entity.geometry)) {
         const auto* block = session_.document().findBlock(insert->blockName);
         if (!block) {
@@ -192,6 +202,24 @@ void CanvasWidget::drawEntity(QPainter& painter, const document::Entity& entity,
                 primColor = pen.color();
             }
             drawEntity(painter, proxy, QPen(primColor, pen.widthF()));
+        }
+        const auto mode = session_.document().attributeDisplayMode();
+        if (mode != document::AttributeDisplayMode::Off) {
+            for (const auto& attr : insert->attributes) {
+                if (mode == document::AttributeDisplayMode::Normal && attr.invisible) {
+                    continue;
+                }
+                painter.save();
+                const auto pos = worldToScreen(attr.position);
+                painter.translate(pos);
+                painter.rotate(-attr.rotationDeg);
+                QFont font = painter.font();
+                font.setPointSizeF(std::max(6.0, attr.height * scale_ * 0.75));
+                painter.setFont(font);
+                painter.setPen(pen);
+                painter.drawText(QPointF(0, 0), QString::fromStdString(attr.value));
+                painter.restore();
+            }
         }
     }
 }

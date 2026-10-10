@@ -360,7 +360,7 @@
       "performance": "Linear in the number of selected primitives.",
       "status": "FUNCTIONAL",
       "evidence": "tests/unit/test_blocks.cpp",
-      "differences": "No attributes, dynamic blocks, nested inserts inside a definition, or uniform/non-uniform separate XY scales. DXF does not write blocks."
+      "differences": "No dynamic blocks, nested inserts inside a definition, or separate XY non-uniform scales."
     },
     {
       "id": "ACAD-EXPLODE-ONE-LEVEL",
@@ -576,13 +576,24 @@
         ".mydesk",
         ".dxf"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": [
+        "core/document/src/document.cpp",
+        "core/document/src/entity.cpp",
+        "core/commands/src/draft_commands.cpp",
+        "core/exchange/src/native_format.cpp",
+        "core/exchange/src/dxf_writer.cpp",
+        "core/exchange/src/dxf_reader.cpp",
+        "products/draft/app/src/canvas_widget.cpp"
+      ],
+      "tests": [
+        "test_block_attributes_and_exchange",
+        "test_attributes_regression_and_nested_blocks"
+      ],
       "manual_tests": [],
       "performance": "Linear in attribute count per insert.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/unit/test_attributes.cpp",
+      "differences": "PARTIAL_PARITY: Tested subset covers single-line & multiline tag/prompt/default values, attribute flag switches (/I, /C, /V, /P, /L, /M), nested block insertion & recursive explode, command ATTEDIT & EATTEDIT, ATTDISP visibility modes, native v6 and DXF BLOCKS/ATTDEF + INSERT/ATTRIB exchange, and malformed DXF error recovery. GUI dialog editor (Qt modal dialog for EATTEDIT) is not yet wired to desktop UI."
     },
     {
       "id": "ACAD-XREF",
@@ -621,13 +632,19 @@
         ".mydesk",
         ".dxf"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": [
+        "core/document/include/mydesk/document/layout.hpp",
+        "core/document/src/document.cpp",
+        "core/commands/src/draft_commands.cpp"
+      ],
+      "tests": [
+        "test_layouts_viewports_and_plotting"
+      ],
       "manual_tests": [],
       "performance": "Switching layouts must not duplicate model entities.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented. Draft edits a single model space."
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/unit/test_layouts.cpp",
+      "differences": "PARTIAL_PARITY: Tested subset covers named paper-space layouts (New/Set/Rename/Delete/List), TILEMODE toggle, floating rectangular viewports (MVIEW / VPORTS), PSPACE / MSPACE switching, and per-viewport layer freeze (VP Freeze). Missing: non-rectangular polygonal viewports, sheet set manager, and layout tabs UI widget in canvas."
     },
     {
       "id": "ACAD-PLOT-PDF",
@@ -640,15 +657,22 @@
       "expected_input": "Plot the model or a layout to PDF",
       "expected_output": "A vector PDF containing the plotted geometry.",
       "formats": [
-        ".pdf"
+        ".pdf",
+        ".svg"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": [
+        "core/exchange/include/mydesk/exchange/plotter.hpp",
+        "core/exchange/src/plotter.cpp",
+        "core/commands/src/draft_commands.cpp"
+      ],
+      "tests": [
+        "test_layouts_viewports_and_plotting"
+      ],
       "manual_tests": [],
       "performance": "A multi-sheet technical drawing plots without flattening to a bitmap.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/unit/test_layouts.cpp",
+      "differences": "PARTIAL_PARITY: Tested subset covers vector plotting of paper-space layouts with active viewports and model-space geometry to SVG with paper dimensions, margins, monochrome CTB plot style mapping, lineweights, linetype dash arrays, plottable layer filtering, and VP-freeze filtering. Direct native PDF writer and system printer driver integration remain future work."
     },
     {
       "id": "ACAD-DWG",

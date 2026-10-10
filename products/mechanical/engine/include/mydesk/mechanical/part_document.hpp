@@ -17,6 +17,7 @@ using ParameterId = std::uint64_t;
 enum class FeatureKind {
     SketchRectangle,
     Extrude,
+    Hole,
 };
 
 struct Parameter {
@@ -61,6 +62,10 @@ public:
     // Creates a rectangle sketch driven by width/height parameters, then an extrude of depth.
     FeatureId addRectangleExtrude(std::string sketchName, std::string extrudeName, double width,
                                   double height, double depth);
+
+    // Creates a cylindrical hole boolean cut on a target solid feature.
+    FeatureId addHole(std::string holeName, FeatureId targetSolidFeature, double radius,
+                      double depth, double posX, double posY);
 
     [[nodiscard]] const std::vector<Feature>& features() const { return features_; }
     [[nodiscard]] const Feature* findFeature(FeatureId id) const;

@@ -109,6 +109,25 @@ EntityGeometry transformInsertGeometry(const InsertEntity& insert, const EntityG
         }
         return out;
     }
+    if (const auto* attdef = std::get_if<AttdefEntity>(&local)) {
+        AttdefEntity out = *attdef;
+        out.position = map(attdef->position);
+        out.height *= std::abs(insert.scale);
+        out.rotationDeg += insert.rotationDeg;
+        return out;
+    }
+    if (const auto* nestedIns = std::get_if<InsertEntity>(&local)) {
+        InsertEntity out = *nestedIns;
+        out.insertion = map(nestedIns->insertion);
+        out.scale *= insert.scale;
+        out.rotationDeg += insert.rotationDeg;
+        for (auto& attr : out.attributes) {
+            attr.position = map(attr.position);
+            attr.height *= std::abs(insert.scale);
+            attr.rotationDeg += insert.rotationDeg;
+        }
+        return out;
+    }
     return local;
 }
 
@@ -158,6 +177,9 @@ EntityKind Entity::kind() const {
     if (std::holds_alternative<HatchEntity>(geometry)) {
         return EntityKind::Hatch;
     }
+    if (std::holds_alternative<AttdefEntity>(geometry)) {
+        return EntityKind::Attdef;
+    }
     return EntityKind::Polyline;
 }
 
@@ -204,6 +226,12 @@ geometry::BBox Entity::bounds() const {
         for (const auto& c : corners) {
             box.expand(transformInsertPoint(*insert, c));
         }
+        for (const auto& attr : insert->attributes) {
+            box.expand(attr.position);
+            box.expand(geometry::Vec2{
+                attr.position.x + attr.height * static_cast<double>(attr.value.size()) * 0.6,
+                attr.position.y + attr.height});
+        }
         return box;
     }
     if (const auto* text = std::get_if<TextEntity>(&geometry)) {
@@ -219,6 +247,14 @@ geometry::BBox Entity::bounds() const {
         for (const auto& v : hatch->boundary) {
             box.expand(v);
         }
+        return box;
+    }
+    if (const auto* attdef = std::get_if<AttdefEntity>(&geometry)) {
+        geometry::BBox box;
+        box.expand(attdef->position);
+        box.expand(geometry::Vec2{
+            attdef->position.x + attdef->height * static_cast<double>(attdef->tag.size()) * 0.6,
+            attdef->position.y + attdef->height});
         return box;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
@@ -265,6 +301,9 @@ bool Entity::hitTest(geometry::Vec2 point, double tol) const {
     }
     if (const auto* text = std::get_if<TextEntity>(&geometry)) {
         return bounds().contains(point) || text->position.distanceTo(point) <= tol;
+    }
+    if (const auto* attdef = std::get_if<AttdefEntity>(&geometry)) {
+        return bounds().contains(point) || attdef->position.distanceTo(point) <= tol;
     }
     if (const auto* hatch = std::get_if<HatchEntity>(&geometry)) {
         // Point-in-polygon (ray cast) or near boundary.
@@ -355,6 +394,7 @@ bool Entity::intersectsRect(const geometry::BBox& rect, bool crossing) const {
     }
     if (std::holds_alternative<InsertEntity>(geometry) ||
         std::holds_alternative<TextEntity>(geometry) ||
+        std::holds_alternative<AttdefEntity>(geometry) ||
         std::holds_alternative<HatchEntity>(geometry)) {
         const auto box = bounds();
         if (box.maxX < rect.minX || box.minX > rect.maxX || box.maxY < rect.minY ||
@@ -391,6 +431,8 @@ std::string_view entityKindName(EntityKind kind) {
         return "TEXT";
     case EntityKind::Hatch:
         return "HATCH";
+    case EntityKind::Attdef:
+        return "ATTDEF";
     }
     return "UNKNOWN";
 }

@@ -1,12 +1,17 @@
 #include "mydesk/mechanical/part_document.hpp"
 
+#include <BRepAlgoAPI_Cut.hxx>
 #include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
 #include <GProp_GProps.hxx>
+#include <IFSelect_ReturnStatus.hxx>
 #include <STEPControl_Writer.hxx>
 #include <TopAbs.hxx>
 #include <TopoDS.hxx>
-#include <IFSelect_ReturnStatus.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
 
 #include <cmath>
 #include <sstream>
@@ -157,6 +162,29 @@ FeatureId PartDocument::addRectangleExtrude(std::string sketchName, std::string 
     return extrude.id;
 }
 
+FeatureId PartDocument::addHole(std::string holeName, FeatureId targetSolidFeature, double radius,
+                                double depth, double posX, double posY) {
+    if (!(radius > 0.0) || !(depth > 0.0)) {
+        throw std::invalid_argument("radius and depth must be positive");
+    }
+    const auto radId = addParameter(holeName + ".Radius", radius);
+    const auto depId = addParameter(holeName + ".Depth", depth);
+    const auto xId = addParameter(holeName + ".X", posX);
+    const auto yId = addParameter(holeName + ".Y", posY);
+
+    Feature hole;
+    hole.id = allocateFeature();
+    hole.kind = FeatureKind::Hole;
+    hole.name = std::move(holeName);
+    hole.dependsOn.push_back(targetSolidFeature);
+    hole.parameters["radius"] = radId;
+    hole.parameters["depth"] = depId;
+    hole.parameters["x"] = xId;
+    hole.parameters["y"] = yId;
+    features_.push_back(hole);
+    return hole.id;
+}
+
 RegenerationReport PartDocument::evaluateFeature(
     const Feature& feature, std::unordered_map<FeatureId, TopoDS_Shape>& cache) {
     RegenerationReport report;
@@ -227,6 +255,54 @@ RegenerationReport PartDocument::evaluateFeature(
         }
     }
 
+    if (feature.kind == FeatureKind::Hole) {
+        if (feature.dependsOn.empty()) {
+            report.message = "hole requires a target solid dependency";
+            return report;
+        }
+        const auto targetId = feature.dependsOn.front();
+        auto it = cache.find(targetId);
+        if (it == cache.end() || it->second.IsNull()) {
+            report.message = "target solid not found in cache";
+            return report;
+        }
+        const auto* rad = findParameter(feature.parameters.at("radius"));
+        const auto* dep = findParameter(feature.parameters.at("depth"));
+        const auto* x = findParameter(feature.parameters.at("x"));
+        const auto* y = findParameter(feature.parameters.at("y"));
+        if (!rad || !dep || !x || !y) {
+            report.message = "missing hole parameters";
+            return report;
+        }
+        try {
+            gp_Ax2 axes(gp_Pnt(x->value, y->value, 0.0), gp_Dir(0.0, 0.0, 1.0));
+            BRepPrimAPI_MakeCylinder cylMaker(axes, rad->value, dep->value);
+            cylMaker.Build();
+            if (!cylMaker.IsDone()) {
+                report.message = "OCCT MakeCylinder failed";
+                return report;
+            }
+            BRepAlgoAPI_Cut cut(it->second, cylMaker.Shape());
+            cut.Build();
+            if (!cut.IsDone()) {
+                report.message = "OCCT boolean cut failed";
+                return report;
+            }
+            const TopoDS_Shape cutSolid = cut.Shape();
+            cache[feature.id] = cutSolid;
+            GProp_GProps props;
+            BRepGProp::VolumeProperties(cutSolid, props);
+            report.ok = true;
+            report.isSolid = true;
+            report.solidVolume = props.Mass();
+            report.message = "hole cut ok";
+            return report;
+        } catch (const Standard_Failure& ex) {
+            report.message = std::string("OCCT error: ") + ex.GetMessageString();
+            return report;
+        }
+    }
+
     report.message = "unknown feature kind";
     return report;
 }
@@ -285,8 +361,14 @@ std::string PartDocument::serializeNative() const {
     oss << "  \"features\": [\n";
     for (std::size_t i = 0; i < features_.size(); ++i) {
         const auto& f = features_[i];
+        std::string kindStr = "SketchRectangle";
+        if (f.kind == FeatureKind::Extrude) {
+            kindStr = "Extrude";
+        } else if (f.kind == FeatureKind::Hole) {
+            kindStr = "Hole";
+        }
         oss << "    {\"id\": " << f.id << ", \"kind\": \""
-            << (f.kind == FeatureKind::SketchRectangle ? "SketchRectangle" : "Extrude")
+            << kindStr
             << "\", \"name\": \"" << escapeJson(f.name) << "\", \"dependsOn\": [";
         for (std::size_t d = 0; d < f.dependsOn.size(); ++d) {
             oss << f.dependsOn[d];
@@ -361,7 +443,13 @@ PartDocument PartDocument::deserializeNative(std::string_view json, std::string*
             f.id = static_cast<FeatureId>(id);
             std::string kind;
             extractString(json.substr(kindPos, 40), "kind", kind);
-            f.kind = kind == "Extrude" ? FeatureKind::Extrude : FeatureKind::SketchRectangle;
+            if (kind == "Extrude") {
+                f.kind = FeatureKind::Extrude;
+            } else if (kind == "Hole") {
+                f.kind = FeatureKind::Hole;
+            } else {
+                f.kind = FeatureKind::SketchRectangle;
+            }
             extractString(json.substr(namePos, 120), "name", f.name);
             const auto depends = json.find("\"dependsOn\":", idPos);
             if (depends != std::string_view::npos) {

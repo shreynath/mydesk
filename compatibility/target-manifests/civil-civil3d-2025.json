@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "product_id": "civil",
+  "product_name": "MyDesk Civil",
+  "binary": "MyDeskCivil",
+  "target_application": "Civil 3D",
+  "target_version": "2025",
+  "note": "Full target inventory. FUNCTIONAL is not complete parity.",
+  "capabilities": [
+    {
+      "id": "C3D-COGO-TIN-SURFACE",
+      "target_application": "Civil 3D",
+      "target_version": "2025",
+      "category": "survey",
+      "name": "COGO points, Delaunay TIN surface, and cut/fill volumes",
+      "command": "CreatePoint / CreateSurface / Volumes",
+      "reference_behavior": "3D COGO points form Delaunay TIN surface. Evaluates barycentric elevation interpolation and computes prismoidal cut/fill earthwork volumes against a datum elevation.",
+      "expected_input": "3 survey points forming triangle, datum elevation 8.0 m",
+      "expected_output": "Interpolated elevation 10.0 m; cut volume 100 m3, fill volume 0 m3",
+      "formats": [
+        ".mydesk-civil",
+        ".xml"
+      ],
+      "implementation": "products/civil/engine/src/civil_document.cpp",
+      "tests": [
+        "test_cogo_and_tin_surface_volumes"
+      ],
+      "manual_tests": [],
+      "performance": "Interactive surface evaluation.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/civil/tests/test_civil.cpp",
+      "differences": "Breaklines and boundary clipping are planned for subsequent iterations."
+    },
+    {
+      "id": "C3D-ALIGNMENT-STATIONING",
+      "target_application": "Civil 3D",
+      "target_version": "2025",
+      "category": "alignment",
+      "name": "Horizontal alignment, station equations, and station/offset projection",
+      "command": "CreateAlignment / StationOffset",
+      "reference_behavior": "Parametric tangent/curve alignment calculates cumulative engineering stationing (STA 00+00.00) and projects (x, y) coordinates to station and perpendicular signed offset.",
+      "expected_input": "1000m horizontal alignment; point at (300, 25)",
+      "expected_output": "Station format STA 5+24.50; station 300, offset +25",
+      "formats": [
+        ".mydesk-civil"
+      ],
+      "implementation": "products/civil/engine/src/civil_document.cpp",
+      "tests": [
+        "test_alignment_stationing_and_profile"
+      ],
+      "manual_tests": [],
+      "performance": "Interactive station/offset lookup.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/civil/tests/test_civil.cpp",
+      "differences": "Clothoid spiral transition curves are deferred."
+    },
+    {
+      "id": "C3D-PROFILE-LANDXML",
+      "target_application": "Civil 3D",
+      "target_version": "2025",
+      "category": "profile",
+      "name": "Vertical profile PVI grade calculation and LandXML 1.2 interoperability",
+      "command": "CreateProfile / ExportLandXML",
+      "reference_behavior": "Profile PVI station/elevation evaluation along alignment and LandXML 1.2 standard export with CgPoints, Surfaces, and Alignments.",
+      "expected_input": "Profile with 5% grade; LandXML export",
+      "expected_output": "Elevation 120.0 m at STA 400; valid LandXML 1.2 XML document",
+      "formats": [
+        ".mydesk-civil",
+        ".xml"
+      ],
+      "implementation": "products/civil/engine/src/civil_document.cpp",
+      "tests": [
+        "test_landxml_export_and_native_persistence"
+      ],
+      "manual_tests": [],
+      "performance": "Instantaneous XML serialization.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/civil/tests/test_civil.cpp",
+      "differences": "Subassemblies and corridor surface generation are planned for a subsequent iteration."
+    }
+  ]
+}

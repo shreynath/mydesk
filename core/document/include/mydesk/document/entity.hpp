@@ -28,6 +28,7 @@ enum class EntityKind {
     Insert,
     Text,
     Hatch,
+    Attdef,
 };
 
 struct LineEntity {
@@ -73,6 +74,55 @@ struct HatchEntity {
     std::uint32_t fillArgb{0x6688AACC};
 };
 
+constexpr std::uint32_t kAttrFlagInvisible    = 1u << 0;
+constexpr std::uint32_t kAttrFlagConstant     = 1u << 1;
+constexpr std::uint32_t kAttrFlagVerify       = 1u << 2;
+constexpr std::uint32_t kAttrFlagPreset       = 1u << 3;
+constexpr std::uint32_t kAttrFlagLockPosition = 1u << 4;
+constexpr std::uint32_t kAttrFlagMultiline    = 1u << 5;
+
+struct AttributeDefinition {
+    std::string tag;
+    std::string prompt;
+    std::string defaultValue;
+    geometry::Vec2 position; // relative to block definition base
+    double height{2.5};
+    double rotationDeg{0.0};
+    bool invisible{false};
+    std::uint32_t flags{0};
+    bool isMultiline{false};
+};
+
+struct AttributeInstance {
+    std::string tag;
+    std::string value;
+    geometry::Vec2 position; // world coordinates
+    double height{2.5};
+    double rotationDeg{0.0};
+    bool invisible{false};
+    std::uint32_t flags{0};
+    bool isMultiline{false};
+};
+
+// Standalone attribute definition entity (created by ATTDEF in model space).
+struct AttdefEntity {
+    std::string tag;
+    std::string prompt;
+    std::string defaultValue;
+    geometry::Vec2 position;
+    double height{2.5};
+    double rotationDeg{0.0};
+    bool invisible{false};
+    std::uint32_t flags{0};
+    bool isMultiline{false};
+};
+
+enum class AttributeDisplayMode : std::uint8_t {
+    Normal = 0,
+    On,
+    Off,
+};
+
 // Block reference. localBounds is the definition AABB (block space) for fast bounds.
 struct InsertEntity {
     std::string blockName;
@@ -80,14 +130,15 @@ struct InsertEntity {
     double scale{1.0};
     double rotationDeg{0.0};
     geometry::BBox localBounds;
+    std::vector<AttributeInstance> attributes;
 };
 
 using EntityGeometry =
     std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity, DimensionLinearEntity,
-                 InsertEntity, TextEntity, HatchEntity>;
+                 InsertEntity, TextEntity, HatchEntity, AttdefEntity>;
 
 // Geometry stored in block-definition coordinates (relative to block origin).
-// Must not nest InsertEntity (enforced at BLOCK time).
+// Supports nested block references (InsertEntity) and primitives.
 struct BlockPrimitive {
     EntityGeometry geometry;
     std::uint32_t colorArgb{kColorByLayer};
@@ -96,6 +147,7 @@ struct BlockPrimitive {
 struct BlockDefinition {
     std::string name;
     std::vector<BlockPrimitive> primitives;
+    std::vector<AttributeDefinition> attributes;
 };
 
 enum class Linetype : std::uint8_t {

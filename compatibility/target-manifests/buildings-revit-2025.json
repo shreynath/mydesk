@@ -169,38 +169,48 @@
       "target_application": "Revit",
       "target_version": "2025",
       "category": "architecture",
-      "name": "Windows",
+      "name": "Hosted window instances and wall net area deduction",
       "command": "Window",
-      "reference_behavior": "Windows",
-      "expected_input": "Professional workflow input",
-      "expected_output": "Professional workflow output",
-      "formats": [],
-      "implementation": "",
-      "tests": [],
+      "reference_behavior": "Windows host to walls, deducting their opening area from wall gross elevation area. Windows serialize and export to IFC4 IFCWINDOW with spatial and host relations.",
+      "expected_input": "Wall with 1 door and 1 window",
+      "expected_output": "Wall gross area 30.0 m2 reduced to net 26.2 m2; IFC contains IFCWINDOW and IFCRELFILLSELEMENT",
+      "formats": [
+        ".mydesk-bim",
+        ".ifc"
+      ],
+      "implementation": "products/buildings/engine/src/project_document.cpp",
+      "tests": [
+        "test_windows_rooms_and_net_area"
+      ],
       "manual_tests": [],
-      "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "performance": "Interactive computation for wall schedules and net areas.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/buildings/tests/test_buildings.cpp",
+      "differences": "Complex multi-pane parametric family geometry and curtain wall window systems are not yet implemented. Windows are defined by type width/height/sill."
     },
     {
       "id": "RVT-ROOMS",
       "target_application": "Revit",
       "target_version": "2025",
       "category": "architecture",
-      "name": "Rooms and areas",
+      "name": "Rooms, polygon area/volume computation, and room schedule",
       "command": "Room",
-      "reference_behavior": "Rooms and areas",
-      "expected_input": "Professional workflow input",
-      "expected_output": "Professional workflow output",
-      "formats": [],
-      "implementation": "",
-      "tests": [],
+      "reference_behavior": "Rooms defined on levels with polygon boundaries compute exact floor area via Shoelace formula, room volume by height, level schedule rollups, and IFCSPACE export.",
+      "expected_input": "Level Ground with 5x4m room polygon",
+      "expected_output": "Area 20.0 m2, volume 60.0 m3; room schedule row produced; IFC contains IFCSPACE and GrossFloorArea property",
+      "formats": [
+        ".mydesk-bim",
+        ".ifc"
+      ],
+      "implementation": "products/buildings/engine/src/project_document.cpp",
+      "tests": [
+        "test_windows_rooms_and_net_area"
+      ],
       "manual_tests": [],
-      "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "performance": "Interactive polygon area and volume evaluation.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/buildings/tests/test_buildings.cpp",
+      "differences": "Automatic wall-boundary detection algorithm (computing rooms from bounding wall loops) is planned; currently boundaries are provided as polygon vertices."
     },
     {
       "id": "RVT-SPACES",

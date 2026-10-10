@@ -33,6 +33,29 @@ Document::Document() {
     layer.name = "0";
     layers_.push_back(layer);
     activeLayerId_ = id;
+
+    // Default layouts: Model and Layout1
+    Layout model;
+    model.name = "Model";
+    model.isModelSpace = true;
+    layouts_.push_back(model);
+
+    Layout layout1;
+    layout1.name = "Layout1";
+    layout1.isModelSpace = false;
+    Viewport vp;
+    vp.id = nextViewportId_++;
+    vp.center = {130.0, 100.0};
+    vp.width = 240.0;
+    vp.height = 180.0;
+    vp.viewCenter = {0.0, 0.0};
+    vp.viewHeight = 100.0;
+    layout1.viewports.push_back(vp);
+    layouts_.push_back(layout1);
+
+    activeLayoutName_ = "Model";
+    tileMode_ = true;
+    isPaperSpace_ = false;
 }
 
 bool Document::setActiveLayer(LayerId id) {
@@ -581,10 +604,6 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
         if (!existing) {
             continue;
         }
-        if (std::holds_alternative<InsertEntity>(existing->geometry)) {
-            abortComposite();
-            throw std::invalid_argument("BLOCK cannot include INSERT entities yet");
-        }
         auto shift = [&](geometry::Vec2 p) { return p - base; };
         EntityGeometry local = existing->geometry;
         if (auto* line = std::get_if<LineEntity>(&local)) {
@@ -604,6 +623,30 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
             dim->dimLine = shift(dim->dimLine);
         } else if (auto* text = std::get_if<TextEntity>(&local)) {
             text->position = shift(text->position);
+        } else if (auto* attdef = std::get_if<AttdefEntity>(&local)) {
+            AttributeDefinition ad;
+            ad.tag = attdef->tag;
+            ad.prompt = attdef->prompt;
+            ad.defaultValue = attdef->defaultValue;
+            ad.position = shift(attdef->position);
+            ad.height = attdef->height;
+            ad.rotationDeg = attdef->rotationDeg;
+            ad.invisible = attdef->invisible;
+            ad.flags = attdef->flags;
+            ad.isMultiline = attdef->isMultiline;
+            def.attributes.push_back(std::move(ad));
+            localBounds.expand(boundsOfGeometry(local));
+            compositeRemove(id);
+            continue;
+        } else if (auto* ins = std::get_if<InsertEntity>(&local)) {
+            if (ins->blockName == name) {
+                abortComposite();
+                throw std::invalid_argument("BLOCK cannot recursively nest an insert of itself: " + name);
+            }
+            ins->insertion = shift(ins->insertion);
+            for (auto& attr : ins->attributes) {
+                attr.position = shift(attr.position);
+            }
         } else if (auto* hatch = std::get_if<HatchEntity>(&local)) {
             for (auto& v : hatch->boundary) {
                 v = shift(v);
@@ -613,7 +656,7 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
         def.primitives.push_back(BlockPrimitive{local, existing->colorArgb});
         compositeRemove(id);
     }
-    if (def.primitives.empty()) {
+    if (def.primitives.empty() && def.attributes.empty()) {
         abortComposite();
         return false;
     }
@@ -631,6 +674,19 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
     insert.blockName = blockName;
     insert.insertion = base;
     insert.localBounds = localBounds;
+    const BlockDefinition* createdBlock = findBlock(blockName);
+    if (createdBlock) {
+        for (const auto& attr : createdBlock->attributes) {
+            AttributeInstance inst;
+            inst.tag = attr.tag;
+            inst.value = attr.defaultValue;
+            inst.position = base + attr.position;
+            inst.height = attr.height;
+            inst.rotationDeg = attr.rotationDeg;
+            inst.invisible = attr.invisible;
+            insert.attributes.push_back(std::move(inst));
+        }
+    }
     insertEntity.geometry = insert;
     compositeAdd(insertEntity);
     if (!commitComposite()) {
@@ -680,7 +736,9 @@ EntityId Document::addHatch(std::vector<geometry::Vec2> boundary, std::uint32_t 
 }
 
 EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, double scale,
-                             double rotationDeg, std::string txLabel) {
+                             double rotationDeg,
+                             const std::unordered_map<std::string, std::string>& attributeOverrides,
+                             std::string txLabel) {
     const BlockDefinition* block = findBlock(blockName);
     if (!block) {
         throw std::invalid_argument("unknown block: " + blockName);
@@ -696,6 +754,23 @@ EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, do
     for (const auto& prim : block->primitives) {
         insert.localBounds.expand(boundsOfGeometry(prim.geometry));
     }
+    for (const auto& attr : block->attributes) {
+        AttributeInstance inst;
+        inst.tag = attr.tag;
+        const auto it = attributeOverrides.find(attr.tag);
+        if (it != attributeOverrides.end()) {
+            inst.value = it->second;
+        } else {
+            inst.value = attr.defaultValue;
+        }
+        inst.position = transformInsertPoint(insert, attr.position);
+        inst.height = attr.height * std::abs(scale);
+        inst.rotationDeg = attr.rotationDeg + rotationDeg;
+        inst.invisible = attr.invisible || ((attr.flags & kAttrFlagInvisible) != 0);
+        inst.flags = attr.flags;
+        inst.isMultiline = attr.isMultiline;
+        insert.attributes.push_back(std::move(inst));
+    }
     Entity entity;
     entity.id = allocateEntityId();
     entity.layerId = activeLayerId_;
@@ -706,6 +781,78 @@ EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, do
     applyAddEntity(entity);
     commit(std::move(tx));
     return entity.id;
+}
+
+EntityId Document::addAttdef(geometry::Vec2 position, double height, std::string tag,
+                             std::string prompt, std::string defaultValue,
+                             double rotationDeg, bool invisible,
+                             std::uint32_t flags, bool isMultiline, std::string txLabel) {
+    if (!(height > 0.0) || !std::isfinite(height)) {
+        throw std::invalid_argument("attdef height must be positive");
+    }
+    if (tag.empty()) {
+        throw std::invalid_argument("attdef tag must not be empty");
+    }
+    const bool inv = invisible || ((flags & kAttrFlagInvisible) != 0);
+    Entity entity;
+    entity.id = allocateEntityId();
+    entity.layerId = activeLayerId_;
+    entity.geometry = AttdefEntity{std::move(tag), std::move(prompt), std::move(defaultValue),
+                                   position, height, rotationDeg, inv, flags, isMultiline};
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+    commit(std::move(tx));
+    return entity.id;
+}
+
+bool Document::editInsertAttribute(EntityId id, const std::string& tag, const std::string& newValue,
+                                   std::string txLabel) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    const auto* insert = std::get_if<InsertEntity>(&existing->geometry);
+    if (!insert) {
+        return false;
+    }
+    std::string upperTag;
+    upperTag.reserve(tag.size());
+    for (char c : tag) {
+        upperTag.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    }
+
+    bool found = false;
+    InsertEntity afterInsert = *insert;
+    for (auto& attr : afterInsert.attributes) {
+        std::string curUpper;
+        curUpper.reserve(attr.tag.size());
+        for (char c : attr.tag) {
+            curUpper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+        }
+        if (curUpper == upperTag) {
+            attr.value = newValue;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        return false;
+    }
+    Entity after = *existing;
+    after.geometry = afterInsert;
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+void Document::setAttributeDisplayMode(AttributeDisplayMode mode) {
+    attdisp_ = mode;
+    dirty_ = true;
 }
 
 ExplodeResult Document::explodeEntities(const std::vector<EntityId>& ids, std::string txLabel) {
@@ -742,20 +889,25 @@ ExplodeResult Document::explodeEntities(const std::vector<EntityId>& ids, std::s
             }
         } else if (const auto* insert = std::get_if<InsertEntity>(&entity->geometry)) {
             const BlockDefinition* block = findBlock(insert->blockName);
-            if (!block || block->primitives.empty()) {
+            if (!block || (block->primitives.empty() && insert->attributes.empty())) {
                 ++result.skipped;
                 continue;
             }
             for (const auto& primitive : block->primitives) {
                 EntityGeometry world = transformInsertGeometry(*insert, primitive.geometry);
-                if (std::holds_alternative<InsertEntity>(world)) {
-                    continue;
-                }
                 Entity piece;
                 piece.id = allocateEntityId();
                 piece.layerId = entity->layerId;
                 piece.colorArgb = primitive.colorArgb;
                 piece.geometry = std::move(world);
+                created.push_back(piece);
+            }
+            for (const auto& attr : insert->attributes) {
+                Entity piece;
+                piece.id = allocateEntityId();
+                piece.layerId = entity->layerId;
+                piece.colorArgb = entity->colorArgb;
+                piece.geometry = TextEntity{attr.position, attr.height, attr.rotationDeg, attr.value};
                 created.push_back(piece);
             }
         } else {
@@ -905,10 +1057,19 @@ Entity transformEntity(Entity entity, const std::function<geometry::Vec2(geometr
         insert->insertion = mapPoint(insert->insertion);
         insert->scale *= radiusScale;
         insert->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+        for (auto& attr : insert->attributes) {
+            attr.position = mapPoint(attr.position);
+            attr.height *= radiusScale;
+            attr.rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+        }
     } else if (auto* text = std::get_if<TextEntity>(&entity.geometry)) {
         text->position = mapPoint(text->position);
         text->height *= radiusScale;
         text->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+    } else if (auto* attdef = std::get_if<AttdefEntity>(&entity.geometry)) {
+        attdef->position = mapPoint(attdef->position);
+        attdef->height *= radiusScale;
+        attdef->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
     } else if (auto* hatch = std::get_if<HatchEntity>(&entity.geometry)) {
         for (auto& v : hatch->boundary) {
             v = mapPoint(v);
@@ -1139,7 +1300,7 @@ void Document::applyReplaceEntity(const Entity& entity) {
 void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
                                EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
                                std::string name, std::vector<BlockDefinition> blocks,
-                               double linetypeScale) {
+                               double linetypeScale, AttributeDisplayMode attdisp) {
     layers_ = std::move(layers);
     entities_ = std::move(entities);
     blocks_ = std::move(blocks);
@@ -1149,6 +1310,7 @@ void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> en
     units_ = units;
     name_ = std::move(name);
     linetypeScale_ = linetypeScale > 0.0 ? linetypeScale : 1.0;
+    attdisp_ = attdisp;
     selection_.clear();
     history_.clear();
     dirty_ = false;
@@ -1164,6 +1326,140 @@ LayerId Document::allocateLayerId() { return nextLayerId_++; }
 void Document::commit(Transaction tx) {
     history_.push(std::move(tx));
     dirty_ = true;
+}
+
+const Layout* Document::findLayout(const std::string& name) const {
+    for (const auto& l : layouts_) {
+        if (layerNamesEqual(l.name, name)) {
+            return &l;
+        }
+    }
+    return nullptr;
+}
+
+Layout* Document::findLayout(const std::string& name) {
+    for (auto& l : layouts_) {
+        if (layerNamesEqual(l.name, name)) {
+            return &l;
+        }
+    }
+    return nullptr;
+}
+
+bool Document::setActiveLayout(const std::string& name) {
+    const auto* l = findLayout(name);
+    if (!l) {
+        return false;
+    }
+    activeLayoutName_ = l->name;
+    if (l->isModelSpace) {
+        tileMode_ = true;
+        isPaperSpace_ = false;
+    } else {
+        tileMode_ = false;
+        isPaperSpace_ = true;
+    }
+    dirty_ = true;
+    return true;
+}
+
+bool Document::addLayout(std::string name, const PageSetup& setup) {
+    if (name.empty() || findLayout(name)) {
+        return false;
+    }
+    Layout l;
+    l.name = std::move(name);
+    l.isModelSpace = false;
+    l.pageSetup = setup;
+    Viewport vp;
+    vp.id = nextViewportId_++;
+    vp.center = {setup.paperWidthMm * 0.5, setup.paperHeightMm * 0.5};
+    vp.width = setup.printableWidthMm;
+    vp.height = setup.printableHeightMm;
+    vp.viewCenter = {0.0, 0.0};
+    vp.viewHeight = 100.0;
+    l.viewports.push_back(vp);
+    layouts_.push_back(std::move(l));
+    dirty_ = true;
+    return true;
+}
+
+bool Document::removeLayout(const std::string& name) {
+    auto it = std::find_if(layouts_.begin(), layouts_.end(),
+                           [&](const Layout& l) { return layerNamesEqual(l.name, name); });
+    if (it == layouts_.end() || it->isModelSpace) {
+        return false;
+    }
+    if (layerNamesEqual(activeLayoutName_, name)) {
+        setActiveLayout("Model");
+    }
+    layouts_.erase(it);
+    dirty_ = true;
+    return true;
+}
+
+bool Document::renameLayout(const std::string& oldName, const std::string& newName) {
+    if (newName.empty() || findLayout(newName)) {
+        return false;
+    }
+    auto* l = findLayout(oldName);
+    if (!l || l->isModelSpace) {
+        return false;
+    }
+    l->name = newName;
+    if (layerNamesEqual(activeLayoutName_, oldName)) {
+        activeLayoutName_ = newName;
+    }
+    dirty_ = true;
+    return true;
+}
+
+void Document::setTileMode(bool tm) {
+    tileMode_ = tm;
+    if (tm) {
+        activeLayoutName_ = "Model";
+        isPaperSpace_ = false;
+    } else {
+        for (const auto& l : layouts_) {
+            if (!l.isModelSpace) {
+                activeLayoutName_ = l.name;
+                isPaperSpace_ = true;
+                break;
+            }
+        }
+    }
+    dirty_ = true;
+}
+
+std::uint64_t Document::addViewportToLayout(const std::string& layoutName, const Viewport& vp) {
+    auto* l = findLayout(layoutName);
+    if (!l || l->isModelSpace) {
+        return 0;
+    }
+    Viewport newVp = vp;
+    newVp.id = nextViewportId_++;
+    l->viewports.push_back(newVp);
+    dirty_ = true;
+    return newVp.id;
+}
+
+bool Document::setViewportFrozen(const std::string& layoutName, std::uint64_t vpId, LayerId layerId, bool frozen) {
+    auto* l = findLayout(layoutName);
+    if (!l) {
+        return false;
+    }
+    for (auto& vp : l->viewports) {
+        if (vp.id == vpId) {
+            if (frozen) {
+                vp.frozenLayers.insert(layerId);
+            } else {
+                vp.frozenLayers.erase(layerId);
+            }
+            dirty_ = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace mydesk::document

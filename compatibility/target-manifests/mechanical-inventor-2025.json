@@ -207,19 +207,24 @@
       "target_application": "Inventor",
       "target_version": "2025",
       "category": "modeling",
-      "name": "Hole feature",
-      "command": "Hole",
-      "reference_behavior": "Hole feature",
-      "expected_input": "Professional workflow input",
-      "expected_output": "Professional workflow output",
-      "formats": [],
-      "implementation": "",
-      "tests": [],
+      "name": "Cylindrical hole boolean cut on solid",
+      "command": "Hole / addHole",
+      "reference_behavior": "Parametric cylindrical hole cut with radius, depth, and 2D position subtracted from base solid geometry using B-rep boolean cut. Volume updates on regeneration and persists through native format.",
+      "expected_input": "10x10x10 block with r=2, depth=10 hole cut through center",
+      "expected_output": "Volume reduced by cylinder volume pi*r^2*h (~125.66); solid result preserved; STEP exportable",
+      "formats": [
+        ".mydesk-mech",
+        ".step"
+      ],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_hole_feature_boolean_cut"
+      ],
       "manual_tests": [],
-      "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "performance": "Interactive boolean subtraction via OCCT.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/mechanical/tests/test_mechanical.cpp",
+      "differences": "Tapped threads, counterbore, and countersink hole types are planned for a subsequent slice. Current feature cuts cylindrical holes."
     },
     {
       "id": "INV-THREAD",
@@ -264,19 +269,24 @@
       "target_application": "Inventor",
       "target_version": "2025",
       "category": "assembly",
-      "name": "Assemblies and constraints",
+      "name": "Assembly document, component occurrences, constraints, and BOM rollup",
       "command": "Place / Constrain",
-      "reference_behavior": "Assemblies and constraints",
-      "expected_input": "Professional workflow input",
-      "expected_output": "Professional workflow output",
-      "formats": [],
-      "implementation": "",
-      "tests": [],
+      "reference_behavior": "Multi-component occurrences placed and constrained via Mate and Insert constraints. Solves 3D transforms, rolls up hierarchical BOM entries with unit/total volumes, and outputs compound STEP assembly.",
+      "expected_input": "Two blocks and a spacer; mate and insert constraints",
+      "expected_output": "Occurrences solved at target 3D coordinates; BOM lists occurrence counts and volumes; compound STEP exported",
+      "formats": [
+        ".mydesk-assy",
+        ".step"
+      ],
+      "implementation": "products/mechanical/engine/src/assembly_document.cpp",
+      "tests": [
+        "test_assembly_constraints_and_bom"
+      ],
       "manual_tests": [],
-      "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "performance": "Interactive constraint solving and compound shape generation.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/mechanical/tests/test_mechanical.cpp",
+      "differences": "Dynamic degree-of-freedom kinematics and collision contact simulation are planned for subsequent iterations."
     },
     {
       "id": "INV-JOINTS",

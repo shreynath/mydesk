@@ -8,7 +8,7 @@ namespace mydesk::exchange {
 
 namespace {
 
-constexpr const char* kSchemaVersion = "5";
+constexpr const char* kSchemaVersion = "6";
 
 std::string escapeJson(std::string_view s) {
     std::string out;
@@ -217,6 +217,16 @@ std::string serializeNative(const document::Document& doc) {
     oss << "    \"linearPrecision\": " << doc.units().linearPrecision << ",\n";
     oss << "    \"modelSpaceTolerance\": " << doc.units().modelSpaceTolerance << "\n";
     oss << "  },\n";
+    // Attribute display mode
+    {
+        const char* modeStr = "normal";
+        switch (doc.attributeDisplayMode()) {
+        case document::AttributeDisplayMode::On:  modeStr = "on";  break;
+        case document::AttributeDisplayMode::Off: modeStr = "off"; break;
+        default: break;
+        }
+        oss << "  \"attdisp\": \"" << modeStr << "\",\n";
+    }
     oss << "  \"activeLayerId\": " << doc.activeLayerId() << ",\n";
     oss << "  \"nextEntityId\": " << doc.nextEntityIdPeek() << ",\n";
     oss << "  \"nextLayerId\": " << doc.nextLayerIdPeek() << ",\n";
@@ -278,6 +288,26 @@ std::string serializeNative(const document::Document& doc) {
                 << ", \"localBounds\": {\"minX\": " << insert->localBounds.minX << ", \"minY\": "
                 << insert->localBounds.minY << ", \"maxX\": " << insert->localBounds.maxX
                 << ", \"maxY\": " << insert->localBounds.maxY << "}";
+            if (!insert->attributes.empty()) {
+                oss << ", \"attributes\": [";
+                for (std::size_t ai = 0; ai < insert->attributes.size(); ++ai) {
+                    const auto& att = insert->attributes[ai];
+                    oss << "{\"tag\": \"" << escapeJson(att.tag) << "\", \"value\": \"" << escapeJson(att.value)
+                        << "\", \"position\": {\"x\": " << att.position.x << ", \"y\": " << att.position.y
+                        << "}, \"height\": " << att.height << ", \"rotationDeg\": " << att.rotationDeg
+                        << ", \"invisible\": " << (att.invisible ? "true" : "false") << "}";
+                    if (ai + 1 < insert->attributes.size()) oss << ", ";
+                }
+                oss << "]";
+            }
+        } else if (const auto* attdef = std::get_if<document::AttdefEntity>(&entity.geometry)) {
+            oss << "\"tag\": \"" << escapeJson(attdef->tag) << "\", \"prompt\": \"" << escapeJson(attdef->prompt)
+                << "\", \"defaultValue\": \"" << escapeJson(attdef->defaultValue)
+                << "\", \"position\": {\"x\": " << attdef->position.x << ", \"y\": " << attdef->position.y
+                << "}, \"height\": " << attdef->height << ", \"rotationDeg\": " << attdef->rotationDeg
+                << ", \"invisible\": " << (attdef->invisible ? "true" : "false")
+                << ", \"flags\": " << attdef->flags
+                << ", \"isMultiline\": " << (attdef->isMultiline ? "true" : "false");
         }
         oss << "}";
         if (i + 1 < doc.entities().size()) {
@@ -312,6 +342,10 @@ std::string serializeNative(const document::Document& doc) {
                     }
                 }
                 oss << "]";
+            } else if (const auto* nestedIns = std::get_if<document::InsertEntity>(&prim.geometry)) {
+                oss << "\"blockName\": \"" << escapeJson(nestedIns->blockName)
+                    << "\", \"insertion\": {\"x\": " << nestedIns->insertion.x << ", \"y\": " << nestedIns->insertion.y
+                    << "}, \"scale\": " << nestedIns->scale << ", \"rotationDeg\": " << nestedIns->rotationDeg;
             } else {
                 oss << "\"unsupported\": true";
             }
@@ -321,7 +355,25 @@ std::string serializeNative(const document::Document& doc) {
             }
             oss << "\n";
         }
-        oss << "    ]}";
+        oss << "    ]";
+        // Serialize block attribute definitions
+        if (!block.attributes.empty()) {
+            oss << ", \"attributes\": [\n";
+            for (std::size_t ai = 0; ai < block.attributes.size(); ++ai) {
+                const auto& ad = block.attributes[ai];
+                oss << "      {\"tag\": \"" << escapeJson(ad.tag) << "\", \"prompt\": \"" << escapeJson(ad.prompt)
+                    << "\", \"defaultValue\": \"" << escapeJson(ad.defaultValue)
+                    << "\", \"position\": {\"x\": " << ad.position.x << ", \"y\": " << ad.position.y
+                    << "}, \"height\": " << ad.height << ", \"rotationDeg\": " << ad.rotationDeg
+                    << ", \"invisible\": " << (ad.invisible ? "true" : "false")
+                    << ", \"flags\": " << ad.flags
+                    << ", \"isMultiline\": " << (ad.isMultiline ? "true" : "false") << "}";
+                if (ai + 1 < block.attributes.size()) oss << ",";
+                oss << "\n";
+            }
+            oss << "    ]";
+        }
+        oss << "}";
         if (bi + 1 < doc.blocks().size()) {
             oss << ",";
         }
@@ -346,7 +398,7 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         report.errors.push_back("Missing schemaVersion");
         return report;
     }
-    if (schema != "3" && schema != "4" && schema != "5") {
+    if (schema != "3" && schema != "4" && schema != "5" && schema != "6") {
         report.warnings.push_back("schemaVersion " + schema + " differs from supported " +
                                   kSchemaVersion);
     }
@@ -372,6 +424,14 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
     extractUintAfterKey(json, "nextLayerId", nextLayer);
     double linetypeScale = 1.0;
     extractNumberAfterKey(json, "linetypeScale", linetypeScale);
+
+    // Attribute display mode
+    document::AttributeDisplayMode attdisp = document::AttributeDisplayMode::Normal;
+    std::string attdispStr;
+    if (extractStringField(json, "attdisp", attdispStr)) {
+        if (attdispStr == "on") attdisp = document::AttributeDisplayMode::On;
+        else if (attdispStr == "off") attdisp = document::AttributeDisplayMode::Off;
+    }
 
     std::vector<document::Layer> layers;
     for (const auto obj : splitTopLevelObjects(extractArrayBody(json, "layers"))) {
@@ -543,7 +603,48 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
                 extractNumberAfterKey(slice, "maxX", insert.localBounds.maxX);
                 extractNumberAfterKey(slice, "maxY", insert.localBounds.maxY);
             }
+            // Deserialize insert attributes
+            for (const auto aobj : splitTopLevelObjects(extractArrayBody(obj, "attributes"))) {
+                document::AttributeInstance ai;
+                extractStringField(aobj, "tag", ai.tag);
+                extractStringField(aobj, "value", ai.value);
+                const auto posPos = aobj.find("\"position\"");
+                if (posPos != std::string_view::npos) {
+                    const auto pslice = aobj.substr(posPos);
+                    extractNumberAfterKey(pslice, "x", ai.position.x);
+                    extractNumberAfterKey(pslice, "y", ai.position.y);
+                }
+                extractNumberAfterKey(aobj, "height", ai.height);
+                extractNumberAfterKey(aobj, "rotationDeg", ai.rotationDeg);
+                extractBoolAfterKey(aobj, "invisible", ai.invisible);
+                double fNum = 0.0;
+                if (extractNumberAfterKey(aobj, "flags", fNum)) {
+                    ai.flags = static_cast<std::uint32_t>(fNum);
+                }
+                extractBoolAfterKey(aobj, "isMultiline", ai.isMultiline);
+                insert.attributes.push_back(std::move(ai));
+            }
             entity.geometry = insert;
+        } else if (kind == "ATTDEF") {
+            document::AttdefEntity attdef;
+            extractStringField(obj, "tag", attdef.tag);
+            extractStringField(obj, "prompt", attdef.prompt);
+            extractStringField(obj, "defaultValue", attdef.defaultValue);
+            const auto posPos = obj.find("\"position\"");
+            if (posPos != std::string_view::npos) {
+                const auto pslice = obj.substr(posPos);
+                extractNumberAfterKey(pslice, "x", attdef.position.x);
+                extractNumberAfterKey(pslice, "y", attdef.position.y);
+            }
+            extractNumberAfterKey(obj, "height", attdef.height);
+            extractNumberAfterKey(obj, "rotationDeg", attdef.rotationDeg);
+            extractBoolAfterKey(obj, "invisible", attdef.invisible);
+            double fNum = 0.0;
+            if (extractNumberAfterKey(obj, "flags", fNum)) {
+                attdef.flags = static_cast<std::uint32_t>(fNum);
+            }
+            extractBoolAfterKey(obj, "isMultiline", attdef.isMultiline);
+            entity.geometry = attdef;
         } else {
             report.warnings.push_back("Unsupported entity kind: " + kind);
             continue;
@@ -601,19 +702,53 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
                     continue;
                 }
                 prim.geometry = pl;
+            } else if (pkind == "INSERT") {
+                document::InsertEntity nestedIns;
+                extractStringField(pobj, "blockName", nestedIns.blockName);
+                const auto ipos = pobj.find("\"insertion\"");
+                if (ipos != std::string_view::npos) {
+                    const auto islice = pobj.substr(ipos);
+                    extractNumberAfterKey(islice, "x", nestedIns.insertion.x);
+                    extractNumberAfterKey(islice, "y", nestedIns.insertion.y);
+                }
+                extractNumberAfterKey(pobj, "scale", nestedIns.scale);
+                extractNumberAfterKey(pobj, "rotationDeg", nestedIns.rotationDeg);
+                prim.geometry = nestedIns;
             } else {
                 report.warnings.push_back("Skipping unsupported block primitive: " + pkind);
                 continue;
             }
             block.primitives.push_back(std::move(prim));
         }
-        if (!block.name.empty() && !block.primitives.empty()) {
+        // Deserialize block attribute definitions
+        for (const auto aobj : splitTopLevelObjects(extractArrayBody(bobj, "attributes"))) {
+            document::AttributeDefinition ad;
+            extractStringField(aobj, "tag", ad.tag);
+            extractStringField(aobj, "prompt", ad.prompt);
+            extractStringField(aobj, "defaultValue", ad.defaultValue);
+            const auto posPos = aobj.find("\"position\"");
+            if (posPos != std::string_view::npos) {
+                const auto pslice = aobj.substr(posPos);
+                extractNumberAfterKey(pslice, "x", ad.position.x);
+                extractNumberAfterKey(pslice, "y", ad.position.y);
+            }
+            extractNumberAfterKey(aobj, "height", ad.height);
+            extractNumberAfterKey(aobj, "rotationDeg", ad.rotationDeg);
+            extractBoolAfterKey(aobj, "invisible", ad.invisible);
+            double fNum = 0.0;
+            if (extractNumberAfterKey(aobj, "flags", fNum)) {
+                ad.flags = static_cast<std::uint32_t>(fNum);
+            }
+            extractBoolAfterKey(aobj, "isMultiline", ad.isMultiline);
+            block.attributes.push_back(std::move(ad));
+        }
+        if (!block.name.empty() && (!block.primitives.empty() || !block.attributes.empty())) {
             blocks.push_back(std::move(block));
         }
     }
 
     doc.restoreSnapshot(std::move(layers), std::move(entities), activeLayer, nextEntity, nextLayer,
-                        unitSystem, name, std::move(blocks), linetypeScale);
+                        unitSystem, name, std::move(blocks), linetypeScale, attdisp);
     report.ok = true;
     report.entityCount = doc.entities().size();
     report.layerCount = doc.layers().size();

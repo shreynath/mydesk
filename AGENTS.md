@@ -37,26 +37,21 @@ Inspect the tree, tests, and manifest before claiming status.
 
 | Item | Status |
 |---|---|
-| Implemented products | **Draft** (`MyDeskDraft`), **Mechanical** (`MyDeskMechanical`, OCCT), **Buildings** (`MyDeskBuildings`, semantic BIM/IFC) |
-| Other catalog products | `catalog-stub` until their engines land |
-| Shared libraries | Draft: `core/*`. Mechanical/Buildings own product engines under `products/<id>/engine` |
-| Default build | `MYDESK_PRODUCT=draft`; also `mechanical`, `buildings` |
+| Implemented products | **Draft** (`MyDeskDraft`), **Mechanical** (`MyDeskMechanical`, OCCT), **Buildings** (`MyDeskBuildings`, semantic BIM/IFC), **Civil** (`MyDeskCivil`, COGO/TIN/Alignments), **Coordinate** (`MyDeskCoordinate`, Navisworks-class clash detection), **Animate** (`MyDeskAnimate`, scene graph/AnimCurve/LBS/USD), **Mill** (`MyDeskMill`, toolpath strategies/G-code), **Simulation** (`MyDeskSimulation`, CST FEA/Von Mises) |
+| Other catalog products | `catalog-stub` until their engines land (Fusion, Studio, Surface, Infra, Vault) |
+| Shared libraries | Draft: `core/*`. Domain-specific engines under `products/<id>/engine` |
+| Presets | `headless` (Draft), `mechanical`, `buildings`, `civil`, `coordinate`, `animate`, `mill`, `simulation` |
 
-Draft is the AutoCAD-class application. Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, and Vault remain separate future products. Do not merge them into Draft.
+Draft is the AutoCAD-class application. Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault, and Draft LT are independent applications. Advance all products across the ecosystem. Do not restrict development to Draft.
 
-## Session protocol
+## Ecosystem development protocol
 
-1. Read the Draft capability manifest, failing tests, and the product the user named.
-2. Pick the highest-impact unimplemented Draft capability unless the user named another product that already has code.
-3. Implement it in the document model, command interaction, persistence, and undo path.
-4. Add or extend automated tests. Build Draft. Run `ctest`.
-5. Update the capability manifest. `tools/compatibility-runner/check_manifest.py` must pass.
-6. Update that product’s changelog. Do not mark a capability `VERIFIED_PARITY` without a test that checks the reference outcome.
-7. Report files changed, tests run, build result, remaining differences, and the next capability.
-
-## Draft priority
-
-Continue from the manifest statuses. Next after classic coordinates, one-level explode, and layer freeze/plot: **linetypes and lineweights**, then attributes, layouts/plot, and deeper DXF. DWG stays unsupported until a lawful reader has round-trip evidence.
+1. Maintain independent installation, document models, computational engines, and interfaces across all products.
+2. For any product being advanced: implement features in its domain model, command/interaction layer, persistence, and undo path.
+3. Every capability must have substantive computational code, not empty stubs or mocks.
+4. Add or extend automated regression tests. Verify builds and ctest suite runs cleanly.
+5. Update capability manifests accurately. Mark `VERIFIED_PARITY` only when tests verify complete reference behavior; record `PARTIAL_PARITY` or `FUNCTIONAL` with exact tested subsets otherwise.
+6. Maintain each product's changelog, architecture documentation, and manifest.
 
 ## Build
 

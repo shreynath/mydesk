@@ -2,6 +2,7 @@ add_library(mydesk_exchange
   src/native_format.cpp
   src/dxf_writer.cpp
   src/dxf_reader.cpp
+  src/plotter.cpp
 )
 add_library(mydesk::exchange ALIAS mydesk_exchange)
 

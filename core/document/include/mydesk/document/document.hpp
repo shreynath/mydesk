@@ -2,6 +2,7 @@
 
 #include "mydesk/document/entity.hpp"
 #include "mydesk/document/history.hpp"
+#include "mydesk/document/layout.hpp"
 #include "mydesk/geometry/bbox.hpp"
 #include "mydesk/units/units.hpp"
 
@@ -89,7 +90,17 @@ public:
     bool defineBlockFromSelection(std::string name, geometry::Vec2 base,
                                   std::string txLabel = "BLOCK");
     EntityId addInsert(std::string blockName, geometry::Vec2 insertion, double scale = 1.0,
-                       double rotationDeg = 0.0, std::string txLabel = "INSERT");
+                       double rotationDeg = 0.0,
+                       const std::unordered_map<std::string, std::string>& attributeOverrides = {},
+                       std::string txLabel = "INSERT");
+    EntityId addAttdef(geometry::Vec2 position, double height, std::string tag, std::string prompt,
+                       std::string defaultValue, double rotationDeg = 0.0, bool invisible = false,
+                       std::uint32_t flags = 0, bool isMultiline = false,
+                       std::string txLabel = "ATTDEF");
+    bool editInsertAttribute(EntityId id, const std::string& tag, const std::string& newValue,
+                             std::string txLabel = "ATTEDIT");
+    [[nodiscard]] AttributeDisplayMode attributeDisplayMode() const { return attdisp_; }
+    void setAttributeDisplayMode(AttributeDisplayMode mode);
     EntityId addText(geometry::Vec2 position, double height, std::string contents,
                      double rotationDeg = 0.0, std::string txLabel = "TEXT");
     EntityId addHatch(std::vector<geometry::Vec2> boundary, std::uint32_t fillArgb = 0x6688AACC,
@@ -141,11 +152,28 @@ public:
     void restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
                          EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
                          std::string name, std::vector<BlockDefinition> blocks = {},
-                         double linetypeScale = 1.0);
+                         double linetypeScale = 1.0,
+                         AttributeDisplayMode attdisp = AttributeDisplayMode::Normal);
 
     void markClean();
     [[nodiscard]] bool isDirty() const { return dirty_; }
     void markDirty() { dirty_ = true; }
+
+    // Layout and Paper Space
+    [[nodiscard]] const std::vector<Layout>& layouts() const { return layouts_; }
+    [[nodiscard]] const Layout* findLayout(const std::string& name) const;
+    [[nodiscard]] Layout* findLayout(const std::string& name);
+    [[nodiscard]] const std::string& activeLayoutName() const { return activeLayoutName_; }
+    bool setActiveLayout(const std::string& name);
+    bool addLayout(std::string name, const PageSetup& setup = {});
+    bool removeLayout(const std::string& name);
+    bool renameLayout(const std::string& oldName, const std::string& newName);
+    [[nodiscard]] bool tileMode() const { return tileMode_; }
+    void setTileMode(bool tm);
+    [[nodiscard]] bool isPaperSpace() const { return isPaperSpace_; }
+    void setPaperSpace(bool ps) { isPaperSpace_ = ps; dirty_ = true; }
+    std::uint64_t addViewportToLayout(const std::string& layoutName, const Viewport& vp);
+    bool setViewportFrozen(const std::string& layoutName, std::uint64_t vpId, LayerId layerId, bool frozen);
 
 private:
     EntityId allocateEntityId();
@@ -157,6 +185,11 @@ private:
     std::vector<Layer> layers_;
     std::vector<Entity> entities_;
     std::vector<BlockDefinition> blocks_;
+    std::vector<Layout> layouts_;
+    std::string activeLayoutName_{"Model"};
+    bool tileMode_{true};
+    bool isPaperSpace_{false};
+    std::uint64_t nextViewportId_{1};
     LayerId activeLayerId_{kInvalidLayerId};
     EntityId nextEntityId_{1};
     LayerId nextLayerId_{1};
@@ -164,6 +197,7 @@ private:
     HistoryStack history_;
     bool dirty_{false};
     double linetypeScale_{1.0};
+    AttributeDisplayMode attdisp_{AttributeDisplayMode::Normal};
     std::optional<Transaction> composite_;
 };
 

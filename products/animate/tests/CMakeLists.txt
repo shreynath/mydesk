@@ -1,0 +1,3 @@
+add_executable(mydesk_animate_tests test_animate.cpp)
+target_link_libraries(mydesk_animate_tests PRIVATE mydesk::animate_engine)
+add_test(NAME mydesk_animate_tests COMMAND mydesk_animate_tests)

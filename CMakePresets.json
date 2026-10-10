@@ -75,6 +75,66 @@
       }
     },
     {
+      "name": "civil",
+      "displayName": "MyDesk Civil (Civil 3D)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/civil",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "civil",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "coordinate",
+      "displayName": "MyDesk Coordinate (Navisworks)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/coordinate",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "coordinate",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "animate",
+      "displayName": "MyDesk Animate (Maya-class DCC)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/animate",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "animate",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "mill",
+      "displayName": "MyDesk Mill (PowerMill-class CAM)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mill",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "mill",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "simulation",
+      "displayName": "MyDesk Simulation (FEA/CAE)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/simulation",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "simulation",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "ci-macos",
       "inherits": "default",
       "displayName": "CI macOS Draft",
@@ -112,6 +172,11 @@
     { "name": "headless", "configurePreset": "headless" },
     { "name": "mechanical", "configurePreset": "mechanical" },
     { "name": "buildings", "configurePreset": "buildings" },
+    { "name": "civil", "configurePreset": "civil" },
+    { "name": "coordinate", "configurePreset": "coordinate" },
+    { "name": "animate", "configurePreset": "animate" },
+    { "name": "mill", "configurePreset": "mill" },
+    { "name": "simulation", "configurePreset": "simulation" },
     { "name": "ci-macos", "configurePreset": "ci-macos" },
     { "name": "ci-linux", "configurePreset": "ci-linux" },
     { "name": "ci-windows", "configurePreset": "ci-windows" }
@@ -125,6 +190,31 @@
     {
       "name": "headless",
       "configurePreset": "headless",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "civil",
+      "configurePreset": "civil",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "coordinate",
+      "configurePreset": "coordinate",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "animate",
+      "configurePreset": "animate",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "mill",
+      "configurePreset": "mill",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "simulation",
+      "configurePreset": "simulation",
       "output": { "outputOnFailure": true }
     }
   ]

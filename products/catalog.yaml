@@ -93,7 +93,10 @@ products:
     version_file: products/civil/VERSION
     cmake_product: civil
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
+    comparison_targets:
+      - { vendor: Autodesk, product: Civil 3D, versions: ["2025", "2026"] }
+    docs: products/civil/docs
     issue_label: product:civil
 
   - id: coordinate
@@ -104,7 +107,10 @@ products:
     version_file: products/coordinate/VERSION
     cmake_product: coordinate
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
+    comparison_targets:
+      - { vendor: Autodesk, product: Navisworks, versions: ["2025", "2026"] }
+    docs: products/coordinate/docs
     issue_label: product:coordinate
 
   - id: infra
@@ -126,8 +132,11 @@ products:
     version_file: products/animate/VERSION
     cmake_product: animate
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
     notes: Standalone app; must not require users to install Blender.
+    comparison_targets:
+      - { vendor: Autodesk, product: Maya, versions: ["2025", "2026"] }
+    docs: products/animate/docs
     issue_label: product:animate
 
   - id: studio
@@ -161,7 +170,10 @@ products:
     version_file: products/mill/VERSION
     cmake_product: mill
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
+    comparison_targets:
+      - { vendor: Autodesk, product: PowerMill, versions: ["2025", "2026"] }
+    docs: products/mill/docs
     issue_label: product:mill
 
   - id: simulation
@@ -172,8 +184,12 @@ products:
     version_file: products/simulation/VERSION
     cmake_product: simulation
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
     notes: May split into discipline-specific installers later.
+    comparison_targets:
+      - { vendor: Autodesk, product: "Simulation Mechanical", versions: ["current"] }
+      - { vendor: Autodesk, product: "Nastran In-CAD",        versions: ["current"] }
+    docs: products/simulation/docs
     issue_label: product:simulation
 
   - id: vault

@@ -17,6 +17,7 @@ target_link_libraries(mydesk_commands
     mydesk::document
     mydesk::geometry
     mydesk::modify
+    mydesk::exchange
 )
 
 target_compile_features(mydesk_commands PUBLIC cxx_std_20)

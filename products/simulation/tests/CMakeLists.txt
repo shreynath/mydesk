@@ -1,0 +1,3 @@
+add_executable(mydesk_simulation_tests test_simulation.cpp)
+target_link_libraries(mydesk_simulation_tests PRIVATE mydesk::simulation_engine)
+add_test(NAME mydesk_simulation_tests COMMAND mydesk_simulation_tests)

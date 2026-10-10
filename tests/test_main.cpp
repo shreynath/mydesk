@@ -38,6 +38,9 @@ void test_relative_and_polar_coordinates();
 void test_explode_insert_and_polyline();
 void test_layer_freeze_thaw_plot_roundtrip();
 void test_linetype_lineweight_commands_and_roundtrip();
+void test_block_attributes_and_exchange();
+void test_attributes_regression_and_nested_blocks();
+void test_layouts_viewports_and_plotting();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -69,6 +72,10 @@ int main() {
         {"test_layer_freeze_thaw_plot_roundtrip", &test_layer_freeze_thaw_plot_roundtrip},
         {"test_linetype_lineweight_commands_and_roundtrip",
          &test_linetype_lineweight_commands_and_roundtrip},
+        {"test_block_attributes_and_exchange", &test_block_attributes_and_exchange},
+        {"test_attributes_regression_and_nested_blocks",
+         &test_attributes_regression_and_nested_blocks},
+        {"test_layouts_viewports_and_plotting", &test_layouts_viewports_and_plotting},
     };
 
     int failed = 0;

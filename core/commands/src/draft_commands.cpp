@@ -1,4 +1,5 @@
 #include "mydesk/commands/registry.hpp"
+#include "mydesk/exchange/plotter.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -848,6 +849,292 @@ CommandResult handleLinetypeScale(CommandContext& ctx, const std::vector<std::st
     return okMsg("LTSCALE " + args[0]);
 }
 
+CommandResult handleAttdef(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty()) {
+        ctx.setPrompt("Specify attribute tag name:");
+        return okMsg("ATTDEF: need tag");
+    }
+    std::string tag, prompt, defaultValue;
+    geometry::Vec2 pos{0.0, 0.0};
+    bool havePos = false;
+    double height = 2.5;
+    double rotation = 0.0;
+    bool invisible = false;
+    std::uint32_t flags = 0;
+    bool isMultiline = false;
+
+    std::vector<std::string> cleanArgs;
+    for (const auto& a : args) {
+        if (!a.empty() && (a[0] == '/' || a[0] == '-')) {
+            std::string sw = a.substr(1);
+            for (char c : sw) {
+                switch (std::toupper(static_cast<unsigned char>(c))) {
+                case 'I': flags |= document::kAttrFlagInvisible; invisible = true; break;
+                case 'C': flags |= document::kAttrFlagConstant; break;
+                case 'V': flags |= document::kAttrFlagVerify; break;
+                case 'P': flags |= document::kAttrFlagPreset; break;
+                case 'L': flags |= document::kAttrFlagLockPosition; break;
+                case 'M': flags |= document::kAttrFlagMultiline; isMultiline = true; break;
+                default: break;
+                }
+            }
+        } else {
+            cleanArgs.push_back(a);
+        }
+    }
+
+    if (cleanArgs.empty()) {
+        ctx.setPrompt("Specify attribute tag name:");
+        return okMsg("ATTDEF: need tag");
+    }
+
+    if (looksLikeCoordinate(cleanArgs[0])) {
+        std::string err;
+        if (!readUserPoint(ctx, cleanArgs[0], pos, err)) {
+            return errMsg("ATTDEF: " + err);
+        }
+        havePos = true;
+        if (cleanArgs.size() > 1 && parseNumberToken(cleanArgs[1], height)) {
+            if (cleanArgs.size() > 2) tag = cleanArgs[2];
+            if (cleanArgs.size() > 3) prompt = cleanArgs[3];
+            if (cleanArgs.size() > 4) defaultValue = cleanArgs[4];
+            if (cleanArgs.size() > 5) {
+                (void)parseNumberToken(cleanArgs[5], rotation);
+            }
+        }
+    } else {
+        tag = cleanArgs[0];
+        if (cleanArgs.size() > 1) prompt = cleanArgs[1];
+        if (cleanArgs.size() > 2) defaultValue = cleanArgs[2];
+        if (cleanArgs.size() > 3 && looksLikeCoordinate(cleanArgs[3])) {
+            std::string err;
+            if (!readUserPoint(ctx, cleanArgs[3], pos, err)) {
+                return errMsg("ATTDEF: " + err);
+            }
+            havePos = true;
+            if (cleanArgs.size() > 4) {
+                (void)parseNumberToken(cleanArgs[4], height);
+            }
+            if (cleanArgs.size() > 5) {
+                (void)parseNumberToken(cleanArgs[5], rotation);
+            }
+        }
+    }
+
+    if (tag.empty()) {
+        return errMsg("ATTDEF: tag cannot be empty");
+    }
+    if (!havePos) {
+        ctx.setScratch(tag);
+        ctx.setPrompt("Specify start point:");
+        return okMsg("ATTDEF: need start point");
+    }
+
+    try {
+        const auto id = ctx.document().addAttdef(pos, height, tag, prompt, defaultValue,
+                                                rotation, invisible, flags, isMultiline);
+        ctx.clearInputs();
+        ctx.setScratch("");
+        ctx.setPrompt("");
+        return okMsg("ATTDEF created #" + std::to_string(id), id);
+    } catch (const std::exception& ex) {
+        return errMsg(ex.what());
+    }
+}
+
+CommandResult handleAttedit(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.size() < 2) {
+        return errMsg("ATTEDIT usage: ATTEDIT [entity_id] <tag> <new_value>");
+    }
+
+    document::EntityId targetId = document::kInvalidEntityId;
+    std::string tag;
+    std::string newValue;
+
+    double idNum = 0.0;
+    if (args.size() >= 3 && parseNumberToken(args[0], idNum)) {
+        targetId = static_cast<document::EntityId>(idNum);
+        tag = args[1];
+        for (std::size_t i = 2; i < args.size(); ++i) {
+            if (i > 2) newValue += " ";
+            newValue += args[i];
+        }
+    } else {
+        const auto selected = ctx.document().selectionOrdered();
+        for (const auto id : selected) {
+            const auto* ent = ctx.document().findEntity(id);
+            if (ent && std::holds_alternative<document::InsertEntity>(ent->geometry)) {
+                targetId = id;
+                break;
+            }
+        }
+        if (targetId == document::kInvalidEntityId && selected.size() == 1) {
+            targetId = selected.front();
+        }
+        tag = args[0];
+        for (std::size_t i = 1; i < args.size(); ++i) {
+            if (i > 1) newValue += " ";
+            newValue += args[i];
+        }
+    }
+
+    if (targetId == document::kInvalidEntityId) {
+        return errMsg("ATTEDIT: select a block reference (INSERT) first or provide entity ID");
+    }
+
+    const auto* ent = ctx.document().findEntity(targetId);
+    if (!ent || !std::holds_alternative<document::InsertEntity>(ent->geometry)) {
+        return errMsg("ATTEDIT: entity #" + std::to_string(targetId) + " is not an INSERT");
+    }
+
+    if (!ctx.document().editInsertAttribute(targetId, tag, newValue)) {
+        return errMsg("ATTEDIT: attribute tag '" + tag + "' not found in block reference #" + std::to_string(targetId));
+    }
+    return okMsg("Attribute " + tag + " updated in #" + std::to_string(targetId));
+}
+
+CommandResult handleAttdisp(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty()) {
+        const auto current = ctx.document().attributeDisplayMode();
+        std::string curStr = "Normal";
+        if (current == document::AttributeDisplayMode::On) curStr = "ON";
+        else if (current == document::AttributeDisplayMode::Off) curStr = "OFF";
+        return okMsg("ATTDISP is " + curStr + ". Usage: ATTDISP <Normal|ON|OFF>");
+    }
+    std::string modeStr = args[0];
+    for (char& c : modeStr) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+
+    if (modeStr == "NORMAL" || modeStr == "N") {
+        ctx.document().setAttributeDisplayMode(document::AttributeDisplayMode::Normal);
+        return okMsg("ATTDISP set to Normal");
+    } else if (modeStr == "ON" || modeStr == "1") {
+        ctx.document().setAttributeDisplayMode(document::AttributeDisplayMode::On);
+        return okMsg("ATTDISP set to ON");
+    } else if (modeStr == "OFF" || modeStr == "0") {
+        ctx.document().setAttributeDisplayMode(document::AttributeDisplayMode::Off);
+        return okMsg("ATTDISP set to OFF");
+    }
+    return errMsg("ATTDISP mode must be Normal, ON, or OFF");
+}
+
+CommandResult handleLayout(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty() || args[0] == "?" || args[0] == "LIST" || args[0] == "list") {
+        std::ostringstream ss;
+        ss << "Layouts: ";
+        const auto& all = ctx.document().layouts();
+        for (std::size_t i = 0; i < all.size(); ++i) {
+            if (i > 0) ss << ", ";
+            if (all[i].name == ctx.document().activeLayoutName()) ss << "*";
+            ss << all[i].name;
+            if (all[i].isModelSpace) ss << " (Model)";
+        }
+        return okMsg(ss.str());
+    }
+
+    std::string sub = args[0];
+    for (char& c : sub) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+
+    if ((sub == "NEW" || sub == "N") && args.size() >= 2) {
+        if (!ctx.document().addLayout(args[1])) {
+            return errMsg("LAYOUT: failed to create layout " + args[1]);
+        }
+        return okMsg("Layout " + args[1] + " created");
+    } else if ((sub == "SET" || sub == "S") && args.size() >= 2) {
+        if (!ctx.document().setActiveLayout(args[1])) {
+            return errMsg("LAYOUT: layout not found " + args[1]);
+        }
+        return okMsg("Switched to layout " + args[1]);
+    } else if ((sub == "RENAME" || sub == "R") && args.size() >= 3) {
+        if (!ctx.document().renameLayout(args[1], args[2])) {
+            return errMsg("LAYOUT: rename failed");
+        }
+        return okMsg("Layout " + args[1] + " renamed to " + args[2]);
+    } else if ((sub == "DELETE" || sub == "D") && args.size() >= 2) {
+        if (!ctx.document().removeLayout(args[1])) {
+            return errMsg("LAYOUT: cannot delete " + args[1]);
+        }
+        return okMsg("Layout " + args[1] + " deleted");
+    }
+    return errMsg("LAYOUT usage: LAYOUT [New|Set|Rename|Delete|List] [args...]");
+}
+
+CommandResult handleTilemode(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty()) {
+        return okMsg("TILEMODE is " + std::string(ctx.document().tileMode() ? "1" : "0"));
+    }
+    double val = 0.0;
+    if (!parseNumberToken(args[0], val)) {
+        return errMsg("TILEMODE expects 0 or 1");
+    }
+    ctx.document().setTileMode(val != 0.0);
+    return okMsg("TILEMODE set to " + std::to_string(static_cast<int>(val != 0.0)));
+}
+
+CommandResult handleMview(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (ctx.document().tileMode()) {
+        return errMsg("MVIEW / VPORTS: viewports only supported in paper space layouts (TILEMODE=0)");
+    }
+    if (args.size() < 3) {
+        return errMsg("MVIEW usage: MVIEW <cx,cy> <width_mm> <height_mm> [view_height]");
+    }
+    geometry::Vec2 center;
+    std::string err;
+    if (!readUserPoint(ctx, args[0], center, err)) {
+        return errMsg("MVIEW: " + err);
+    }
+    double w = 0.0, h = 0.0, vh = 100.0;
+    if (!parseNumberToken(args[1], w) || !parseNumberToken(args[2], h) || w <= 0.0 || h <= 0.0) {
+        return errMsg("MVIEW: width and height must be positive numbers");
+    }
+    if (args.size() > 3) {
+        (void)parseNumberToken(args[3], vh);
+    }
+    document::Viewport vp;
+    vp.center = center;
+    vp.width = w;
+    vp.height = h;
+    vp.viewHeight = vh > 0.0 ? vh : 100.0;
+    auto vpId = ctx.document().addViewportToLayout(ctx.document().activeLayoutName(), vp);
+    if (vpId == 0) {
+        return errMsg("MVIEW: failed to add viewport");
+    }
+    return okMsg("Viewport #" + std::to_string(vpId) + " created in layout " + ctx.document().activeLayoutName(), vpId);
+}
+
+CommandResult handlePspace(CommandContext& ctx, const std::vector<std::string>&) {
+    if (ctx.document().tileMode()) {
+        return errMsg("PSPACE: command not allowed in Model tab (TILEMODE=1)");
+    }
+    ctx.document().setPaperSpace(true);
+    return okMsg("Switched to Paper Space (PSPACE)");
+}
+
+CommandResult handleMspace(CommandContext& ctx, const std::vector<std::string>&) {
+    if (ctx.document().tileMode()) {
+        return okMsg("Already in Model space");
+    }
+    ctx.document().setPaperSpace(false);
+    return okMsg("Switched to Model Space inside Viewport (MSPACE)");
+}
+
+CommandResult handlePlot(CommandContext& ctx, const std::vector<std::string>& args) {
+    std::string layout = ctx.document().activeLayoutName();
+    std::filesystem::path outPath = std::filesystem::current_path() / (layout + ".svg");
+    if (!args.empty()) {
+        if (args.size() >= 2) {
+            layout = args[0];
+            outPath = args[1];
+        } else {
+            outPath = args[0];
+        }
+    }
+    auto report = exchange::plotToSvg(ctx.document(), layout, outPath);
+    if (!report.ok) {
+        return errMsg("PLOT failed: " + report.message);
+    }
+    return okMsg("Plotted " + layout + " (" + std::to_string(report.renderedEntities) + " entities) to " + outPath.string());
+}
+
 } // namespace
 
 void registerDraftCommands(CommandRegistry& registry) {
@@ -1018,6 +1305,86 @@ void registerDraftCommands(CommandRegistry& registry) {
         .status = CommandStatus::ImplementedTested,
         .notes = "Global linetype scale applied when stroking patterns",
         .handler = handleLinetypeScale,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "ATTDEF",
+        .label = "Define Attribute",
+        .aliases = {"ATT"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Create attribute definition tag/prompt/default with position and height",
+        .handler = handleAttdef,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "ATTEDIT",
+        .label = "Edit Attribute",
+        .aliases = {"ATE"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Edit attribute value in block reference",
+        .handler = handleAttedit,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "EATTEDIT",
+        .label = "Enhanced Attribute Editor",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Inspect and edit attributes in block reference",
+        .handler = handleAttedit,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "ATTDISP",
+        .label = "Attribute Display Mode",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Control attribute visibility (Normal, ON, OFF)",
+        .handler = handleAttdisp,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "LAYOUT",
+        .label = "Layout management",
+        .aliases = {"LO"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Create, switch, rename, delete paper space layouts",
+        .handler = handleLayout,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "TILEMODE",
+        .label = "Tile mode",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Toggle Model space tabs (1) vs Paper space layout tabs (0)",
+        .handler = handleTilemode,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "MVIEW",
+        .label = "Make Viewport",
+        .aliases = {"MV", "VPORTS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Create floating paper space viewport displaying model geometry",
+        .handler = handleMview,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "PSPACE",
+        .label = "Paper space",
+        .aliases = {"PS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Switch to paper space mode on active layout",
+        .handler = handlePspace,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "MSPACE",
+        .label = "Model space in viewport",
+        .aliases = {"MS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Activate model space editing inside viewport",
+        .handler = handleMspace,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "PLOT",
+        .label = "Plot to vector output",
+        .aliases = {"PRINT", "EXPORTPDF"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Plot active layout or model space to vector SVG",
+        .handler = handlePlot,
     });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
