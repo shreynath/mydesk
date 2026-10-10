@@ -30,8 +30,13 @@ workflows:
 
   - id: layers-command-line
     status: partial
-    notes: NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR/LIST; no freeze/plot/VP overrides; no dialog parity
+    notes: NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/NOPLOT/COLOR/LIST; no layer states, filters, or VP overrides
     proof: tests/unit/test_layers.cpp
+
+  - id: coordinate-entry
+    status: verified
+    notes: absolute x,y; relative @dx,dy; polar dist<angle and @dist<angle; # absolute. No UCS or dynamic input.
+    proof: tests/unit/test_coordinates.cpp
 
   - id: object-snaps
     status: partial
@@ -58,8 +63,8 @@ workflows:
 
   - id: blocks-attributes-xrefs
     status: partial
-    notes: BLOCK/INSERT with scale/rotation; no attributes/xrefs/EXPLODE yet
-    proof: tests/unit/test_blocks.cpp
+    notes: BLOCK/INSERT with scale/rotation; EXPLODE one level for inserts and polylines; no attributes/xrefs
+    proof: tests/unit/test_blocks.cpp, tests/unit/test_explode.cpp
 
   - id: layouts-plot-pdf
     status: not-started

@@ -34,8 +34,14 @@ void LayersPanel::setDocument(const document::Document& doc) {
         if (!layer.visible) {
             label += QStringLiteral(" [off]");
         }
+        if (layer.frozen) {
+            label += QStringLiteral(" [frozen]");
+        }
         if (layer.locked) {
             label += QStringLiteral(" [lock]");
+        }
+        if (!layer.plottable) {
+            label += QStringLiteral(" [noplot]");
         }
         if (layer.id == doc.activeLayerId()) {
             label += QStringLiteral(" *");

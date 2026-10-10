@@ -1,0 +1,1322 @@
+{
+  "schema_version": 1,
+  "product_id": "draft",
+  "product_name": "MyDesk Draft",
+  "binary": "MyDeskDraft",
+  "target_application": "AutoCAD",
+  "target_version": "2025",
+  "note": "FUNCTIONAL means the cited tests pass for the documented scope. Only VERIFIED_PARITY is treated as behavioral parity for that capability. This manifest is not an application-completeness claim.",
+  "capabilities": [
+    {
+      "id": "ACAD-COORD-CLASSIC",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "precision-input",
+      "name": "Classic coordinate entry",
+      "command": "x,y | @dx,dy | dist<angle | @dist<angle | #x,y",
+      "reference_behavior": "Absolute Cartesian coordinates are x,y. @dx,dy and @dist<angle are relative to LASTPOINT. dist<angle is polar from the origin. # forces absolute. Angles are degrees counterclockwise from +X. A relative coordinate with no previous point is rejected.",
+      "expected_input": "LINE 0,0 @10,0 then LINE @0,5 @10<90",
+      "expected_output": "First segment (0,0)-(10,0). Second segment (10,5)-(10,15).",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/commands/src/registry.cpp",
+      "tests": [
+        "test_relative_and_polar_coordinates"
+      ],
+      "manual_tests": [],
+      "performance": "Parsing is proportional to the token length.",
+      "status": "VERIFIED_PARITY",
+      "evidence": "tests/unit/test_coordinates.cpp",
+      "differences": "No UCS, dynamic-input tooltip, or polar tracking. 3D x,y,z is rejected. Ortho applies to interactive points after the coordinate is resolved."
+    },
+    {
+      "id": "ACAD-DRAW-LINE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "draw",
+      "name": "Line",
+      "command": "LINE / L",
+      "reference_behavior": "Two points create one line segment. The command can be completed on one line or by subsequent point input. Undo removes the segment.",
+      "expected_input": "LINE 0,0 20,10",
+      "expected_output": "One LINE entity from the first point to the second.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_command_line_alias"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time per segment.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_commands.cpp",
+      "differences": "Continue, Close, Undo-within-command, and 3D lines are not implemented."
+    },
+    {
+      "id": "ACAD-DRAW-CIRCLE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "draw",
+      "name": "Circle",
+      "command": "CIRCLE / C",
+      "reference_behavior": "Center plus radius, or center plus a point on the circumference. Non-positive radius is rejected.",
+      "expected_input": "CIRCLE 5,5 3",
+      "expected_output": "One CIRCLE of radius 3.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_command_circle_radius",
+        "test_circle_reject_nonpositive"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_commands.cpp",
+      "differences": "2P, 3P, and TTR circle options are not implemented."
+    },
+    {
+      "id": "ACAD-DRAW-PLINE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "draw",
+      "name": "Polyline",
+      "command": "PLINE / PL",
+      "reference_behavior": "Vertices accumulate until END or close. A closed polyline stores one entity.",
+      "expected_input": "PLINE points then END or C",
+      "expected_output": "One POLYLINE entity.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "core/commands/src/modify_commands.cpp",
+      "tests": [
+        "test_pline_and_trim"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in vertex count.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_modify.cpp",
+      "differences": "No arc segments, width, or linetype generation."
+    },
+    {
+      "id": "ACAD-DRAW-RECTANG",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "draw",
+      "name": "Rectangle",
+      "command": "RECTANG / REC",
+      "reference_behavior": "Two corners create a closed four-vertex polyline.",
+      "expected_input": "RECTANG 0,0 10,10",
+      "expected_output": "One closed POLYLINE.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_rectangle_four_lines"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_transforms.cpp",
+      "differences": "No chamfer, fillet, rotation, or elevation options on RECTANG."
+    },
+    {
+      "id": "ACAD-MODIFY-TRANSFORM",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "modify",
+      "name": "Move, copy, rotate, scale",
+      "command": "MOVE / COPY / ROTATE / SCALE",
+      "reference_behavior": "Transforms the current selection about the supplied base point. Copy creates new entities. Undo restores the previous geometry.",
+      "expected_input": "Selection plus two points or a numeric angle/factor",
+      "expected_output": "Moved, copied, rotated, or scaled entities.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_move_copy_rotate_scale"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in the number of selected entities.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_transforms.cpp",
+      "differences": "No reference-scale option, multiple copy, or grip editing."
+    },
+    {
+      "id": "ACAD-MODIFY-TRIM-EXTEND-OFFSET-FILLET-CHAMFER",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "modify",
+      "name": "Trim, extend, offset, fillet, chamfer",
+      "command": "TRIM / EXTEND / OFFSET / FILLET / CHAMFER",
+      "reference_behavior": "Trim and extend adjust lines at a pick. Offset creates a parallel entity. Fillet and chamfer operate on two lines.",
+      "expected_input": "Selected geometry plus a pick, distance, radius, or chamfer distances",
+      "expected_output": "Modified or additional line and arc geometry.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/modify/src/modify_ops.cpp",
+      "tests": [
+        "test_pline_and_trim",
+        "test_extend_offset_fillet_chamfer"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in candidate edges for each pick.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_modify.cpp",
+      "differences": "Polyline trim is limited. Fillet and chamfer do not yet cover polylines. No fence or edge mode."
+    },
+    {
+      "id": "ACAD-SELECT-WINDOW-CROSSING",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "selection",
+      "name": "Window and crossing selection",
+      "command": "implied window",
+      "reference_behavior": "Left-to-right selects entities fully inside the rectangle. Right-to-left selects entities that intersect it.",
+      "expected_input": "Two rectangle corners and a crossing flag",
+      "expected_output": "Selection set matches containment or intersection.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_selection_window_crossing"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in entity count.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_modify.cpp",
+      "differences": "No lasso, fence, polygon window, or selection filters. Frozen, off, and locked layers are excluded."
+    },
+    {
+      "id": "ACAD-LAYER-BASIC",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Layer create, current, on, off, lock, color",
+      "command": "LAYER / LA",
+      "reference_behavior": "NEW creates a layer. MAKE and SET choose the current layer. OFF hides entities and blocks selection. LOCK blocks selection. COLOR sets the layer color. The current layer cannot be turned off.",
+      "expected_input": "LAYER NEW Walls; LAYER OFF Doors; LAYER COLOR Doors FF0000",
+      "expected_output": "Layer table updated. Hidden and locked entities are not hit-tested.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_layer_command_new_set_off",
+        "test_layer_duplicate_new_rejected"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in layer count for name lookup.",
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/unit/test_layers.cpp",
+      "differences": "No layer states, filters, description, transparency, viewport overrides, or full layer-manager dialog."
+    },
+    {
+      "id": "ACAD-LAYER-FREEZE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Layer freeze and thaw",
+      "command": "LAYER FREEZE / LAYER THAW",
+      "reference_behavior": "Freeze hides a layer independently of On/Off. The current layer cannot be frozen. Thaw does not turn an off layer on. Frozen entities are not drawn or selected. Flags persist in the native file.",
+      "expected_input": "LAYER FREEZE Walls while layer 0 is current",
+      "expected_output": "Walls.frozen is true and its entities fail hit testing until THAW.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_layer_freeze_thaw_plot_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Visibility checks are constant time per entity.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_layers.cpp",
+      "differences": "No viewport freeze, new-VP freeze, or regen distinction between Off and Frozen."
+    },
+    {
+      "id": "ACAD-LAYER-PLOT-FLAG",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Layer plot flag",
+      "command": "LAYER PLOT / LAYER NOPLOT",
+      "reference_behavior": "Plot and No Plot change whether a layer is marked for plotting without hiding it in model space. The flag round-trips in the native file.",
+      "expected_input": "LAYER NOPLOT Walls",
+      "expected_output": "plottable is false and the entity remains selectable.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_layer_freeze_thaw_plot_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time per layer.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_layers.cpp",
+      "differences": "No plotter consumes the flag yet. Plot styles, page setups, and PDF output are separate unimplemented capabilities."
+    },
+    {
+      "id": "ACAD-CHPROP",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "properties",
+      "name": "Change color and layer",
+      "command": "CHPROP / CH",
+      "reference_behavior": "Sets selection color to a hex value or ByLayer, or moves the selection to a named layer.",
+      "expected_input": "CHPROP COLOR FF0000 or CHPROP LAYER name",
+      "expected_output": "Entity color or layer id changes and undo restores it.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_chprop_and_dimlinear"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in selection size.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_dims_props_snaps.cpp",
+      "differences": "No linetype, lineweight, transparency, or thickness properties."
+    },
+    {
+      "id": "ACAD-DIM-ALIGNED",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Aligned linear dimension",
+      "command": "DIMLINEAR / DIM",
+      "reference_behavior": "Three points define the two extension origins and the dimension-line location. Measurement is the distance between origins.",
+      "expected_input": "DIMLINEAR x1,y1 x2,y2 x3,y3",
+      "expected_output": "One dimension entity whose measurement equals the origin distance.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/entity.cpp",
+      "tests": [
+        "test_chprop_and_dimlinear",
+        "test_dim_native_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_dims_props_snaps.cpp",
+      "differences": "Horizontal, vertical, rotated, angular, radius, and diameter dimensions are not implemented. No DIMSTYLE or associativity. DXF export omits dimensions."
+    },
+    {
+      "id": "ACAD-OSNAP-BASIC",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "precision-input",
+      "name": "Endpoint, midpoint, center, intersection, perpendicular snaps",
+      "command": "OSNAP / OS",
+      "reference_behavior": "When enabled, a pick near a qualifying geometry point resolves to that snap.",
+      "expected_input": "OSNAP END|MID|CEN|INT|PER and a cursor position",
+      "expected_output": "The snapped point matches the geometric feature within tolerance.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "modules/draft/src/snaps.cpp",
+      "tests": [
+        "test_snap_endpoint",
+        "test_osnap_intersection_perpendicular"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in nearby candidate geometry.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_snaps.cpp",
+      "differences": "No tangent, quadrant, nearest, node, insertion, apparent intersection, or object-snap tracking."
+    },
+    {
+      "id": "ACAD-BLOCK-INSERT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "Block definition and insert",
+      "command": "BLOCK / INSERT",
+      "reference_behavior": "BLOCK defines a named block from the selection relative to a base point and replaces the selection with an insert. INSERT places another reference with scale and rotation. The definition round-trips in the native file.",
+      "expected_input": "BLOCK Widget 0,0 then INSERT Widget 50,0 2 0",
+      "expected_output": "One block definition and insert entities.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_block_and_insert"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in the number of selected primitives.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_blocks.cpp",
+      "differences": "No attributes, dynamic blocks, nested inserts inside a definition, or uniform/non-uniform separate XY scales. DXF does not write blocks."
+    },
+    {
+      "id": "ACAD-EXPLODE-ONE-LEVEL",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "Explode insert or polyline",
+      "command": "EXPLODE / X",
+      "reference_behavior": "An insert is replaced by its block primitives transformed by insertion, scale, and rotation. A polyline is replaced by one line per segment, including the closing segment. The block definition remains. Undo restores the original object. Lines, circles, and other non-explodable entities are left unchanged.",
+      "expected_input": "EXPLODE on a scaled rotated insert, or on a closed rectangle",
+      "expected_output": "Transformed primitives or four rectangle edges. One undo restores the insert.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_explode_insert_and_polyline"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in primitive or segment count.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_explode.cpp",
+      "differences": "Does not explode dimensions, hatches, or multiline text. Non-uniform XY scale is not represented. Nested inserts inside definitions are not stored."
+    },
+    {
+      "id": "ACAD-TEXT-SINGLE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Single-line text",
+      "command": "TEXT / T",
+      "reference_behavior": "A point, height, and string create one text entity.",
+      "expected_input": "TEXT 10,10 2.5 Hello World",
+      "expected_output": "Text contents and height match the input.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_text_and_hatch"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_text_hatch.cpp",
+      "differences": "No style, justification, multiline text, or DXF text round-trip."
+    },
+    {
+      "id": "ACAD-HATCH-SOLID",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Solid hatch from closed polyline",
+      "command": "HATCH / H",
+      "reference_behavior": "A selected closed polyline produces a solid fill using that boundary.",
+      "expected_input": "HATCH with a closed polyline selected",
+      "expected_output": "One HATCH entity.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_text_and_hatch"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in boundary vertices.",
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/unit/test_text_hatch.cpp",
+      "differences": "No pattern hatches, gradients, islands, associativity, or separate boundary selection."
+    },
+    {
+      "id": "ACAD-NATIVE-FILE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "files",
+      "name": "Native drawing round-trip",
+      "command": "save/open .mydesk",
+      "reference_behavior": "The native JSON drawing reloads tested entities and layer flags.",
+      "expected_input": "serializeNative then deserializeNative",
+      "expected_output": "Geometry and recorded layer flags match.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/exchange/src/native_format.cpp",
+      "tests": [
+        "test_native_roundtrip",
+        "test_layer_freeze_thaw_plot_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in entity count.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/integration/test_roundtrip.cpp",
+      "differences": "Schema 4. This is MyDesk's editable format, not DWG. Text and hatch serialization remain incomplete."
+    },
+    {
+      "id": "ACAD-DXF-BASIC",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "files",
+      "name": "Basic DXF round-trip",
+      "command": "DXF import/export",
+      "reference_behavior": "LINE, CIRCLE, ARC, LWPOLYLINE, and LAYER survive a DXF write and read for the tested fixture.",
+      "expected_input": "A drawing containing those entities",
+      "expected_output": "The same entity kinds and coordinates reload.",
+      "formats": [
+        ".dxf"
+      ],
+      "implementation": "core/exchange/src/dxf_writer.cpp",
+      "tests": [
+        "test_dxf_line_circle_pline_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in entity count.",
+      "status": "PARTIAL_PARITY",
+      "evidence": "tests/integration/test_dxf_roundtrip.cpp",
+      "differences": "Dimensions, blocks, text, hatches, xrefs, and most tables are omitted and reported."
+    },
+    {
+      "id": "ACAD-UNDO",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Undo and redo",
+      "command": "UNDO / U / REDO",
+      "reference_behavior": "Entity transactions undo and redo in order.",
+      "expected_input": "Create a line, undo, redo",
+      "expected_output": "The entity disappears and returns.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "core/document/src/history.cpp",
+      "tests": [
+        "test_document_line_undo_redo"
+      ],
+      "manual_tests": [],
+      "performance": "Linear in operations stored in the transaction.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_document.cpp",
+      "differences": "Layer property changes are not transactions. No UNDO mark, group, or command-history browser."
+    },
+    {
+      "id": "ACAD-LINETYPE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "properties",
+      "name": "Linetypes",
+      "command": "LAYER LTYPE / CHPROP LTYPE / LTSCALE",
+      "reference_behavior": "Layers and entities store named linetypes Continuous, Dashed, Hidden, Center, Phantom, Dot. ByLayer resolves to the layer. LTSCALE scales the pattern. Patterns round-trip in native and DXF layer/entity group 6.",
+      "expected_input": "LAYER LTYPE Hidden DASHED; CHPROP LTYPE CENTER; LTSCALE 2",
+      "expected_output": "Resolved entity linetype is Center; native and DXF reload preserve layer Dashed and entity Center.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": [
+        "core/document/src/entity.cpp",
+        "core/commands/src/draft_commands.cpp",
+        "core/exchange/src/native_format.cpp"
+      ],
+      "tests": [
+        "test_linetype_lineweight_commands_and_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Dash tessellation is proportional to visible edge length.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_linetypes.cpp",
+      "differences": "No custom .lin file loading, complex shape dashes, or ISO pen tables. Display uses Qt dash patterns scaled by LTSCALE."
+    },
+    {
+      "id": "ACAD-LINEWEIGHT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "properties",
+      "name": "Lineweights",
+      "command": "LAYER LWEIGHT / CHPROP LWEIGHT",
+      "reference_behavior": "Layers and entities store millimeter lineweights 0\u20132.11. ByLayer resolves to the layer. Native persistence round-trips the values. Display scales stroke width from millimeters.",
+      "expected_input": "LAYER LWEIGHT Hidden 0.50; CHPROP LWEIGHT 0.70",
+      "expected_output": "Resolved weight is 0.70 until ByLayer restores 0.50.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": [
+        "core/document/src/document.cpp",
+        "products/draft/app/src/canvas_widget.cpp"
+      ],
+      "tests": [
+        "test_linetype_lineweight_commands_and_roundtrip"
+      ],
+      "manual_tests": [],
+      "performance": "Constant time per entity.",
+      "status": "FUNCTIONAL",
+      "evidence": "tests/unit/test_linetypes.cpp",
+      "differences": "No DXF group 370 round-trip yet. No plot-style mapping. Display mapping is approximate screen pixels, not calibrated plot millimeters."
+    },
+    {
+      "id": "ACAD-ATTRIB",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "Block attributes",
+      "command": "ATTDEF / ATTEDIT / ATTDISP",
+      "reference_behavior": "Attribute definitions in a block become editable tags on each insert.",
+      "expected_input": "Define a tag and insert the block",
+      "expected_output": "Each insert stores its own attribute values.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Linear in attribute count per insert.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-XREF",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "External references",
+      "command": "XREF / XATTACH",
+      "reference_behavior": "A drawing references another drawing without copying its definition. Reload and detach update the host.",
+      "expected_input": "Attach a second drawing and move it",
+      "expected_output": "The host stores the reference path and transform, not a flattened copy.",
+      "formats": [
+        ".mydesk",
+        ".dwg",
+        ".dxf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must not load unused reference geometry into the host command set.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-LAYOUT-PAPER",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layouts",
+      "name": "Layouts, paper space, and viewports",
+      "command": "LAYOUT / MVIEW",
+      "reference_behavior": "A drawing has model space plus named paper-space layouts with scaled viewports.",
+      "expected_input": "Create a layout and a viewport looking at model geometry",
+      "expected_output": "Paper-space coordinates and viewport scale are stored separately from model geometry.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Switching layouts must not duplicate model entities.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. Draft edits a single model space."
+    },
+    {
+      "id": "ACAD-PLOT-PDF",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layouts",
+      "name": "Plot and PDF output",
+      "command": "PLOT",
+      "reference_behavior": "A page setup plots selected layouts to PDF with scale, plot style, and the layer plot flag.",
+      "expected_input": "Plot the model or a layout to PDF",
+      "expected_output": "A vector PDF containing the plotted geometry.",
+      "formats": [
+        ".pdf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "A multi-sheet technical drawing plots without flattening to a bitmap.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-DWG",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "files",
+      "name": "DWG interoperability",
+      "command": "OPEN / SAVE DWG",
+      "reference_behavior": "Open and save DWG drawings with geometry, layers, and supported objects preserved or explicitly reported.",
+      "expected_input": "A non-trivial DWG",
+      "expected_output": "Round-trip evidence for the supported subset, with unsupported objects reported.",
+      "formats": [
+        ".dwg"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Large drawings stay within interactive memory limits.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Unsupported. No DWG claim is allowed until a lawful reader and round-trip tests exist. See docs/DECISIONS/0004-dwg-strategy.md."
+    },
+    {
+      "id": "ACAD-LAYER-STATES",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Layer states",
+      "command": "LAYERSTATE",
+      "reference_behavior": "Named snapshots restore visibility, freeze, lock, color, and plot flags.",
+      "expected_input": "Save a state, change layers, restore the state",
+      "expected_output": "Layer flags match the snapshot.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Restore is linear in layer count.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-UCS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "precision-input",
+      "name": "User coordinate systems",
+      "command": "UCS",
+      "reference_behavior": "Named coordinate systems change how typed coordinates and angles are interpreted.",
+      "expected_input": "UCS origin and X axis, then a typed point",
+      "expected_output": "The stored world point matches the UCS transform.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Coordinate transforms are constant time.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. Coordinates are world-space only."
+    },
+    {
+      "id": "ACAD-DYNAMIC-INPUT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "precision-input",
+      "name": "Dynamic input",
+      "command": "DYNMODE",
+      "reference_behavior": "Dimensions and coordinate fields follow the cursor during a command and accept the same coordinate syntax.",
+      "expected_input": "Start LINE and type a length in the dynamic field",
+      "expected_output": "The segment uses that length.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "The field updates every pointer move without blocking input.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. Typed coordinates work on the command line."
+    },
+    {
+      "id": "ACAD-POLAR-TRACKING",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "precision-input",
+      "name": "Polar tracking",
+      "command": "POLAR",
+      "reference_behavior": "Cursor movement locks to configured angle increments while a command is active.",
+      "expected_input": "Polar angle 45 degrees and a point near that ray",
+      "expected_output": "The accepted point lies on the tracked ray.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Tracking is constant time per pointer move.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. Ortho (F8) is the only directional constraint."
+    },
+    {
+      "id": "ACAD-MIRROR-STRETCH",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "modify",
+      "name": "Mirror and stretch",
+      "command": "MIRROR / STRETCH",
+      "reference_behavior": "Mirror reflects geometry across two points. Stretch moves vertices inside a crossing window.",
+      "expected_input": "A crossing window and a displacement, or a mirror axis",
+      "expected_output": "Only the indicated vertices move, or a reflected copy is created.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Linear in selected vertices.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Commands are recognized and rejected as not implemented."
+    },
+    {
+      "id": "ACAD-ARRAY",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "modify",
+      "name": "Arrays",
+      "command": "ARRAY / ARRAYRECT / ARRAYPOLAR",
+      "reference_behavior": "Rectangular, polar, and path arrays create associated copies.",
+      "expected_input": "Rows, columns, and spacing",
+      "expected_output": "The requested copies exist and an associative array can be edited.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Creation is linear in copy count.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-CONSTRAINTS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "parametric",
+      "name": "Geometric and dimensional constraints",
+      "command": "GEOMCONSTRAINT / DIMCONSTRAINT",
+      "reference_behavior": "Constraints solve when a driving dimension changes.",
+      "expected_input": "A coincident constraint and a driving distance",
+      "expected_output": "Dependent geometry moves to satisfy the constraint.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Solve time stays interactive for typical sketch sizes.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-ANNOTATION-ADVANCED",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Multiline text, leaders, tables, and dimension styles",
+      "command": "MTEXT / MLEADER / TABLE / DIMSTYLE",
+      "reference_behavior": "Formatted text, leaders, tables, and named dimension styles are editable objects.",
+      "expected_input": "Create each object and reload the drawing",
+      "expected_output": "Content, placement, and style survive save.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Editing one text object does not redraw the entire drawing from scratch beyond the damaged region.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. Single-line text and one aligned dimension exist as separate capabilities."
+    },
+    {
+      "id": "ACAD-CURVES",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "draw",
+      "name": "Spline, ellipse, and arc command",
+      "command": "SPLINE / ELLIPSE / ARC",
+      "reference_behavior": "ARC, ELLIPSE, and SPLINE create their own editable geometry.",
+      "expected_input": "ARC center-start-end, ELLIPSE axes, SPLINE fit points",
+      "expected_output": "The stored curve passes through the specified points within tolerance.",
+      "formats": [
+        ".mydesk",
+        ".dxf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Evaluation is proportional to the displayed tessellation.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Arc entities can be created by fillet. The ARC command itself is not implemented."
+    },
+    {
+      "id": "ACAD-RECOVERY",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Autosave, audit, purge, and recovery",
+      "command": "AUTOSAVE / AUDIT / PURGE / RECOVER",
+      "reference_behavior": "Autosave can restore a crashed drawing. Audit reports corruption. Purge removes unused named objects without deleting referenced ones.",
+      "expected_input": "A drawing with an unused layer and a simulated crash journal",
+      "expected_output": "Purge removes only the unused name. Recovery reloads the journal.",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Audit scans the file once.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-AUTOLISP",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "automation",
+      "name": "AutoLISP-compatible automation",
+      "command": "APPLOAD / script",
+      "reference_behavior": "Command scripts and an AutoLISP-compatible subset can create and query drawing entities.",
+      "expected_input": "A script that draws a line and reads its endpoints",
+      "expected_output": "The same geometry the interactive command would create.",
+      "formats": [
+        ".lsp",
+        ".scr"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Script playback is not slower than the equivalent interactive commands by more than a small constant factor.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented. No ObjectARX or binary plugin compatibility is claimed."
+    },
+    {
+      "id": "ACAD-LAYER-FILTER",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Layer filters",
+      "command": "LAYER FILTER",
+      "reference_behavior": "Named filters show subsets of the layer list.",
+      "expected_input": "Create a property filter",
+      "expected_output": "Filtered list shows matching layers",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-GROUPS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "selection",
+      "name": "Groups",
+      "command": "GROUP",
+      "reference_behavior": "Named selection groups can be selected as a unit.",
+      "expected_input": "GROUP create",
+      "expected_output": "Members select together",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-ISOLATE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "selection",
+      "name": "Object isolation",
+      "command": "ISOLATEOBJECTS",
+      "reference_behavior": "Hides non-selected objects until UNISOLATE.",
+      "expected_input": "ISOLATE selection",
+      "expected_output": "Only selection remains visible",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-PURGE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Purge unused named objects",
+      "command": "PURGE",
+      "reference_behavior": "Removes unused layers, blocks, linetypes.",
+      "expected_input": "PURGE unused layer",
+      "expected_output": "Unused name removed; referenced kept",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-AUDIT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Audit drawing database",
+      "command": "AUDIT",
+      "reference_behavior": "Reports and optionally fixes database errors.",
+      "expected_input": "AUDIT",
+      "expected_output": "Report lists issues",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-SHEETSET",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layouts",
+      "name": "Sheet sets",
+      "command": "SHEETSET",
+      "reference_behavior": "Organizes sheets across drawings.",
+      "expected_input": "Create sheet set",
+      "expected_output": "Sheets listed with properties",
+      "formats": [
+        ".dst"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-FIELDS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Fields",
+      "command": "FIELD",
+      "reference_behavior": "Text fields update from object properties.",
+      "expected_input": "FIELD object length",
+      "expected_output": "Text equals length",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-WIPEOUT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "annotation",
+      "name": "Wipeouts",
+      "command": "WIPEOUT",
+      "reference_behavior": "Mask region hides underlying geometry.",
+      "expected_input": "WIPEOUT polygon",
+      "expected_output": "Covered geometry masked",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-XREF-CLIP",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "Xref clipping",
+      "command": "XCLIP",
+      "reference_behavior": "Clips an external reference boundary.",
+      "expected_input": "XCLIP rectangle",
+      "expected_output": "Outside clipped",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-DYNAMIC-BLOCK",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "blocks",
+      "name": "Dynamic blocks",
+      "command": "BEDIT",
+      "reference_behavior": "Parameters and actions change block geometry.",
+      "expected_input": "Stretch action",
+      "expected_output": "Insert geometry updates",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-PARAMETRIC-GEOM",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "parametric",
+      "name": "Geometric constraints",
+      "command": "GEOMCONSTRAINT",
+      "reference_behavior": "Coincident/parallel/perpendicular constraints solve.",
+      "expected_input": "Apply parallel",
+      "expected_output": "Lines remain parallel after edit",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-3D-SOLIDS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "3d",
+      "name": "Solid modeling",
+      "command": "EXTRUDE / PRESSPULL",
+      "reference_behavior": "Creates and edits 3D solids.",
+      "expected_input": "Extrude closed profile",
+      "expected_output": "Solid volume positive",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-VIEWPORTS-MODEL",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "view",
+      "name": "Model space tiled viewports",
+      "command": "VPORTS",
+      "reference_behavior": "Multiple model viewports.",
+      "expected_input": "VPORTS 2",
+      "expected_output": "Two viewports active",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-RENDER",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "visualization",
+      "name": "Rendering",
+      "command": "RENDER",
+      "reference_behavior": "Photorealistic rendering of 3D models.",
+      "expected_input": "RENDER",
+      "expected_output": "Image produced",
+      "formats": [
+        ".png"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-PUBLISH",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "layouts",
+      "name": "Publish multi-sheet",
+      "command": "PUBLISH",
+      "reference_behavior": "Batch plots sheet set to PDF/DWF.",
+      "expected_input": "PUBLISH",
+      "expected_output": "Multi-page PDF",
+      "formats": [
+        ".pdf"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-TOOLPALETTE",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "ui",
+      "name": "Tool palettes",
+      "command": "TOOLPALETTES",
+      "reference_behavior": "Custom tool palettes insert content.",
+      "expected_input": "Click tool",
+      "expected_output": "Command runs",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-CUI",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "ui",
+      "name": "Customizable UI",
+      "command": "CUI",
+      "reference_behavior": "Menus/ribbons/workspaces customize.",
+      "expected_input": "Load CUI",
+      "expected_output": "Workspace changes",
+      "formats": [
+        ".cuix"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-GRIPS",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "modify",
+      "name": "Grips",
+      "command": "grip edit",
+      "reference_behavior": "Vertex/end grips stretch geometry.",
+      "expected_input": "Drag endpoint grip",
+      "expected_output": "Endpoint moves",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-MATCHPROP",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "properties",
+      "name": "Match properties",
+      "command": "MATCHPROP",
+      "reference_behavior": "Copies properties between entities.",
+      "expected_input": "MATCHPROP source target",
+      "expected_output": "Target inherits color/ltype",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    },
+    {
+      "id": "ACAD-QUICKSELECT",
+      "target_application": "AutoCAD",
+      "target_version": "2025",
+      "category": "selection",
+      "name": "Quick select",
+      "command": "QSELECT",
+      "reference_behavior": "Filter selection by property.",
+      "expected_input": "QSELECT layer=Walls",
+      "expected_output": "Only Walls selected",
+      "formats": [
+        ".mydesk"
+      ],
+      "implementation": "",
+      "tests": [],
+      "manual_tests": [],
+      "performance": "Must remain interactive on professional drawings.",
+      "status": "NOT_STARTED",
+      "evidence": "",
+      "differences": "Not implemented."
+    }
+  ]
+}

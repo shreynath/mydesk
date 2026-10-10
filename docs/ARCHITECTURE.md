@@ -31,10 +31,11 @@ Dependency rule: `core/*` must not include Qt. Desktop UI mutates documents only
 ## Document model (Draft)
 
 - Stable `EntityId` / `LayerId`
-- Entities: LINE, CIRCLE, ARC, POLYLINE
-- Layers: name, visible, locked, color; command `LAYER`/`LA`
-- `HistoryStack` transactions (add/remove/replace)
-- Native schema versioned JSON (`.mydesk`); selection ephemeral
+- Entities: LINE, CIRCLE, ARC, POLYLINE, aligned DIMLINEAR, INSERT, TEXT, solid HATCH
+- Layers: name, visible, locked, frozen, plottable, color. Freeze is independent of on/off.
+- Coordinates: absolute `x,y`, relative `@dx,dy`, polar `dist<angle` and `@dist<angle`, absolute `#x,y`
+- `HistoryStack` transactions (add/remove/replace). EXPLODE of an insert or polyline is one transaction.
+- Native schema version 4 JSON (`.mydesk`); schema 3 still loads. Selection is ephemeral.
 
 ## Future kernels
 

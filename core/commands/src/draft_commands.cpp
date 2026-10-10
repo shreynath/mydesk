@@ -32,6 +32,7 @@ CommandResult handleRedo(CommandContext& ctx, const std::vector<std::string>&) {
 CommandResult handleNew(CommandContext& ctx, const std::vector<std::string>&) {
     ctx.document() = document::Document{};
     ctx.clearInputs();
+    ctx.clearLastPoint();
     ctx.setPrompt("");
     return okMsg("Started new drawing");
 }
@@ -39,11 +40,10 @@ CommandResult handleNew(CommandContext& ctx, const std::vector<std::string>&) {
 CommandResult handleLine(CommandContext& ctx, const std::vector<std::string>& args) {
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("LINE expects points as x,y");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("LINE: " + error);
         }
-        ctx.pushPoint(p);
     }
 
     if (ctx.points().size() >= 2) {
@@ -64,14 +64,9 @@ CommandResult handleLine(CommandContext& ctx, const std::vector<std::string>& ar
 CommandResult handleCircle(CommandContext& ctx, const std::vector<std::string>& args) {
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        double n = 0.0;
-        if (parsePointToken(arg, p)) {
-            ctx.pushPoint(p);
-        } else if (parseNumberToken(arg, n)) {
-            ctx.pushNumber(n);
-        } else {
-            return errMsg("CIRCLE expects center x,y and radius");
+        std::string error;
+        if (!pushCoordinateOrNumber(ctx, arg, error)) {
+            return errMsg("CIRCLE: " + error);
         }
     }
 
@@ -107,11 +102,10 @@ CommandResult handleCircle(CommandContext& ctx, const std::vector<std::string>& 
 CommandResult handleRectangle(CommandContext& ctx, const std::vector<std::string>& args) {
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("RECTANGLE expects corner points as x,y");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("RECTANGLE: " + error);
         }
-        ctx.pushPoint(p);
     }
     if (ctx.points().size() >= 2) {
         try {
@@ -153,11 +147,10 @@ CommandResult handleMove(CommandContext& ctx, const std::vector<std::string>& ar
     }
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("MOVE expects points as x,y");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("MOVE: " + error);
         }
-        ctx.pushPoint(p);
     }
     if (ctx.points().size() >= 2) {
         const geometry::Vec2 delta = ctx.points()[1] - ctx.points()[0];
@@ -183,11 +176,10 @@ CommandResult handleCopy(CommandContext& ctx, const std::vector<std::string>& ar
     }
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("COPY expects points as x,y");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("COPY: " + error);
         }
-        ctx.pushPoint(p);
     }
     if (ctx.points().size() >= 2) {
         const geometry::Vec2 delta = ctx.points()[1] - ctx.points()[0];
@@ -214,14 +206,9 @@ CommandResult handleRotate(CommandContext& ctx, const std::vector<std::string>& 
     }
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        double n = 0.0;
-        if (parsePointToken(arg, p)) {
-            ctx.pushPoint(p);
-        } else if (parseNumberToken(arg, n)) {
-            ctx.pushNumber(n);
-        } else {
-            return errMsg("ROTATE expects base point and angle (degrees)");
+        std::string error;
+        if (!pushCoordinateOrNumber(ctx, arg, error)) {
+            return errMsg("ROTATE: " + error);
         }
     }
 
@@ -259,14 +246,9 @@ CommandResult handleScale(CommandContext& ctx, const std::vector<std::string>& a
     }
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        double n = 0.0;
-        if (parsePointToken(arg, p)) {
-            ctx.pushPoint(p);
-        } else if (parseNumberToken(arg, n)) {
-            ctx.pushNumber(n);
-        } else {
-            return errMsg("SCALE expects base point and scale factor");
+        std::string error;
+        if (!pushCoordinateOrNumber(ctx, arg, error)) {
+            return errMsg("SCALE: " + error);
         }
     }
     if (!ctx.points().empty() && !ctx.numbers().empty()) {
@@ -322,8 +304,12 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
         for (const auto& layer : doc.layers()) {
             const bool current = layer.id == doc.activeLayerId();
             oss << (current ? "* " : "  ") << layer.name << "  "
-                << (layer.visible ? "ON" : "OFF") << "  " << (layer.locked ? "LOCK" : "UNLOCK")
-                << "  #" << std::hex << (layer.colorArgb & 0xFFFFFFu) << std::dec;
+                << (layer.visible ? "ON" : "OFF") << "  "
+                << (layer.frozen ? "FROZEN" : "THAWED") << "  "
+                << (layer.locked ? "LOCK" : "UNLOCK") << "  "
+                << (layer.plottable ? "PLOT" : "NOPLOT") << "  "
+                << document::linetypeName(layer.linetype) << "  " << layer.lineweightMm << "mm  #"
+                << std::hex << (layer.colorArgb & 0xFFFFFFu) << std::dec;
             if (current) {
                 oss << "  (current)";
             }
@@ -335,7 +321,8 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
 
     const std::string op = normalizeToken(args[0]);
     if (op == "NEW" || op == "MAKE" || op == "SET" || op == "ON" || op == "OFF" || op == "LOCK" ||
-        op == "UNLOCK" || op == "COLOR") {
+        op == "UNLOCK" || op == "FREEZE" || op == "THAW" || op == "PLOT" || op == "NOPLOT" ||
+        op == "COLOR" || op == "LTYPE" || op == "LWEIGHT") {
         if (args.size() < 2) {
             return errMsg("LAYER " + op + " requires a layer name");
         }
@@ -386,6 +373,52 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
             doc.setLayerLocked(layer->id, false);
             return okMsg("Layer " + layer->name + " unlocked");
         }
+        if (op == "FREEZE") {
+            if (layer->id == doc.activeLayerId()) {
+                return errMsg("Cannot freeze the current layer");
+            }
+            if (!doc.setLayerFrozen(layer->id, true)) {
+                return errMsg("Cannot freeze layer " + layer->name);
+            }
+            return okMsg("Layer " + layer->name + " frozen");
+        }
+        if (op == "THAW") {
+            doc.setLayerFrozen(layer->id, false);
+            return okMsg("Layer " + layer->name + " thawed");
+        }
+        if (op == "PLOT") {
+            doc.setLayerPlottable(layer->id, true);
+            return okMsg("Layer " + layer->name + " will plot");
+        }
+        if (op == "NOPLOT") {
+            doc.setLayerPlottable(layer->id, false);
+            return okMsg("Layer " + layer->name + " will not plot");
+        }
+        if (op == "LTYPE") {
+            if (args.size() < 3) {
+                return errMsg("LAYER LTYPE <name> <CONTINUOUS|DASHED|HIDDEN|CENTER|PHANTOM|DOT>");
+            }
+            document::Linetype linetype = document::Linetype::Continuous;
+            if (!document::parseLinetype(args[2], linetype) ||
+                linetype == document::Linetype::ByLayer) {
+                return errMsg("Unknown linetype: " + args[2]);
+            }
+            if (!doc.setLayerLinetype(layer->id, linetype)) {
+                return errMsg("Could not set linetype");
+            }
+            return okMsg("Layer " + layer->name + " linetype " +
+                         std::string(document::linetypeName(linetype)));
+        }
+        if (op == "LWEIGHT") {
+            if (args.size() < 3) {
+                return errMsg("LAYER LWEIGHT <name> <millimeters>");
+            }
+            double mm = 0.0;
+            if (!parseNumberToken(args[2], mm) || !doc.setLayerLineweight(layer->id, mm)) {
+                return errMsg("Lineweight must be from 0 to 2.11 mm");
+            }
+            return okMsg("Layer " + layer->name + " lineweight " + args[2] + " mm");
+        }
         if (op == "COLOR") {
             if (args.size() < 3) {
                 return errMsg("LAYER COLOR <name> <RRGGBB>");
@@ -407,7 +440,8 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
         return okMsg("Current layer set to " + args[0]);
     }
 
-    return errMsg("LAYER usage: NEW|MAKE|SET|ON|OFF|LOCK|UNLOCK|COLOR|LIST|?");
+    return errMsg(
+        "LAYER usage: NEW|MAKE|SET|ON|OFF|FREEZE|THAW|LOCK|UNLOCK|PLOT|NOPLOT|COLOR|LTYPE|LWEIGHT|LIST|?");
 }
 
 CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& args) {
@@ -416,7 +450,7 @@ CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& 
         return errMsg("CHPROP: select objects first");
     }
     if (args.empty()) {
-        return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name>");
+        return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER");
     }
     const std::string op = normalizeToken(args[0]);
     if (op == "COLOR") {
@@ -453,17 +487,54 @@ CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& 
         return okMsg("Layer set to " + layer->name + " on " + std::to_string(selected.size()) +
                      " entity(ies)");
     }
-    return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name>");
+    if (op == "LTYPE" || op == "LINETYPE") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP LTYPE requires a linetype name or BYLAYER");
+        }
+        document::Linetype linetype = document::Linetype::ByLayer;
+        if (!document::parseLinetype(args[1], linetype)) {
+            return errMsg("Unknown linetype: " + args[1]);
+        }
+        for (const auto id : selected) {
+            ctx.document().setEntityLinetype(id, linetype);
+        }
+        return okMsg("Linetype set on " + std::to_string(selected.size()) + " entity(ies)");
+    }
+    if (op == "LWEIGHT" || op == "LINEWEIGHT") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP LWEIGHT requires millimeters or BYLAYER");
+        }
+        if (normalizeToken(args[1]) == "BYLAYER") {
+            for (const auto id : selected) {
+                ctx.document().setEntityLineweightByLayer(id);
+            }
+            return okMsg("Lineweight set to ByLayer");
+        }
+        double mm = 0.0;
+        if (!parseNumberToken(args[1], mm)) {
+            return errMsg("Lineweight must be from 0 to 2.11 mm");
+        }
+        std::size_t changed = 0;
+        for (const auto id : selected) {
+            if (ctx.document().setEntityLineweight(id, mm)) {
+                ++changed;
+            }
+        }
+        if (changed == 0) {
+            return errMsg("Lineweight must be from 0 to 2.11 mm");
+        }
+        return okMsg("Lineweight set on " + std::to_string(changed) + " entity(ies)");
+    }
+    return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER");
 }
 
 CommandResult handleDimension(CommandContext& ctx, const std::vector<std::string>& args) {
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("DIMLINEAR expects points as x,y");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("DIMLINEAR: " + error);
         }
-        ctx.pushPoint(p);
     }
     if (ctx.points().size() >= 3) {
         try {
@@ -498,8 +569,9 @@ CommandResult handleText(CommandContext& ctx, const std::vector<std::string>& ar
         return errMsg("TEXT usage: TEXT <x,y> <height> <string>");
     }
     geometry::Vec2 pos;
-    if (!parsePointToken(args[0], pos)) {
-        return errMsg("TEXT expects start point as x,y");
+    std::string pointError;
+    if (!readUserPoint(ctx, args[0], pos, pointError)) {
+        return errMsg("TEXT: " + pointError);
     }
     double height = 0.0;
     if (!parseNumberToken(args[1], height)) {
@@ -561,7 +633,11 @@ CommandResult handleBlock(CommandContext& ctx, const std::vector<std::string>& a
     bool haveBase = false;
     for (const auto& arg : args) {
         geometry::Vec2 p;
-        if (parsePointToken(arg, p)) {
+        if (looksLikeCoordinate(arg)) {
+            std::string error;
+            if (!readUserPoint(ctx, arg, p, error)) {
+                return errMsg("BLOCK: " + error);
+            }
             base = p;
             haveBase = true;
         } else if (name.empty()) {
@@ -599,7 +675,11 @@ CommandResult handleInsert(CommandContext& ctx, const std::vector<std::string>& 
     for (const auto& arg : args) {
         geometry::Vec2 p;
         double n = 0.0;
-        if (parsePointToken(arg, p)) {
+        if (looksLikeCoordinate(arg)) {
+            std::string error;
+            if (!readUserPoint(ctx, arg, p, error)) {
+                return errMsg("INSERT: " + error);
+            }
             points.push_back(p);
         } else if (parseNumberToken(arg, n)) {
             numbers.push_back(n);
@@ -688,6 +768,44 @@ CommandResult handleOsnap(CommandContext& ctx, const std::vector<std::string>& a
         return setFlag(modes->snapPerpendicular, "PER");
     }
     return errMsg("OSNAP usage: ON|OFF|END|MID|CEN|INT|PER [?]");
+}
+
+CommandResult handleExplode(CommandContext& ctx, const std::vector<std::string>&) {
+    const auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        return errMsg("EXPLODE: select objects first");
+    }
+    const auto result = ctx.document().explodeEntities(selected);
+    if (result.exploded == 0) {
+        return errMsg("EXPLODE: none of the selected objects can be exploded");
+    }
+    ctx.document().clearSelection();
+    for (const auto id : result.created) {
+        ctx.document().select(id);
+    }
+    ctx.setPrompt("");
+    std::ostringstream oss;
+    oss << "Exploded " << result.exploded << " object(s)";
+    if (result.skipped != 0) {
+        oss << "; " << result.skipped << " could not be exploded";
+    }
+    return okMsg(oss.str());
+}
+
+CommandResult handleLinetypeScale(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty()) {
+        return okMsg("LTSCALE " + std::to_string(ctx.document().linetypeScale()));
+    }
+    double scale = 0.0;
+    if (!parseNumberToken(args[0], scale)) {
+        return errMsg("LTSCALE expects a positive scale");
+    }
+    try {
+        ctx.document().setLinetypeScale(scale);
+    } catch (const std::exception& ex) {
+        return errMsg(ex.what());
+    }
+    return okMsg("LTSCALE " + args[0]);
 }
 
 } // namespace
@@ -786,7 +904,7 @@ void registerDraftCommands(CommandRegistry& registry) {
         .label = "Layer",
         .aliases = {"LA"},
         .status = CommandStatus::ImplementedTested,
-        .notes = "Command-line layer manager: NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR/LIST",
+        .notes = "Command-line layer manager: NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/NOPLOT/COLOR/LIST",
         .handler = handleLayer,
     });
     registry.registerCommand(CommandSpec{
@@ -845,10 +963,26 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Solid fill from selected closed polyline only",
         .handler = handleHatch,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "EXPLODE",
+        .label = "Explode",
+        .aliases = {"X"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "One level: INSERT to transformed primitives, POLYLINE to lines",
+        .handler = handleExplode,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "LTSCALE",
+        .label = "Linetype scale",
+        .aliases = {"LTS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Global linetype scale applied when stroking patterns",
+        .handler = handleLinetypeScale,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
         {"ZOOM", {"Z"}}, {"ARC", {"A"}}, {"MIRROR", {"MI"}},
-        {"STRETCH", {"S"}}, {"EXPLODE", {"X"}}, {"XLINE", {"XL"}}, {"PAN", {"P"}},
+        {"STRETCH", {"S"}}, {"XLINE", {"XL"}}, {"PAN", {"P"}},
     };
     for (const auto& [id, aliases] : planned) {
         registry.registerCommand(CommandSpec{

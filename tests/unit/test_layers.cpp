@@ -2,6 +2,7 @@
 
 #include "mydesk/commands/session.hpp"
 #include "mydesk/document/document.hpp"
+#include "mydesk/exchange/native_format.hpp"
 
 void test_layer_command_new_set_off() {
     mydesk::commands::Session session;
@@ -50,6 +51,53 @@ void test_layer_command_new_set_off() {
     auto list = session.executeLine("LAYER ?");
     expect(list.ok, list.message);
     expect(list.message.find("Doors") != std::string::npos, "list mentions Doors");
+}
+
+void test_layer_freeze_thaw_plot_roundtrip() {
+    mydesk::commands::Session session;
+    expect(session.executeLine("LAYER NEW Walls").ok, "create Walls");
+    auto freezeCurrent = session.executeLine("LAYER FREEZE 0");
+    expect(!freezeCurrent.ok, freezeCurrent.message);
+
+    expect(session.executeLine("LAYER MAKE Walls").ok, "Walls current");
+    expect(session.executeLine("L 0,0 10,0").ok, "line on Walls");
+    const auto id = session.document().entities().front().id;
+    expect(session.executeLine("LAYER SET 0").ok, "current back to 0");
+
+    expect(session.executeLine("LAYER FREEZE Walls").ok, "freeze Walls");
+    expect(session.document().findLayerByName("Walls")->frozen, "frozen flag");
+    expect(session.document().hitTestTop({5, 0}, 1.0) == mydesk::document::kInvalidEntityId,
+           "frozen layer is not selectable");
+    expect(!session.document().isEntityVisible(session.document().entities().front()),
+           "frozen layer is not visible");
+
+    expect(session.executeLine("LAYER ON Walls").ok, "on does not thaw");
+    expect(session.document().hitTestTop({5, 0}, 1.0) == mydesk::document::kInvalidEntityId,
+           "frozen layer stays hidden while on");
+
+    expect(session.executeLine("LAYER THAW Walls").ok, "thaw");
+    expect(session.document().hitTestTop({5, 0}, 1.0) == id, "thawed layer is selectable");
+
+    expect(session.executeLine("LAYER OFF Walls").ok, "off");
+    expect(session.executeLine("LAYER THAW Walls").ok, "thaw while off");
+    expect(!session.document().findLayerByName("Walls")->visible, "off is independent of thaw");
+    expect(session.document().hitTestTop({5, 0}, 1.0) == mydesk::document::kInvalidEntityId,
+           "off layer stays hidden");
+
+    expect(session.executeLine("LAYER ON Walls").ok, "on");
+    expect(session.executeLine("LAYER NOPLOT Walls").ok, "noplot");
+    expect(!session.document().findLayerByName("Walls")->plottable, "plot flag cleared");
+    expect(session.document().hitTestTop({5, 0}, 1.0) == id, "noplot entities stay editable");
+    expect(session.executeLine("LAYER FREEZE Walls").ok, "freeze for save");
+
+    const auto json = mydesk::exchange::serializeNative(session.document());
+    mydesk::document::Document loaded;
+    auto report = mydesk::exchange::deserializeNative(loaded, json);
+    expect(report.ok, "native load");
+    const auto* walls = loaded.findLayerByName("Walls");
+    expect(walls != nullptr && walls->frozen && walls->visible && !walls->plottable,
+           "freeze, visibility, and plot flag round-trip");
+    expect(!loaded.isEntityVisible(loaded.entities().front()), "reloaded entity stays hidden");
 }
 
 void test_layer_duplicate_new_rejected() {

@@ -8,7 +8,7 @@ namespace mydesk::exchange {
 
 namespace {
 
-constexpr const char* kSchemaVersion = "3";
+constexpr const char* kSchemaVersion = "5";
 
 std::string escapeJson(std::string_view s) {
     std::string out;
@@ -133,6 +133,31 @@ bool extractUintAfterKey(std::string_view json, std::string_view key, std::uint6
     return true;
 }
 
+bool extractBoolAfterKey(std::string_view json, std::string_view key, bool& out) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    const auto pos = json.find(needle);
+    if (pos == std::string_view::npos) {
+        return false;
+    }
+    const auto colon = json.find(':', pos + needle.size());
+    if (colon == std::string_view::npos) {
+        return false;
+    }
+    std::size_t i = colon + 1;
+    while (i < json.size() && std::isspace(static_cast<unsigned char>(json[i]))) {
+        ++i;
+    }
+    if (json.substr(i, 4) == "true") {
+        out = true;
+        return true;
+    }
+    if (json.substr(i, 5) == "false") {
+        out = false;
+        return true;
+    }
+    return false;
+}
+
 std::vector<std::string_view> splitTopLevelObjects(std::string_view arrayBody) {
     std::vector<std::string_view> objects;
     int depth = 0;
@@ -195,12 +220,17 @@ std::string serializeNative(const document::Document& doc) {
     oss << "  \"activeLayerId\": " << doc.activeLayerId() << ",\n";
     oss << "  \"nextEntityId\": " << doc.nextEntityIdPeek() << ",\n";
     oss << "  \"nextLayerId\": " << doc.nextLayerIdPeek() << ",\n";
+    oss << "  \"linetypeScale\": " << doc.linetypeScale() << ",\n";
     oss << "  \"layers\": [\n";
     for (std::size_t i = 0; i < doc.layers().size(); ++i) {
         const auto& layer = doc.layers()[i];
         oss << "    {\"id\": " << layer.id << ", \"name\": \"" << escapeJson(layer.name)
             << "\", \"visible\": " << (layer.visible ? "true" : "false")
-            << ", \"locked\": " << (layer.locked ? "true" : "false") << ", \"colorArgb\": "
+            << ", \"locked\": " << (layer.locked ? "true" : "false")
+            << ", \"frozen\": " << (layer.frozen ? "true" : "false")
+            << ", \"plottable\": " << (layer.plottable ? "true" : "false")
+            << ", \"linetype\": \"" << document::linetypeName(layer.linetype)
+            << "\", \"lineweightMm\": " << layer.lineweightMm << ", \"colorArgb\": "
             << layer.colorArgb << "}";
         if (i + 1 < doc.layers().size()) {
             oss << ",";
@@ -212,7 +242,10 @@ std::string serializeNative(const document::Document& doc) {
     for (std::size_t i = 0; i < doc.entities().size(); ++i) {
         const auto& entity = doc.entities()[i];
         oss << "    {\"id\": " << entity.id << ", \"layerId\": " << entity.layerId
-            << ", \"colorArgb\": " << entity.colorArgb << ", \"kind\": \""
+            << ", \"colorArgb\": " << entity.colorArgb << ", \"linetype\": \""
+            << document::linetypeName(entity.linetype) << "\", \"lineweightByLayer\": "
+            << (entity.lineweightByLayer ? "true" : "false") << ", \"lineweightMm\": "
+            << entity.lineweightMm << ", \"kind\": \""
             << document::entityKindName(entity.kind()) << "\", ";
         if (const auto* line = std::get_if<document::LineEntity>(&entity.geometry)) {
             oss << "\"start\": {\"x\": " << line->start.x << ", \"y\": " << line->start.y
@@ -313,7 +346,7 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         report.errors.push_back("Missing schemaVersion");
         return report;
     }
-    if (schema != kSchemaVersion) {
+    if (schema != "3" && schema != "4" && schema != "5") {
         report.warnings.push_back("schemaVersion " + schema + " differs from supported " +
                                   kSchemaVersion);
     }
@@ -337,6 +370,8 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
     extractUintAfterKey(json, "activeLayerId", activeLayer);
     extractUintAfterKey(json, "nextEntityId", nextEntity);
     extractUintAfterKey(json, "nextLayerId", nextLayer);
+    double linetypeScale = 1.0;
+    extractNumberAfterKey(json, "linetypeScale", linetypeScale);
 
     std::vector<document::Layer> layers;
     for (const auto obj : splitTopLevelObjects(extractArrayBody(json, "layers"))) {
@@ -345,7 +380,23 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         extractUintAfterKey(obj, "id", id);
         layer.id = id;
         extractStringField(obj, "name", layer.name);
-        // visible/locked default true/false; keep defaults for MVP parser simplicity
+        extractBoolAfterKey(obj, "visible", layer.visible);
+        extractBoolAfterKey(obj, "locked", layer.locked);
+        extractBoolAfterKey(obj, "frozen", layer.frozen);
+        extractBoolAfterKey(obj, "plottable", layer.plottable);
+        std::string linetypeName;
+        if (extractStringField(obj, "linetype", linetypeName)) {
+            document::Linetype parsed = document::Linetype::Continuous;
+            if (document::parseLinetype(linetypeName, parsed) &&
+                parsed != document::Linetype::ByLayer) {
+                layer.linetype = parsed;
+            }
+        }
+        double weight = layer.lineweightMm;
+        if (extractNumberAfterKey(obj, "lineweightMm", weight) &&
+            document::validLineweightMm(weight)) {
+            layer.lineweightMm = weight;
+        }
         double color = static_cast<double>(layer.colorArgb);
         if (extractNumberAfterKey(obj, "colorArgb", color)) {
             layer.colorArgb = static_cast<std::uint32_t>(color);
@@ -369,6 +420,22 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         double color = 0;
         if (extractNumberAfterKey(obj, "colorArgb", color)) {
             entity.colorArgb = static_cast<std::uint32_t>(color);
+        }
+        std::string linetypeName;
+        if (extractStringField(obj, "linetype", linetypeName)) {
+            document::Linetype parsed = document::Linetype::ByLayer;
+            if (document::parseLinetype(linetypeName, parsed)) {
+                entity.linetype = parsed;
+            }
+        }
+        bool byLayerWeight = true;
+        if (extractBoolAfterKey(obj, "lineweightByLayer", byLayerWeight)) {
+            entity.lineweightByLayer = byLayerWeight;
+        }
+        double weight = entity.lineweightMm;
+        if (extractNumberAfterKey(obj, "lineweightMm", weight) &&
+            document::validLineweightMm(weight)) {
+            entity.lineweightMm = weight;
         }
         std::string kind;
         extractStringField(obj, "kind", kind);
@@ -546,7 +613,7 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
     }
 
     doc.restoreSnapshot(std::move(layers), std::move(entities), activeLayer, nextEntity, nextLayer,
-                        unitSystem, name, std::move(blocks));
+                        unitSystem, name, std::move(blocks), linetypeScale);
     report.ok = true;
     report.entityCount = doc.entities().size();
     report.layerCount = doc.layers().size();

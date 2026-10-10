@@ -66,10 +66,14 @@ CommandResult Session::executeLine(std::string_view line) {
     }
 
     if (hasActiveCommand()) {
-        geometry::Vec2 p;
         double n = 0.0;
-        if (parts.size() == 1 && parsePointToken(parts[0], p)) {
-            return providePoint(p);
+        if (parts.size() == 1 && looksLikeCoordinate(parts[0])) {
+            const CoordinateParse parsed = parseCoordinateToken(parts[0], context_.lastPoint());
+            if (!parsed.ok) {
+                statusMessage_ = parsed.error;
+                return {false, statusMessage_, std::nullopt};
+            }
+            return providePoint(parsed.point);
         }
         if (parts.size() == 1 && parseNumberToken(parts[0], n)) {
             return provideNumber(n);
@@ -99,6 +103,7 @@ CommandResult Session::providePoint(geometry::Vec2 point) {
     }
 
     point = applyOrtho(point);
+    context_.setLastPoint(point);
     context_.pushPoint(point);
     std::vector<std::string> args;
     for (const auto& p : context_.points()) {

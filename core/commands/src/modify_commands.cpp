@@ -24,11 +24,10 @@ CommandResult handlePline(CommandContext& ctx, const std::vector<std::string>& a
             finish = true;
             continue;
         }
-        geometry::Vec2 p;
-        if (!parsePointToken(arg, p)) {
-            return errMsg("PLINE expects points as x,y (C=close, END=finish)");
+        std::string error;
+        if (!pushCoordinate(ctx, arg, error)) {
+            return errMsg("PLINE: " + error);
         }
-        ctx.pushPoint(p);
     }
 
     if (close) {
@@ -71,7 +70,11 @@ CommandResult handleTrim(CommandContext& ctx, const std::vector<std::string>& ar
     geometry::Vec2 pick;
     bool havePick = false;
     for (const auto& arg : args) {
-        if (parsePointToken(arg, pick)) {
+        if (looksLikeCoordinate(arg)) {
+            std::string error;
+            if (!readUserPoint(ctx, arg, pick, error)) {
+                return errMsg("TRIM: " + error);
+            }
             havePick = true;
         }
     }
@@ -90,7 +93,11 @@ CommandResult handleExtend(CommandContext& ctx, const std::vector<std::string>& 
     geometry::Vec2 pick;
     bool havePick = false;
     for (const auto& arg : args) {
-        if (parsePointToken(arg, pick)) {
+        if (looksLikeCoordinate(arg)) {
+            std::string error;
+            if (!readUserPoint(ctx, arg, pick, error)) {
+                return errMsg("EXTEND: " + error);
+            }
             havePick = true;
         }
     }
@@ -107,14 +114,9 @@ CommandResult handleExtend(CommandContext& ctx, const std::vector<std::string>& 
 CommandResult handleOffset(CommandContext& ctx, const std::vector<std::string>& args) {
     ctx.clearInputs();
     for (const auto& arg : args) {
-        geometry::Vec2 p;
-        double n = 0.0;
-        if (parsePointToken(arg, p)) {
-            ctx.pushPoint(p);
-        } else if (parseNumberToken(arg, n)) {
-            ctx.pushNumber(n);
-        } else {
-            return errMsg("OFFSET expects distance, then side point (select object first)");
+        std::string error;
+        if (!pushCoordinateOrNumber(ctx, arg, error)) {
+            return errMsg("OFFSET: " + error);
         }
     }
     const auto selected = ctx.document().selectionOrdered();

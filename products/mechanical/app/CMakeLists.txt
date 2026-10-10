@@ -1,0 +1,4 @@
+add_executable(mydesk_mechanical_app src/main.cpp)
+target_link_libraries(mydesk_mechanical_app PRIVATE mydesk::mechanical_engine)
+set_target_properties(mydesk_mechanical_app PROPERTIES OUTPUT_NAME "MyDeskMechanical")
+install(TARGETS mydesk_mechanical_app RUNTIME DESTINATION bin)

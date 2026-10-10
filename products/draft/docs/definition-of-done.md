@@ -7,22 +7,25 @@ A release is **not** done because the window opens. Minimum shipping gates for a
 ## Must work
 
 - [x] Create/edit LINE, CIRCLE, PLINE/RECTANG; MOVE/COPY/ROTATE/SCALE; TRIM/EXTEND/OFFSET/FILLET/CHAMFER
-- [x] Layers: create/set/on/off/lock/unlock/color via `LAYER`/`LA`; panel lists layers; invisible layers not drawn/selected
+- [x] Classic coordinate entry, including relative and polar forms
+- [x] Layers: create/set/on/off/freeze/thaw/lock/unlock/plot/color via `LAYER`/`LA`
 - [x] Window/crossing selection; F3/F7/F8/F9 modes
-- [x] Save/reopen native `.mydesk`; undo/redo for entity edits
+- [x] Save/reopen native `.mydesk` schema 4; undo/redo for entity edits
+- [x] BLOCK/INSERT and one-level EXPLODE; aligned DIMLINEAR; single-line TEXT; solid HATCH
+- [ ] Linetypes, lineweights, attributes, xrefs
 - [ ] Industrial-grade curve edge cases and grips
-- [ ] Dimensions, text, hatch, blocks/attributes, xrefs
 - [ ] Layouts / paper space / scale-accurate PDF plot
-- [ ] DXF round-trip on a documented corpus (beyond smoke)
-- [ ] Explicit DWG status (unsupported until proven)
+- [ ] DXF round-trip on a documented corpus (beyond LINE/CIRCLE/ARC/LWPOLYLINE/LAYER)
+- [ ] Explicit DWG status remains unsupported until round-trip evidence exists
 - [ ] Crash journal / autosave recovery
 - [ ] Standalone macOS/Windows/Linux installers with GUI smoke in CI
 - [ ] Benchmarks on 1k/10k/100k entity fixtures with recorded numbers
 
 ## Explicit limitations (current)
 
-- No DWG; DXF partial (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER).
-- No blocks, dims, hatch, xrefs, plot.
-- Layer UI is list + command-line; no full layer manager dialog.
-- Entity properties panel is summary-only.
-- Cross-OS GUI CI: see workflow; do not claim platforms not green.
+- No DWG. DXF is partial (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER).
+- No attributes, xrefs, linetypes, lineweights, or paper-space plot.
+- Layer freeze/plot flags persist. There is no layer-state manager.
+- Hatch is a solid fill from a closed polyline.
+- EXPLODE handles inserts and polylines one level deep.
+- Cross-OS GUI CI: see workflow; do not claim platforms not built.

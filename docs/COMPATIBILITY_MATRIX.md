@@ -16,7 +16,7 @@ Last updated: 2026-10-10
 
 | Format | Level | Notes |
 |---|---|---|
-| `.mydesk` | native-editable + round-trip | schemaVersion `2`; LINE/CIRCLE/ARC/PLINE/layers/units |
+| `.mydesk` | native-editable + round-trip | schemaVersion `4` (reads `3`); LINE/CIRCLE/ARC/PLINE/layers including freeze and plot flag |
 | `.dxf` import | partial | LINE, CIRCLE, ARC, LWPOLYLINE, LAYER |
 | `.dxf` export | partial | same entity set; conversion report warns |
 | `.dwg` | unsupported | see `docs/DECISIONS/0004-dwg-strategy.md` |

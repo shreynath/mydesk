@@ -136,6 +136,85 @@ bool Document::setLayerColor(LayerId id, std::uint32_t colorArgb) {
     return true;
 }
 
+bool Document::setLayerFrozen(LayerId id, bool frozen) {
+    Layer* layer = findLayer(id);
+    if (!layer) {
+        return false;
+    }
+    if (frozen && id == activeLayerId_) {
+        return false;
+    }
+    if (layer->frozen == frozen) {
+        return true;
+    }
+    layer->frozen = frozen;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerPlottable(LayerId id, bool plottable) {
+    Layer* layer = findLayer(id);
+    if (!layer) {
+        return false;
+    }
+    if (layer->plottable == plottable) {
+        return true;
+    }
+    layer->plottable = plottable;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerLinetype(LayerId id, Linetype linetype) {
+    Layer* layer = findLayer(id);
+    if (!layer || linetype == Linetype::ByLayer) {
+        return false;
+    }
+    if (layer->linetype == linetype) {
+        return true;
+    }
+    layer->linetype = linetype;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerLineweight(LayerId id, double millimeters) {
+    Layer* layer = findLayer(id);
+    if (!layer || !validLineweightMm(millimeters)) {
+        return false;
+    }
+    if (layer->lineweightMm == millimeters) {
+        return true;
+    }
+    layer->lineweightMm = millimeters;
+    dirty_ = true;
+    return true;
+}
+
+void Document::setLinetypeScale(double scale) {
+    if (!(scale > 0.0) || !std::isfinite(scale)) {
+        throw std::invalid_argument("linetype scale must be positive");
+    }
+    linetypeScale_ = scale;
+    dirty_ = true;
+}
+
+bool Document::isEntityVisible(const Entity& entity) const {
+    const Layer* layer = findLayer(entity.layerId);
+    if (!layer) {
+        return true;
+    }
+    return layer->visible && !layer->frozen;
+}
+
+bool Document::isEntitySelectable(const Entity& entity) const {
+    const Layer* layer = findLayer(entity.layerId);
+    if (!layer) {
+        return true;
+    }
+    return layer->visible && !layer->frozen && !layer->locked;
+}
+
 bool Document::setEntityLayer(EntityId id, LayerId layerId) {
     const Entity* existing = findEntity(id);
     if (!existing || !findLayer(layerId)) {
@@ -172,6 +251,61 @@ bool Document::setEntityColor(EntityId id, std::uint32_t colorArgb) {
     return true;
 }
 
+bool Document::setEntityLinetype(EntityId id, Linetype linetype) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    if (existing->linetype == linetype) {
+        return true;
+    }
+    Entity after = *existing;
+    after.linetype = linetype;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::setEntityLineweight(EntityId id, double millimeters) {
+    const Entity* existing = findEntity(id);
+    if (!existing || !validLineweightMm(millimeters)) {
+        return false;
+    }
+    if (!existing->lineweightByLayer && existing->lineweightMm == millimeters) {
+        return true;
+    }
+    Entity after = *existing;
+    after.lineweightByLayer = false;
+    after.lineweightMm = millimeters;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::setEntityLineweightByLayer(EntityId id) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    if (existing->lineweightByLayer) {
+        return true;
+    }
+    Entity after = *existing;
+    after.lineweightByLayer = true;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
 std::uint32_t Document::resolvedEntityColor(const Entity& entity) const {
     if (entity.colorArgb != kColorByLayer) {
         return entity.colorArgb;
@@ -180,6 +314,26 @@ std::uint32_t Document::resolvedEntityColor(const Entity& entity) const {
         return layer->colorArgb;
     }
     return 0xFFE0E0E0u;
+}
+
+Linetype Document::resolvedLinetype(const Entity& entity) const {
+    if (entity.linetype != Linetype::ByLayer) {
+        return entity.linetype;
+    }
+    if (const Layer* layer = findLayer(entity.layerId)) {
+        return layer->linetype;
+    }
+    return Linetype::Continuous;
+}
+
+double Document::resolvedLineweightMm(const Entity& entity) const {
+    if (!entity.lineweightByLayer) {
+        return entity.lineweightMm;
+    }
+    if (const Layer* layer = findLayer(entity.layerId)) {
+        return layer->lineweightMm;
+    }
+    return 0.25;
 }
 
 EntityId Document::addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel) {
@@ -434,6 +588,90 @@ EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, do
     return entity.id;
 }
 
+ExplodeResult Document::explodeEntities(const std::vector<EntityId>& ids, std::string txLabel) {
+    ExplodeResult result;
+    Transaction tx;
+    tx.label = std::move(txLabel);
+
+    for (const auto id : ids) {
+        const Entity* entity = findEntity(id);
+        if (!entity) {
+            ++result.skipped;
+            continue;
+        }
+
+        std::vector<Entity> created;
+        if (const auto* polyline = std::get_if<PolylineEntity>(&entity->geometry)) {
+            const std::size_t segments = polylineSegmentCount(*polyline);
+            if (segments == 0) {
+                ++result.skipped;
+                continue;
+            }
+            for (std::size_t i = 0; i < segments; ++i) {
+                const geometry::Vec2 start = polylineSegmentStart(*polyline, i);
+                const geometry::Vec2 end = polylineSegmentEnd(*polyline, i);
+                if (start.nearlyEqual(end)) {
+                    continue;
+                }
+                Entity line;
+                line.id = allocateEntityId();
+                line.layerId = entity->layerId;
+                line.colorArgb = entity->colorArgb;
+                line.geometry = LineEntity{start, end};
+                created.push_back(line);
+            }
+        } else if (const auto* insert = std::get_if<InsertEntity>(&entity->geometry)) {
+            const BlockDefinition* block = findBlock(insert->blockName);
+            if (!block || block->primitives.empty()) {
+                ++result.skipped;
+                continue;
+            }
+            for (const auto& primitive : block->primitives) {
+                EntityGeometry world = transformInsertGeometry(*insert, primitive.geometry);
+                if (std::holds_alternative<InsertEntity>(world)) {
+                    continue;
+                }
+                Entity piece;
+                piece.id = allocateEntityId();
+                piece.layerId = entity->layerId;
+                piece.colorArgb = primitive.colorArgb;
+                piece.geometry = std::move(world);
+                created.push_back(piece);
+            }
+        } else {
+            ++result.skipped;
+            continue;
+        }
+
+        if (created.empty()) {
+            ++result.skipped;
+            continue;
+        }
+
+        tx.ops.push_back(HistoryOp{HistoryOpKind::RemoveEntity, *entity, {}});
+        for (const auto& piece : created) {
+            tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, piece});
+            result.created.push_back(piece.id);
+        }
+        ++result.exploded;
+    }
+
+    if (result.exploded == 0) {
+        result.created.clear();
+        return result;
+    }
+
+    for (const auto& op : tx.ops) {
+        if (op.kind == HistoryOpKind::RemoveEntity) {
+            applyRemoveEntity(op.before.id);
+        } else if (op.kind == HistoryOpKind::AddEntity) {
+            applyAddEntity(op.after);
+        }
+    }
+    commit(std::move(tx));
+    return result;
+}
+
 bool Document::removeEntity(EntityId id, std::string txLabel) {
     const Entity* existing = findEntity(id);
     if (!existing) {
@@ -686,8 +924,7 @@ void Document::selectInRect(const geometry::BBox& rect, bool crossing, bool addi
         selection_.clear();
     }
     for (const auto& entity : entities_) {
-        const auto* layer = findLayer(entity.layerId);
-        if (layer && (!layer->visible || layer->locked)) {
+        if (!isEntitySelectable(entity)) {
             continue;
         }
         if (entity.intersectsRect(rect, crossing)) {
@@ -698,8 +935,7 @@ void Document::selectInRect(const geometry::BBox& rect, bool crossing, bool addi
 
 EntityId Document::hitTestTop(geometry::Vec2 point, double tol) const {
     for (auto it = entities_.rbegin(); it != entities_.rend(); ++it) {
-        const auto* layer = findLayer(it->layerId);
-        if (layer && (!layer->visible || layer->locked)) {
+        if (!isEntitySelectable(*it)) {
             continue;
         }
         if (const auto* insert = std::get_if<InsertEntity>(&it->geometry)) {
@@ -784,7 +1020,7 @@ void Document::applyReplaceEntity(const Entity& entity) {
 void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities,
                                LayerId active, EntityId nextEntityId, LayerId nextLayerId,
                                units::UnitSystem units, std::string name,
-                               std::vector<BlockDefinition> blocks) {
+                               std::vector<BlockDefinition> blocks, double linetypeScale) {
     layers_ = std::move(layers);
     entities_ = std::move(entities);
     blocks_ = std::move(blocks);
@@ -793,6 +1029,7 @@ void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> en
     nextLayerId_ = nextLayerId;
     units_ = units;
     name_ = std::move(name);
+    linetypeScale_ = linetypeScale > 0.0 ? linetypeScale : 1.0;
     selection_.clear();
     history_.clear();
     dirty_ = false;

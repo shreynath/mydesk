@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QVector>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -235,7 +236,7 @@ void CanvasWidget::paintEvent(QPaintEvent*) {
     const auto& selection = session_.document().selection();
     for (const auto& entity : session_.document().entities()) {
         const auto* layer = session_.document().findLayer(entity.layerId);
-        if (layer && !layer->visible) {
+        if (layer && !session_.document().isEntityVisible(entity)) {
             continue;
         }
         const bool selected = selection.count(entity.id) != 0U;
@@ -244,17 +245,29 @@ void CanvasWidget::paintEvent(QPaintEvent*) {
         QColor color = QColor(static_cast<int>((argb >> 16) & 0xFF),
                               static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
                               static_cast<int>((argb >> 24) & 0xFF));
-        double width = 1.6;
+        double width = std::max(1.0, session_.document().resolvedLineweightMm(entity) * 4.0);
         if (selected) {
             color = QColor(255, 196, 72);
-            width = 2.2;
+            width = std::max(width, 2.2);
         } else if (hovered) {
             color = QColor(140, 210, 255);
-            width = 2.0;
+            width = std::max(width, 2.0);
         } else if (layer && layer->locked) {
             color = color.darker(125);
         }
-        drawEntity(painter, entity, QPen(color, width));
+        QPen pen(color, width);
+        const auto pattern =
+            document::linetypeDashPattern(session_.document().resolvedLinetype(entity));
+        if (!pattern.empty()) {
+            QVector<qreal> dashes;
+            const double ltScale = session_.document().linetypeScale();
+            for (double segment : pattern) {
+                const double pixels = std::abs(segment) * ltScale * scale_ / width;
+                dashes.push_back(std::max(0.4, pixels));
+            }
+            pen.setDashPattern(dashes);
+        }
+        drawEntity(painter, entity, pen);
     }
 
     // Command preview rubber-band

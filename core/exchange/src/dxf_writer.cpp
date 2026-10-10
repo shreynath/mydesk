@@ -45,7 +45,7 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
                         : (rgb == 0xFFFFFFu) ? 7
                                              : 7;
         pair(62, std::to_string(aci));
-        pair(6, "CONTINUOUS");
+        pair(6, std::string(document::linetypeName(layer.linetype)));
     }
     pair(0, "ENDTAB");
     pair(0, "ENDSEC");
@@ -55,9 +55,13 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
     for (const auto& entity : doc.entities()) {
         const document::Layer* layer = doc.findLayer(entity.layerId);
         const std::string layerName = layer ? layer->name : "0";
+        const std::string linetype = std::string(document::linetypeName(doc.resolvedLinetype(entity)));
         if (const auto* line = std::get_if<document::LineEntity>(&entity.geometry)) {
             pair(0, "LINE");
             pair(8, layerName);
+            if (entity.linetype != document::Linetype::ByLayer) {
+                pair(6, linetype);
+            }
             pairNum(10, line->start.x);
             pairNum(20, line->start.y);
             pairNum(30, 0.0);
@@ -67,6 +71,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
         } else if (const auto* circle = std::get_if<document::CircleEntity>(&entity.geometry)) {
             pair(0, "CIRCLE");
             pair(8, layerName);
+            if (entity.linetype != document::Linetype::ByLayer) {
+                pair(6, linetype);
+            }
             pairNum(10, circle->center.x);
             pairNum(20, circle->center.y);
             pairNum(30, 0.0);
@@ -74,6 +81,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
         } else if (const auto* arc = std::get_if<document::ArcEntity>(&entity.geometry)) {
             pair(0, "ARC");
             pair(8, layerName);
+            if (entity.linetype != document::Linetype::ByLayer) {
+                pair(6, linetype);
+            }
             pairNum(10, arc->center.x);
             pairNum(20, arc->center.y);
             pairNum(30, 0.0);
@@ -84,6 +94,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
             // Emit as LWPOLYLINE (still widely readable); note format label remains partial.
             pair(0, "LWPOLYLINE");
             pair(8, layerName);
+            if (entity.linetype != document::Linetype::ByLayer) {
+                pair(6, linetype);
+            }
             pair(90, std::to_string(pl->vertices.size()));
             pair(70, pl->closed ? "1" : "0");
             for (const auto& v : pl->vertices) {

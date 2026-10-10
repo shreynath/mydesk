@@ -5,11 +5,11 @@ alwaysApply: true
 
 # MyDesk product rules
 
-- **Standalone products only.** Users install MyDesk Draft, MyDesk Buildings, etc. separately. No suite launcher, no mega-workspace, no tabs that turn Draft into BIM.
-- **Monorepo OK; monolith forbidden.** Ship one product binary per release (`MYDESK_PRODUCT`).
-- **Shared code is invisible infrastructure** under `core/`→`libs/`. Never leak irrelevant menus across products.
-- **Catalog ≠ shipped.** `products/catalog.yaml` lists targets; only build real apps that have code + tests.
-- **Draft is the current implemented product.** Preserve its commands, formats, and tests across refactors.
+- **Standalone products only.** Each app targets one commercial product and installs alone. No suite launcher, no shared workspace, no tabs that turn Draft into another product.
+- **Functional parity is the goal.** Implement behavior in the document model, commands, persistence, and tests. A control that does nothing is not a feature. `FUNCTIONAL` is not `VERIFIED_PARITY`.
+- **Monorepo OK; monolith forbidden.** Build one product (`MYDESK_PRODUCT`). Shared code lives in `core/` and must not force a shared application.
+- **Catalog ≠ shipped.** `products/catalog.yaml` lists targets. Do not add empty product directories.
+- **Draft is the current implemented product** (AutoCAD-class, binary `MyDeskDraft`). Preserve its commands, formats, and tests.
+- **Track gaps in** `compatibility/target-manifests/draft-autocad-2025.json`. Do not lower the completion target to the features that already work.
 - **No push/publish/remote destructive ops** without explicit user authorization.
-- **Honest parity.** Status lives in per-product matrices; never fake completeness.
 - When docs still say “one platform with modules”, update them and point at `docs/DECISIONS/ADR-0001-standalone-products.md`.

@@ -2,17 +2,17 @@
 
 ## P0 — Draft professionalism
 
-1. Entity color/linetype overrides; richer layer manager UI
-2. Intersection / perpendicular / tangent snaps
-3. Multi-segment PLINE trim/extend
-4. Dimensions (linear)
-5. DXF dim/block/text import as reported unknowns
+1. Linetypes and lineweights on layers and entities, including native and DXF persistence
+2. Block attributes
+3. Layouts, paper space, viewports, and PDF plot that honors the layer plot flag
+4. DXF coverage for dimensions, blocks, text, and hatches
+5. Entity grips and multi-segment polyline trim
 
 ## P1 — Interop
 
-1. Expand DXF fixture corpus
-2. Lawful DWG library evaluation (ADR 0004)
-3. SVG/PDF plot
+1. Expand the DXF fixture corpus
+2. Lawful DWG library evaluation (ADR 0004). Do not claim DWG until round-trip tests exist.
+3. Autosave and drawing recovery
 
 ## P2 — Other standalone products (when scheduled)
 
@@ -29,3 +29,4 @@
 | 2026-10-10 | Window/crossing selection | ctest + UI |
 | 2026-10-10 | DXF import/export partial | ctest |
 | 2026-10-10 | Standalone products pivot + LAYER/LA | ctest + ADR-0001 |
+| 2026-10-10 | Classic coordinates, EXPLODE, layer freeze/plot | ctest |

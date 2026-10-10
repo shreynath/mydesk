@@ -50,6 +50,31 @@
       }
     },
     {
+      "name": "mechanical",
+      "displayName": "MyDesk Mechanical (OCCT)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mechanical",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "mechanical",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/opencascade;/usr/local/opt/opencascade"
+      }
+    },
+    {
+      "name": "buildings",
+      "displayName": "MyDesk Buildings (BIM)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/buildings",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "buildings",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "ci-macos",
       "inherits": "default",
       "displayName": "CI macOS Draft",
@@ -85,6 +110,8 @@
     { "name": "draft-macos-release", "configurePreset": "draft-macos-release" },
     { "name": "release", "configurePreset": "release" },
     { "name": "headless", "configurePreset": "headless" },
+    { "name": "mechanical", "configurePreset": "mechanical" },
+    { "name": "buildings", "configurePreset": "buildings" },
     { "name": "ci-macos", "configurePreset": "ci-macos" },
     { "name": "ci-linux", "configurePreset": "ci-linux" },
     { "name": "ci-windows", "configurePreset": "ci-windows" }

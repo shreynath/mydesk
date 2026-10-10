@@ -3,6 +3,7 @@
 #include "mydesk/geometry/segment.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 
 namespace mydesk::document {
@@ -392,6 +393,86 @@ std::string_view entityKindName(EntityKind kind) {
         return "HATCH";
     }
     return "UNKNOWN";
+}
+
+std::string_view linetypeName(Linetype type) {
+    switch (type) {
+    case Linetype::ByLayer:
+        return "BYLAYER";
+    case Linetype::Continuous:
+        return "CONTINUOUS";
+    case Linetype::Dashed:
+        return "DASHED";
+    case Linetype::Hidden:
+        return "HIDDEN";
+    case Linetype::Center:
+        return "CENTER";
+    case Linetype::Phantom:
+        return "PHANTOM";
+    case Linetype::Dot:
+        return "DOT";
+    }
+    return "CONTINUOUS";
+}
+
+bool parseLinetype(std::string_view text, Linetype& out) {
+    std::string upper;
+    upper.reserve(text.size());
+    for (char c : text) {
+        upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    }
+    if (upper == "BYLAYER") {
+        out = Linetype::ByLayer;
+        return true;
+    }
+    if (upper == "CONTINUOUS") {
+        out = Linetype::Continuous;
+        return true;
+    }
+    if (upper == "DASHED" || upper == "DASH") {
+        out = Linetype::Dashed;
+        return true;
+    }
+    if (upper == "HIDDEN") {
+        out = Linetype::Hidden;
+        return true;
+    }
+    if (upper == "CENTER") {
+        out = Linetype::Center;
+        return true;
+    }
+    if (upper == "PHANTOM") {
+        out = Linetype::Phantom;
+        return true;
+    }
+    if (upper == "DOT" || upper == "DOTTED") {
+        out = Linetype::Dot;
+        return true;
+    }
+    return false;
+}
+
+std::vector<double> linetypeDashPattern(Linetype type) {
+    switch (type) {
+    case Linetype::Dashed:
+        return {8.0, -4.0};
+    case Linetype::Hidden:
+        return {4.0, -2.0};
+    case Linetype::Center:
+        return {16.0, -4.0, 2.0, -4.0};
+    case Linetype::Phantom:
+        return {16.0, -4.0, 2.0, -4.0, 2.0, -4.0};
+    case Linetype::Dot:
+        return {0.5, -2.0};
+    case Linetype::ByLayer:
+    case Linetype::Continuous:
+        break;
+    }
+    return {};
+}
+
+bool validLineweightMm(double millimeters) {
+    return std::isfinite(millimeters) && millimeters >= 0.0 && millimeters <= 2.11;
 }
 
 } // namespace mydesk::document

@@ -1,47 +1,69 @@
-# AGENTS.md — MyDesk (standalone products)
+# AGENTS.md — MyDesk
 
-You are the engineering organization building **MyDesk**: a family of **separate, standalone, free and open-source desktop applications** that independently reproduce useful Autodesk-class workflows. This file supersedes earlier “one umbrella suite / shared shell” guidance. Authoritative product architecture: [`docs/DECISIONS/ADR-0001-standalone-products.md`](docs/DECISIONS/ADR-0001-standalone-products.md). Catalog: [`products/catalog.yaml`](products/catalog.yaml).
+MyDesk is an ecosystem of **standalone desktop applications**. Each application is a dedicated, independently installable alternative to one commercial product. Functional parity with that product is the goal. A partial demo is not a finished replacement.
 
-**Absolute rule:** each product is excellent on its own. A drafter installs **MyDesk Draft**, not a suite. There is no mandatory launcher, shared browser shell, account, telemetry, or cross-product install. Products may share **invisible, versioned infrastructure** (`core/` → future `libs/`) only when that raises quality without runtime coupling.
+Authoritative decision: [`docs/DECISIONS/ADR-0001-standalone-products.md`](docs/DECISIONS/ADR-0001-standalone-products.md). Target inventory: [`products/catalog.yaml`](products/catalog.yaml). Draft capability evidence: [`compatibility/target-manifests/draft-autocad-2025.json`](compatibility/target-manifests/draft-autocad-2025.json).
 
-North star: clean-room **behavioral** parity (command habits, drafts aids, BIM semantics, etc.) — not Autodesk binaries, icons, fonts, or DRM bypass. Process inspiration: [ArtCraft / storytold](https://github.com/storytold). Status is always honest: `implemented-tested`, `partial`, `not-implemented`, `unsupported`, `blocked`.
+The repository layout keeps `products/<id>/` for applications and `core/` for shared libraries. That is the product architecture. Do not rename it into empty `applications/*-alternative` trees.
 
-## Current reality (inspect before claiming)
+## Rules
+
+1. MyDesk is an ecosystem of standalone applications.
+2. Each application targets one specific commercial product.
+3. Functional parity is the goal. `FUNCTIONAL` and `PARTIAL_PARITY` are not complete parity. Only `VERIFIED_PARITY` means the cited behavior matches the reference for that capability.
+4. Independent installation is mandatory. One executable, installer, preferences store, docs, tests, and release per product.
+5. Shared code must not create shared application dependencies. Libraries may be reused. Domain models and interfaces stay separate.
+6. Domain-specific interfaces are mandatory. Do not build a suite launcher, a shared workspace, or tabs that turn Draft into another product.
+7. Features must be implemented, not mocked. A menu entry, command name, or dialog is not the feature.
+8. Professional workflows take precedence over superficial demonstrations.
+9. Every implementation must be tested.
+10. Every iteration must advance a real application’s compatibility.
+11. Existing functioning code must be preserved.
+12. Incomplete functionality must be tracked without lowering the completion target.
+13. Each application retains its own roadmap, manifest, and definition of done.
+14. Do not replace a requested capability with an unrelated approximation.
+15. Continue from the repository state. Do not restart the project plan each session.
+
+Also:
+
+- Do not create product directories that have no code and tests. Catalog rows are targets, not shipped apps.
+- Do not copy proprietary source, artwork, trademarks, or DRM bypasses. Clean-room behavioral parity only.
+- Do not push, publish, or change remotes without explicit user authorization.
+- Original code is MPL-2.0. Third-party notices: `docs/legal/THIRD_PARTY.md`.
+
+## Current reality
+
+Inspect the tree, tests, and manifest before claiming status.
 
 | Item | Status |
 |---|---|
-| Implemented product | **MyDesk Draft** only (`products/draft/`, binary `MyDeskDraft`) |
-| Other catalog products | `catalog-stub` — no apps, no fake scaffolding |
-| Shared engines | `core/{geometry,units,document,modify,commands,exchange}`, `modules/draft` helpers |
-| Default CMake | `MYDESK_PRODUCT=draft` |
+| Implemented products | **Draft** (`MyDeskDraft`), **Mechanical** (`MyDeskMechanical`, OCCT), **Buildings** (`MyDeskBuildings`, semantic BIM/IFC) |
+| Other catalog products | `catalog-stub` until their engines land |
+| Shared libraries | Draft: `core/*`. Mechanical/Buildings own product engines under `products/<id>/engine` |
+| Default build | `MYDESK_PRODUCT=draft`; also `mechanical`, `buildings` |
 
-## Product catalog (targets, not claims)
+Draft is the AutoCAD-class application. Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, and Vault remain separate future products. Do not merge them into Draft.
 
-See `products/catalog.yaml`. Names: Draft, Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault. Do **not** collapse Mechanical/Fusion/Draft/Studio into one generic CAD window. Do **not** create hundreds of empty product folders.
+## Session protocol
 
-## Delivery model
+1. Read the Draft capability manifest, failing tests, and the product the user named.
+2. Pick the highest-impact unimplemented Draft capability unless the user named another product that already has code.
+3. Implement it in the document model, command interaction, persistence, and undo path.
+4. Add or extend automated tests. Build Draft. Run `ctest`.
+5. Update the capability manifest. `tools/compatibility-runner/check_manifest.py` must pass.
+6. Update that product’s changelog. Do not mark a capability `VERIFIED_PARITY` without a test that checks the reference outcome.
+7. Report files changed, tests run, build result, remaining differences, and the next capability.
 
-- One executable / installer / `VERSION` / changelog / prefs / docs / CI gate per product.
-- Monorepo OK; monolith forbidden. `cmake --preset …` builds **one** product.
-- Per-product parity under `products/<id>/docs/parity/`. Definition of done: `products/<id>/docs/definition-of-done.md`.
-- Never push, publish releases, or alter remotes without explicit user authorization. Local commits after completed slices are expected when the user asked for autonomous iteration.
+## Draft priority
 
-## Platforms and quality
+Continue from the manifest statuses. Next after classic coordinates, one-level explode, and layer freeze/plot: **linetypes and lineweights**, then attributes, layouts/plot, and deeper DXF. DWG stays unsupported until a lawful reader has round-trip evidence.
 
-macOS (Apple Silicon + Intel), Windows x86_64, Linux x86_64. C++20, CMake, Qt 6 Widgets for Draft. CI must **fail** if the product’s desktop build fails on a declared platform — no `|| true` and no silent headless fallback that paints desktop green. Geometry: unit-aware tolerances; prefer license-compatible kernels (e.g. OCCT) behind interfaces when needed. Safety-critical outputs (CAM, structural) need validation labels.
+## Build
 
-## Draft focus (only shipping product)
+```bash
+cmake --preset headless
+cmake --build --preset headless
+ctest --test-dir build/headless --output-on-failure
+```
 
-Preserve working commands and fixtures. Priority backlog: layers/properties (in progress), snaps/grips, dimensions, blocks, DXF round-trip depth, layouts/PDF plot, undo/recovery, benchmarks, packaging. Interaction: typed command line, aliases, F3/F7/F8/F9, window/crossing selection, ESC/Enter semantics.
-
-## Agent protocol each session
-
-1. Inspect repo, branch, CI, tests, ADR-0001, catalog — do not trust chat memory alone.
-2. Work the product the user named; otherwise continue Draft excellence.
-3. Red test → implement → build/test on available platforms → update matrices/changelog → local commit when slice completes.
-4. Report: product/workflow; files changed; tests/builds run; parity gain/gaps; run instructions; next milestone.
-5. Never reintroduce a suite shell. Never invent compatibility certifications.
-
-## License
-
-Original code: MPL-2.0. Third-party: `docs/legal/THIRD_PARTY.md`.
+`cmake --preset default` also builds the MyDesk Draft Qt app when Qt 6 is available. Use the preset that matches the host. A green headless test run is not evidence for a platform whose desktop build was not compiled.

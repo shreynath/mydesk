@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cctype>
+#include <optional>
 #include <string>
 
 namespace mydesk::commands {
@@ -28,6 +29,126 @@ bool parsePointToken(std::string_view token, geometry::Vec2& out) {
     } catch (...) {
         return false;
     }
+}
+
+bool looksLikeCoordinate(std::string_view token) {
+    if (token.empty()) {
+        return false;
+    }
+    if (token.front() == '@' || token.front() == '#') {
+        return true;
+    }
+    return token.find(',') != std::string_view::npos || token.find('<') != std::string_view::npos;
+}
+
+namespace {
+
+constexpr double kDegreesToRadians = 3.14159265358979323846 / 180.0;
+
+bool parseFiniteNumber(std::string_view token, double& out) {
+    if (token.empty()) {
+        return false;
+    }
+    try {
+        std::size_t idx = 0;
+        const double value = std::stod(std::string(token), &idx);
+        if (idx != token.size() || !std::isfinite(value)) {
+            return false;
+        }
+        out = value;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+} // namespace
+
+CoordinateParse parseCoordinateToken(std::string_view token,
+                                     const std::optional<geometry::Vec2>& lastPoint) {
+    CoordinateParse result;
+    std::string_view body = token;
+    bool relative = false;
+    if (!body.empty() && body.front() == '@') {
+        relative = true;
+        body.remove_prefix(1);
+    } else if (!body.empty() && body.front() == '#') {
+        body.remove_prefix(1);
+    }
+    if (body.empty() || (!body.empty() && (body.front() == '@' || body.front() == '#'))) {
+        result.error = body.empty() ? "Incomplete coordinate" : "Invalid coordinate prefix";
+        return result;
+    }
+
+    int commas = 0;
+    for (char c : body) {
+        if (c == ',') {
+            ++commas;
+        }
+    }
+    if (commas > 1) {
+        result.error = "3D coordinates are not supported yet";
+        return result;
+    }
+
+    const auto anglePos = body.find('<');
+    if (anglePos != std::string_view::npos) {
+        if (body.find(',') != std::string_view::npos) {
+            result.error = "Polar coordinate cannot contain a comma";
+            return result;
+        }
+        double distance = 0.0;
+        double angleDeg = 0.0;
+        if (!parseFiniteNumber(body.substr(0, anglePos), distance) ||
+            !parseFiniteNumber(body.substr(anglePos + 1), angleDeg)) {
+            result.error = "Polar coordinate expects distance<angle";
+            return result;
+        }
+        const double rad = angleDeg * kDegreesToRadians;
+        const geometry::Vec2 delta{distance * std::cos(rad), distance * std::sin(rad)};
+        if (relative) {
+            if (!lastPoint) {
+                result.error = "No previous point for relative coordinate";
+                return result;
+            }
+            result.point = *lastPoint + delta;
+        } else {
+            result.point = delta;
+        }
+        result.ok = true;
+        return result;
+    }
+
+    const auto comma = body.find(',');
+    if (comma == std::string_view::npos) {
+        result.error = "Coordinate expects x,y or distance<angle";
+        return result;
+    }
+    double x = 0.0;
+    double y = 0.0;
+    if (!parseFiniteNumber(body.substr(0, comma), x) || !parseFiniteNumber(body.substr(comma + 1), y)) {
+        result.error = "Invalid coordinate numbers";
+        return result;
+    }
+    if (relative) {
+        if (!lastPoint) {
+            result.error = "No previous point for relative coordinate";
+            return result;
+        }
+        result.point = *lastPoint + geometry::Vec2{x, y};
+    } else {
+        result.point = {x, y};
+    }
+    result.ok = true;
+    return result;
+}
+
+CoordinateParse CommandContext::readPoint(std::string_view token) {
+    CoordinateParse parsed = parseCoordinateToken(token, lastPoint_);
+    if (parsed.ok) {
+        lastPoint_ = parsed.point;
+    }
+    return parsed;
 }
 
 bool parseNumberToken(std::string_view token, double& out) {

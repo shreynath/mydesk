@@ -14,6 +14,12 @@
 
 namespace mydesk::document {
 
+struct ExplodeResult {
+    std::vector<EntityId> created;
+    std::size_t exploded{0};
+    std::size_t skipped{0};
+};
+
 class Document {
 public:
     Document();
@@ -43,10 +49,23 @@ public:
     LayerId addLayer(std::string name);
     bool setLayerVisible(LayerId id, bool visible);
     bool setLayerLocked(LayerId id, bool locked);
+    bool setLayerFrozen(LayerId id, bool frozen);
+    bool setLayerPlottable(LayerId id, bool plottable);
+    bool setLayerLinetype(LayerId id, Linetype linetype);
+    bool setLayerLineweight(LayerId id, double millimeters);
+    [[nodiscard]] double linetypeScale() const { return linetypeScale_; }
+    void setLinetypeScale(double scale);
+    [[nodiscard]] bool isEntityVisible(const Entity& entity) const;
+    [[nodiscard]] bool isEntitySelectable(const Entity& entity) const;
     bool setLayerColor(LayerId id, std::uint32_t colorArgb);
     bool setEntityLayer(EntityId id, LayerId layerId);
     bool setEntityColor(EntityId id, std::uint32_t colorArgb);
+    bool setEntityLinetype(EntityId id, Linetype linetype);
+    bool setEntityLineweight(EntityId id, double millimeters);
+    bool setEntityLineweightByLayer(EntityId id);
     [[nodiscard]] std::uint32_t resolvedEntityColor(const Entity& entity) const;
+    [[nodiscard]] Linetype resolvedLinetype(const Entity& entity) const;
+    [[nodiscard]] double resolvedLineweightMm(const Entity& entity) const;
     EntityId addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel = "LINE");
     EntityId addCircle(geometry::Vec2 center, double radius, std::string txLabel = "CIRCLE");
     EntityId addArc(geometry::Vec2 center, double radius, double startAngle, double endAngle,
@@ -67,6 +86,8 @@ public:
                      double rotationDeg = 0.0, std::string txLabel = "TEXT");
     EntityId addHatch(std::vector<geometry::Vec2> boundary, std::uint32_t fillArgb = 0x6688AACC,
                       std::string txLabel = "HATCH");
+    // One level: INSERT becomes its transformed primitives; POLYLINE becomes lines.
+    ExplodeResult explodeEntities(const std::vector<EntityId>& ids, std::string txLabel = "EXPLODE");
     bool removeEntity(EntityId id, std::string txLabel = "ERASE");
     bool replaceEntity(EntityId id, EntityGeometry geometry, std::string txLabel = "MODIFY");
 
@@ -111,7 +132,8 @@ public:
 
     void restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
                          EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
-                         std::string name, std::vector<BlockDefinition> blocks = {});
+                         std::string name, std::vector<BlockDefinition> blocks = {},
+                         double linetypeScale = 1.0);
 
     void markClean();
     [[nodiscard]] bool isDirty() const { return dirty_; }
@@ -133,6 +155,7 @@ private:
     std::unordered_set<EntityId> selection_;
     HistoryStack history_;
     bool dirty_{false};
+    double linetypeScale_{1.0};
     std::optional<Transaction> composite_;
 };
 

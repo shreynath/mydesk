@@ -98,10 +98,23 @@ struct BlockDefinition {
     std::vector<BlockPrimitive> primitives;
 };
 
+enum class Linetype : std::uint8_t {
+    ByLayer = 0,
+    Continuous,
+    Dashed,
+    Hidden,
+    Center,
+    Phantom,
+    Dot,
+};
+
 struct Entity {
     EntityId id{kInvalidEntityId};
     LayerId layerId{kInvalidLayerId};
     std::uint32_t colorArgb{kColorByLayer};
+    Linetype linetype{Linetype::ByLayer};
+    bool lineweightByLayer{true};
+    double lineweightMm{0.25};
     EntityGeometry geometry;
 
     [[nodiscard]] EntityKind kind() const;
@@ -116,7 +129,13 @@ struct Layer {
     std::string name{"0"};
     bool visible{true};
     bool locked{false};
+    // Frozen is independent of visible: a thawed layer that is off stays off.
+    bool frozen{false};
+    // Stored for plot configuration. Display does not depend on this flag.
+    bool plottable{true};
     std::uint32_t colorArgb{0xFFE0E0E0};
+    Linetype linetype{Linetype::Continuous};
+    double lineweightMm{0.25};
 };
 
 struct DimensionLayout {
@@ -134,6 +153,11 @@ struct DimensionLayout {
                                                      const EntityGeometry& local);
 [[nodiscard]] geometry::BBox boundsOfGeometry(const EntityGeometry& geometry);
 [[nodiscard]] std::string_view entityKindName(EntityKind kind);
+[[nodiscard]] std::string_view linetypeName(Linetype type);
+[[nodiscard]] bool parseLinetype(std::string_view text, Linetype& out);
+// AutoCAD-style pattern in drawing units. Positive = dash, negative = gap. Empty means continuous.
+[[nodiscard]] std::vector<double> linetypeDashPattern(Linetype type);
+[[nodiscard]] bool validLineweightMm(double millimeters);
 [[nodiscard]] std::size_t polylineSegmentCount(const PolylineEntity& pl);
 [[nodiscard]] geometry::Vec2 polylineSegmentStart(const PolylineEntity& pl, std::size_t i);
 [[nodiscard]] geometry::Vec2 polylineSegmentEnd(const PolylineEntity& pl, std::size_t i);

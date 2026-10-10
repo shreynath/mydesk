@@ -26,10 +26,12 @@ Last updated: 2026-10-10
 | Hover highlight | partial | UI |
 | Object snap end/mid/center | partial | F3; + pline/arc endpoints |
 | Grid / ortho / snap toggles | partial | F7/F8/F9 |
-| Native `.mydesk` v2 | implemented-tested | roundtrip tests |
+| Native `.mydesk` schema 4 | implemented-tested | roundtrip tests; reads schema 3 |
 | DXF import/export | partial | LINE/CIRCLE/ARC/LWPOLYLINE/LAYER |
 | DWG | unsupported | ADR 0004 |
-| LAYER (`LA`) NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR | implemented-tested | `test_layers.cpp` |
+| LAYER (`LA`) NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/COLOR | partial | `test_layers.cpp` |
+| Classic coordinates `x,y` `@dx,dy` `dist<angle` `@dist<angle` | implemented-tested | `test_coordinates.cpp` |
+| EXPLODE (`X`) insert and polyline, one level | implemented-tested | `test_explode.cpp` |
 | CHPROP (`CH`) color / layer | implemented-tested | `test_dims_props_snaps.cpp` |
 | DIMLINEAR (`DIM`) | implemented-tested | `test_dims_props_snaps.cpp` |
 | OSNAP INT/PER (+ END/MID/CEN) | implemented-tested | `test_dims_props_snaps.cpp` |

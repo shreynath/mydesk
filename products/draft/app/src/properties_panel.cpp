@@ -39,6 +39,9 @@ void PropertiesPanel::setDocument(const document::Document& doc) {
                     .arg(QString::fromUtf8(kind.data(), static_cast<int>(kind.size())));
         text += QStringLiteral("  layer: %1\n")
                     .arg(layer ? QString::fromStdString(layer->name) : QStringLiteral("?"));
+        text += QStringLiteral("  linetype: %1\n  lineweight: %2 mm\n")
+                    .arg(QString::fromUtf8(document::linetypeName(doc.resolvedLinetype(*entity)).data()))
+                    .arg(doc.resolvedLineweightMm(*entity), 0, 'f', 2);
         if (entity->colorArgb == document::kColorByLayer) {
             text += QStringLiteral("  color: ByLayer\n");
         } else {

@@ -23,6 +23,26 @@ products:
     packaging: products/draft/packaging
     issue_label: product:draft
 
+  - id: draft-lt
+    name: MyDesk Draft (AutoCAD LT track)
+    binary: MyDeskDraft
+    target_workflow: AutoCAD LT class 2D drafting (distinct commercial target)
+    entry_point: products/draft/app
+    version_file: products/draft/VERSION
+    cmake_product: draft
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    document_extension: .mydesk
+    maturity: alpha
+    notes: >
+      Distinct commercial target from full AutoCAD. Currently shares the MyDeskDraft
+      executable and Draft document model. LT-specific inventory and exclusions live in
+      compatibility/target-manifests/draft-lt-autocad-lt-2025.json. Do not delete this
+      row because Draft still lacks some full-AutoCAD features.
+    comparison_targets:
+      - { vendor: Autodesk, product: AutoCAD LT, versions: ["2025", "2026"] }
+    docs: products/draft/docs
+    issue_label: product:draft-lt
+
   - id: mechanical
     name: MyDesk Mechanical
     binary: MyDeskMechanical
@@ -31,9 +51,10 @@ products:
     version_file: products/mechanical/VERSION
     cmake_product: mechanical
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
     comparison_targets:
       - { vendor: Autodesk, product: Inventor, versions: ["2025", "2026"] }
+    docs: products/mechanical/docs
     issue_label: product:mechanical
 
   - id: fusion
@@ -58,9 +79,10 @@ products:
     version_file: products/buildings/VERSION
     cmake_product: buildings
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
     comparison_targets:
       - { vendor: Autodesk, product: Revit, versions: ["2025", "2026"] }
+    docs: products/buildings/docs
     issue_label: product:buildings
 
   - id: civil

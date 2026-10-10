@@ -34,6 +34,10 @@ void test_osnap_intersection_perpendicular();
 void test_dim_native_roundtrip();
 void test_block_and_insert();
 void test_text_and_hatch();
+void test_relative_and_polar_coordinates();
+void test_explode_insert_and_polyline();
+void test_layer_freeze_thaw_plot_roundtrip();
+void test_linetype_lineweight_commands_and_roundtrip();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -60,6 +64,11 @@ int main() {
         {"test_dim_native_roundtrip", &test_dim_native_roundtrip},
         {"test_block_and_insert", &test_block_and_insert},
         {"test_text_and_hatch", &test_text_and_hatch},
+        {"test_relative_and_polar_coordinates", &test_relative_and_polar_coordinates},
+        {"test_explode_insert_and_polyline", &test_explode_insert_and_polyline},
+        {"test_layer_freeze_thaw_plot_roundtrip", &test_layer_freeze_thaw_plot_roundtrip},
+        {"test_linetype_lineweight_commands_and_roundtrip",
+         &test_linetype_lineweight_commands_and_roundtrip},
     };
 
     int failed = 0;

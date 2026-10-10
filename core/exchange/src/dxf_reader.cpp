@@ -79,14 +79,21 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
 
         if (section == "TABLES" && pair.code == 0 && pair.value == "LAYER") {
             std::string name = "0";
+            std::string linetype = "CONTINUOUS";
             std::size_t j = i + 1;
             for (; j < pairs.size() && pairs[j].code != 0; ++j) {
                 if (pairs[j].code == 2) {
                     name = pairs[j].value;
+                } else if (pairs[j].code == 6) {
+                    linetype = pairs[j].value;
                 }
             }
             if (layerIds.find(name) == layerIds.end()) {
                 layerIds[name] = loaded.addLayer(name);
+            }
+            document::Linetype parsed = document::Linetype::Continuous;
+            if (document::parseLinetype(linetype, parsed) && parsed != document::Linetype::ByLayer) {
+                loaded.setLayerLinetype(layerIds[name], parsed);
             }
             i = j - 1;
             continue;
@@ -102,6 +109,7 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
         }
 
         std::string layer = "0";
+        std::string entityLinetype;
         double x10 = 0, y20 = 0, x11 = 0, y21 = 0, r40 = 0, a50 = 0, a51 = 0;
         int flags70 = 0;
         std::vector<geometry::Vec2> lwVerts;
@@ -115,6 +123,9 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
                 switch (q.code) {
                 case 8:
                     layer = q.value;
+                    break;
+                case 6:
+                    entityLinetype = q.value;
                     break;
                 case 10:
                     pendingX = std::stod(q.value);
@@ -160,16 +171,17 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
         }
         loaded.setActiveLayer(layerIds[layer]);
 
+        document::EntityId created = document::kInvalidEntityId;
         try {
             if (type == "LINE") {
-                loaded.addLine({x10, y20}, {x11, y21});
+                created = loaded.addLine({x10, y20}, {x11, y21});
             } else if (type == "CIRCLE") {
-                loaded.addCircle({x10, y20}, r40);
+                created = loaded.addCircle({x10, y20}, r40);
             } else if (type == "ARC") {
-                loaded.addArc({x10, y20}, r40, a50 * kPi / 180.0, a51 * kPi / 180.0);
+                created = loaded.addArc({x10, y20}, r40, a50 * kPi / 180.0, a51 * kPi / 180.0);
             } else if (type == "LWPOLYLINE") {
                 if (lwVerts.size() >= 2) {
-                    loaded.addPolyline(lwVerts, (flags70 & 1) != 0);
+                    created = loaded.addPolyline(lwVerts, (flags70 & 1) != 0);
                 } else {
                     report.warnings.push_back("Skipped LWPOLYLINE with <2 vertices");
                 }
@@ -178,6 +190,12 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
             }
         } catch (const std::exception& ex) {
             report.warnings.push_back(std::string("DXF entity error: ") + ex.what());
+        }
+        if (created != document::kInvalidEntityId && !entityLinetype.empty()) {
+            document::Linetype parsed = document::Linetype::ByLayer;
+            if (document::parseLinetype(entityLinetype, parsed)) {
+                loaded.setEntityLinetype(created, parsed);
+            }
         }
     }
 

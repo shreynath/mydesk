@@ -4,7 +4,7 @@ Standalone products per ADR-0001. Only **MyDesk Draft** is in active delivery.
 
 ## Current focus
 
-**Draft layers command landed.** Next: dimensions, linetypes, blocks; deepen DXF; grips; packaging.
+**Draft linetypes/lineweights landed.** Parallel workstreams advancing Mechanical (OCCT), Buildings (BIM/IFC), Civil, Animate, Coordinate, Fusion, Mill, Simulation, Vault, Studio, Surface, Infra. AutoCAD LT tracked as distinct catalog target `draft-lt`.
 
 ## Phases
 
@@ -43,11 +43,14 @@ Standalone products per ADR-0001. Only **MyDesk Draft** is in active delivery.
 
 ### Phase 4 — Professional drafting experience (active)
 
-- [x] LAYER command + visibility/lock/color (partial properties UI)
-- [ ] Linetypes, per-entity override colors
-- [ ] Blocks / INSERT
-- [ ] Dimensions
-- [ ] Advanced snaps (intersection, perp, tangent)
+- [x] LAYER command + visibility/lock/color/freeze/thaw/plot flag
+- [x] Classic coordinate entry (`x,y`, `@dx,dy`, `dist<angle`, `@dist<angle`)
+- [x] BLOCK / INSERT and one-level EXPLODE
+- [x] Aligned DIMLINEAR, single-line TEXT, solid HATCH
+- [ ] Linetypes and lineweights
+- [ ] Block attributes and xrefs
+- [ ] Layouts, paper space, and PDF plot
+- [ ] DXF coverage beyond LINE/CIRCLE/ARC/LWPOLYLINE/LAYER
 
 ### Phase 5 — Cross-platform engineering (ongoing)
 
