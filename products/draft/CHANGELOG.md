@@ -14,5 +14,5 @@
 - **EXPLODE** / **X**: one-level explode of INSERT (transformed primitives) and POLYLINE (lines). Undo restores the source object.
 - Classic coordinate entry on point prompts: `x,y`, `@dx,dy`, `dist<angle`, `@dist<angle`, `#x,y`.
 - **LAYER FREEZE/THAW** independent of on/off. **LAYER PLOT/NOPLOT** stores the plot flag. Native schema 4 round-trips those flags. Schema 3 files still load.
-- **LAYER LTYPE / LWEIGHT**, **CHPROP LTYPE / LWEIGHT**, **LTSCALE**: Continuous/Dashed/Hidden/Center/Phantom/Dot patterns, mm lineweights, canvas dash display, native schema 5 + DXF group 6 round-trip.
+- **LAYER LTYPE / LWEIGHT**, **CHPROP LTYPE / LWEIGHT**, **LTSCALE**: Continuous/Dashed/Hidden/Center/Phantom/Dot patterns, mm lineweights, canvas dash display, native schema 5 + DXF layer/entity group 6 linetypes and group 370 lineweights round-trip, DXF `$LTSCALE` header persistence, and undo/redo coverage. Verified parity for `ACAD-LINETYPE` and `ACAD-LINEWEIGHT`.
 - Preset `draft-macos-release` added.

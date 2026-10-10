@@ -26,6 +26,8 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
     pair(2, "HEADER");
     pair(9, "$ACADVER");
     pair(1, "AC1009");
+    pair(9, "$LTSCALE");
+    pairNum(40, doc.linetypeScale());
     pair(0, "ENDSEC");
 
     pair(0, "SECTION");
@@ -46,6 +48,7 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
                                              : 7;
         pair(62, std::to_string(aci));
         pair(6, std::string(document::linetypeName(layer.linetype)));
+        pair(370, std::to_string(static_cast<int>(std::round(layer.lineweightMm * 100.0))));
     }
     pair(0, "ENDTAB");
     pair(0, "ENDSEC");
@@ -55,12 +58,15 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
     for (const auto& entity : doc.entities()) {
         const document::Layer* layer = doc.findLayer(entity.layerId);
         const std::string layerName = layer ? layer->name : "0";
-        const std::string linetype = std::string(document::linetypeName(doc.resolvedLinetype(entity)));
+        const std::string linetype = std::string(document::linetypeName(entity.linetype));
         if (const auto* line = std::get_if<document::LineEntity>(&entity.geometry)) {
             pair(0, "LINE");
             pair(8, layerName);
             if (entity.linetype != document::Linetype::ByLayer) {
                 pair(6, linetype);
+            }
+            if (!entity.lineweightByLayer) {
+                pair(370, std::to_string(static_cast<int>(std::round(entity.lineweightMm * 100.0))));
             }
             pairNum(10, line->start.x);
             pairNum(20, line->start.y);
@@ -74,6 +80,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
             if (entity.linetype != document::Linetype::ByLayer) {
                 pair(6, linetype);
             }
+            if (!entity.lineweightByLayer) {
+                pair(370, std::to_string(static_cast<int>(std::round(entity.lineweightMm * 100.0))));
+            }
             pairNum(10, circle->center.x);
             pairNum(20, circle->center.y);
             pairNum(30, 0.0);
@@ -83,6 +92,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
             pair(8, layerName);
             if (entity.linetype != document::Linetype::ByLayer) {
                 pair(6, linetype);
+            }
+            if (!entity.lineweightByLayer) {
+                pair(370, std::to_string(static_cast<int>(std::round(entity.lineweightMm * 100.0))));
             }
             pairNum(10, arc->center.x);
             pairNum(20, arc->center.y);
@@ -96,6 +108,9 @@ ConversionReport exportDxfR12(const document::Document& doc, const std::filesyst
             pair(8, layerName);
             if (entity.linetype != document::Linetype::ByLayer) {
                 pair(6, linetype);
+            }
+            if (!entity.lineweightByLayer) {
+                pair(370, std::to_string(static_cast<int>(std::round(entity.lineweightMm * 100.0))));
             }
             pair(90, std::to_string(pl->vertices.size()));
             pair(70, pl->closed ? "1" : "0");

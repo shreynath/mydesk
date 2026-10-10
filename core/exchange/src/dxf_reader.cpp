@@ -77,15 +77,40 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
             break;
         }
 
+        if (section == "HEADER" && pair.code == 9 && pair.value == "$LTSCALE" && i + 1 < pairs.size() &&
+            pairs[i + 1].code == 40) {
+            try {
+                double scale = std::stod(pairs[i + 1].value);
+                if (scale > 0.0) {
+                    loaded.setLinetypeScale(scale);
+                }
+            } catch (...) {}
+            ++i;
+            continue;
+        }
+
         if (section == "TABLES" && pair.code == 0 && pair.value == "LAYER") {
             std::string name = "0";
             std::string linetype = "CONTINUOUS";
+            double lineweightMm = 0.25;
+            bool hasLineweight = false;
             std::size_t j = i + 1;
             for (; j < pairs.size() && pairs[j].code != 0; ++j) {
                 if (pairs[j].code == 2) {
                     name = pairs[j].value;
                 } else if (pairs[j].code == 6) {
                     linetype = pairs[j].value;
+                } else if (pairs[j].code == 370) {
+                    try {
+                        int lwVal = std::stoi(pairs[j].value);
+                        if (lwVal >= 0) {
+                            double lwMm = static_cast<double>(lwVal) / 100.0;
+                            if (document::validLineweightMm(lwMm)) {
+                                lineweightMm = lwMm;
+                                hasLineweight = true;
+                            }
+                        }
+                    } catch (...) {}
                 }
             }
             if (layerIds.find(name) == layerIds.end()) {
@@ -94,6 +119,9 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
             document::Linetype parsed = document::Linetype::Continuous;
             if (document::parseLinetype(linetype, parsed) && parsed != document::Linetype::ByLayer) {
                 loaded.setLayerLinetype(layerIds[name], parsed);
+            }
+            if (hasLineweight) {
+                loaded.setLayerLineweight(layerIds[name], lineweightMm);
             }
             i = j - 1;
             continue;
@@ -110,6 +138,7 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
 
         std::string layer = "0";
         std::string entityLinetype;
+        int entityLineweight = -1;
         double x10 = 0, y20 = 0, x11 = 0, y21 = 0, r40 = 0, a50 = 0, a51 = 0;
         int flags70 = 0;
         std::vector<geometry::Vec2> lwVerts;
@@ -126,6 +155,11 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
                     break;
                 case 6:
                     entityLinetype = q.value;
+                    break;
+                case 370:
+                    try {
+                        entityLineweight = std::stoi(q.value);
+                    } catch (...) {}
                     break;
                 case 10:
                     pendingX = std::stod(q.value);
@@ -191,10 +225,18 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
         } catch (const std::exception& ex) {
             report.warnings.push_back(std::string("DXF entity error: ") + ex.what());
         }
-        if (created != document::kInvalidEntityId && !entityLinetype.empty()) {
-            document::Linetype parsed = document::Linetype::ByLayer;
-            if (document::parseLinetype(entityLinetype, parsed)) {
-                loaded.setEntityLinetype(created, parsed);
+        if (created != document::kInvalidEntityId) {
+            if (!entityLinetype.empty()) {
+                document::Linetype parsed = document::Linetype::ByLayer;
+                if (document::parseLinetype(entityLinetype, parsed)) {
+                    loaded.setEntityLinetype(created, parsed);
+                }
+            }
+            if (entityLineweight >= 0) {
+                const double lwMm = static_cast<double>(entityLineweight) / 100.0;
+                if (document::validLineweightMm(lwMm)) {
+                    loaded.setEntityLineweight(created, lwMm);
+                }
             }
         }
     }
@@ -206,7 +248,7 @@ ConversionReport importDxf(document::Document& doc, const std::filesystem::path&
     // Replace caller's document content.
     doc.restoreSnapshot(loaded.layers(), loaded.entities(), loaded.activeLayerId(),
                         loaded.nextEntityIdPeek(), loaded.nextLayerIdPeek(), loaded.units(),
-                        path.stem().string());
+                        path.stem().string(), {}, loaded.linetypeScale());
     // restoreSnapshot takes by value - need copies. layers()/entities() return const refs —
     // restoreSnapshot moves from vectors - must copy first.
     // Actually we passed loaded.layers() which is const ref - restoreSnapshot takes vector by value

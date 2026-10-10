@@ -518,14 +518,16 @@
       "implementation": [
         "core/document/src/entity.cpp",
         "core/commands/src/draft_commands.cpp",
-        "core/exchange/src/native_format.cpp"
+        "core/exchange/src/native_format.cpp",
+        "core/exchange/src/dxf_writer.cpp",
+        "core/exchange/src/dxf_reader.cpp"
       ],
       "tests": [
         "test_linetype_lineweight_commands_and_roundtrip"
       ],
       "manual_tests": [],
       "performance": "Dash tessellation is proportional to visible edge length.",
-      "status": "FUNCTIONAL",
+      "status": "VERIFIED_PARITY",
       "evidence": "tests/unit/test_linetypes.cpp",
       "differences": "No custom .lin file loading, complex shape dashes, or ISO pen tables. Display uses Qt dash patterns scaled by LTSCALE."
     },
@@ -540,10 +542,15 @@
       "expected_input": "LAYER LWEIGHT Hidden 0.50; CHPROP LWEIGHT 0.70",
       "expected_output": "Resolved weight is 0.70 until ByLayer restores 0.50.",
       "formats": [
-        ".mydesk"
+        ".mydesk",
+        ".dxf"
       ],
       "implementation": [
         "core/document/src/document.cpp",
+        "core/commands/src/draft_commands.cpp",
+        "core/exchange/src/native_format.cpp",
+        "core/exchange/src/dxf_writer.cpp",
+        "core/exchange/src/dxf_reader.cpp",
         "products/draft/app/src/canvas_widget.cpp"
       ],
       "tests": [
@@ -551,9 +558,9 @@
       ],
       "manual_tests": [],
       "performance": "Constant time per entity.",
-      "status": "FUNCTIONAL",
+      "status": "VERIFIED_PARITY",
       "evidence": "tests/unit/test_linetypes.cpp",
-      "differences": "No DXF group 370 round-trip yet. No plot-style mapping. Display mapping is approximate screen pixels, not calibrated plot millimeters."
+      "differences": "No plot-style mapping. Display mapping is approximate screen pixels, not calibrated plot millimeters."
     },
     {
       "id": "ACAD-ATTRIB",

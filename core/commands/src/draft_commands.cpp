@@ -804,7 +804,7 @@ CommandResult handleOsnap(CommandContext& ctx, const std::vector<std::string>& a
     if (tok == "INT" || tok == "INTERSECTION") {
         return setFlag(modes->snapIntersection, "INT");
     }
-    if (tok == "PER" || tok ==, "PERPENDICULAR") {
+    if (tok == "PER" || tok == "PERPENDICULAR") {
         return setFlag(modes->snapPerpendicular, "PER");
     }
     return errMsg("OSNAP usage: ON|OFF|END|MID|CEN|INT|PER [?]");
