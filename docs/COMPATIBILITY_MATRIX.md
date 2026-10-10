@@ -45,7 +45,8 @@ Last updated: 2026-10-10
 | CH | CHPROP | implemented-tested |
 | OS | OSNAP | implemented-tested |
 | DIM | DIMLINEAR | implemented-tested |
-| H / BH | HATCH | not-implemented |
+| H / BH | HATCH | partial |
+| T | TEXT | implemented-tested |
 | B | BLOCK | implemented-tested |
 | I | INSERT | implemented-tested |
 

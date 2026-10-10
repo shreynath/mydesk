@@ -92,6 +92,22 @@ EntityGeometry transformInsertGeometry(const InsertEntity& insert, const EntityG
     if (const auto* dim = std::get_if<DimensionLinearEntity>(&local)) {
         return DimensionLinearEntity{map(dim->start), map(dim->end), map(dim->dimLine)};
     }
+    if (const auto* text = std::get_if<TextEntity>(&local)) {
+        TextEntity out = *text;
+        out.position = map(text->position);
+        out.height *= std::abs(insert.scale);
+        out.rotationDeg += insert.rotationDeg;
+        return out;
+    }
+    if (const auto* hatch = std::get_if<HatchEntity>(&local)) {
+        HatchEntity out = *hatch;
+        out.boundary.clear();
+        out.boundary.reserve(hatch->boundary.size());
+        for (const auto& v : hatch->boundary) {
+            out.boundary.push_back(map(v));
+        }
+        return out;
+    }
     return local;
 }
 
@@ -134,6 +150,12 @@ EntityKind Entity::kind() const {
     }
     if (std::holds_alternative<InsertEntity>(geometry)) {
         return EntityKind::Insert;
+    }
+    if (std::holds_alternative<TextEntity>(geometry)) {
+        return EntityKind::Text;
+    }
+    if (std::holds_alternative<HatchEntity>(geometry)) {
+        return EntityKind::Hatch;
     }
     return EntityKind::Polyline;
 }
@@ -183,6 +205,21 @@ geometry::BBox Entity::bounds() const {
         }
         return box;
     }
+    if (const auto* text = std::get_if<TextEntity>(&geometry)) {
+        geometry::BBox box;
+        box.expand(text->position);
+        box.expand(geometry::Vec2{
+            text->position.x + text->height * static_cast<double>(text->contents.size()) * 0.6,
+            text->position.y + text->height});
+        return box;
+    }
+    if (const auto* hatch = std::get_if<HatchEntity>(&geometry)) {
+        geometry::BBox box;
+        for (const auto& v : hatch->boundary) {
+            box.expand(v);
+        }
+        return box;
+    }
     const auto& pl = std::get<PolylineEntity>(geometry);
     geometry::BBox box;
     for (const auto& v : pl.vertices) {
@@ -224,6 +261,31 @@ bool Entity::hitTest(geometry::Vec2 point, double tol) const {
         const auto box = bounds();
         return point.x >= box.minX - tol && point.x <= box.maxX + tol &&
                point.y >= box.minY - tol && point.y <= box.maxY + tol;
+    }
+    if (const auto* text = std::get_if<TextEntity>(&geometry)) {
+        return bounds().contains(point) || text->position.distanceTo(point) <= tol;
+    }
+    if (const auto* hatch = std::get_if<HatchEntity>(&geometry)) {
+        // Point-in-polygon (ray cast) or near boundary.
+        const auto& b = hatch->boundary;
+        if (b.size() < 3) {
+            return false;
+        }
+        bool inside = false;
+        for (std::size_t i = 0, j = b.size() - 1; i < b.size(); j = i++) {
+            geometry::Segment seg{b[j], b[i]};
+            if (seg.distanceToPoint(point) <= tol) {
+                return true;
+            }
+            const bool intersect = ((b[i].y > point.y) != (b[j].y > point.y)) &&
+                                   (point.x < (b[j].x - b[i].x) * (point.y - b[i].y) /
+                                                     (b[j].y - b[i].y + 1e-30) +
+                                                 b[i].x);
+            if (intersect) {
+                inside = !inside;
+            }
+        }
+        return inside;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
     const std::size_t n = polylineSegmentCount(pl);
@@ -290,7 +352,9 @@ bool Entity::intersectsRect(const geometry::BBox& rect, bool crossing) const {
                segmentCrossesRect({layout.end, layout.dimEnd}, rect) ||
                rect.contains(layout.textPos);
     }
-    if (std::holds_alternative<InsertEntity>(geometry)) {
+    if (std::holds_alternative<InsertEntity>(geometry) ||
+        std::holds_alternative<TextEntity>(geometry) ||
+        std::holds_alternative<HatchEntity>(geometry)) {
         const auto box = bounds();
         if (box.maxX < rect.minX || box.minX > rect.maxX || box.maxY < rect.minY ||
             box.minY > rect.maxY) {
@@ -322,6 +386,10 @@ std::string_view entityKindName(EntityKind kind) {
         return "DIMLINEAR";
     case EntityKind::Insert:
         return "INSERT";
+    case EntityKind::Text:
+        return "TEXT";
+    case EntityKind::Hatch:
+        return "HATCH";
     }
     return "UNKNOWN";
 }

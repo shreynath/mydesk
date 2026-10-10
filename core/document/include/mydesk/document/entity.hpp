@@ -26,6 +26,8 @@ enum class EntityKind {
     Polyline,
     DimensionLinear,
     Insert,
+    Text,
+    Hatch,
 };
 
 struct LineEntity {
@@ -58,6 +60,19 @@ struct DimensionLinearEntity {
     geometry::Vec2 dimLine;
 };
 
+struct TextEntity {
+    geometry::Vec2 position;
+    double height{2.5};
+    double rotationDeg{0.0};
+    std::string contents;
+};
+
+// Solid fill hatch bounded by a closed polyline (model-space vertices).
+struct HatchEntity {
+    std::vector<geometry::Vec2> boundary; // >= 3, treated as closed
+    std::uint32_t fillArgb{0x6688AACC};
+};
+
 // Block reference. localBounds is the definition AABB (block space) for fast bounds.
 struct InsertEntity {
     std::string blockName;
@@ -67,8 +82,9 @@ struct InsertEntity {
     geometry::BBox localBounds;
 };
 
-using EntityGeometry = std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity,
-                                    DimensionLinearEntity, InsertEntity>;
+using EntityGeometry =
+    std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity, DimensionLinearEntity,
+                 InsertEntity, TextEntity, HatchEntity>;
 
 // Geometry stored in block-definition coordinates (relative to block origin).
 // Must not nest InsertEntity (enforced at BLOCK time).

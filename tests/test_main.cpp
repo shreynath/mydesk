@@ -33,6 +33,7 @@ void test_chprop_and_dimlinear();
 void test_osnap_intersection_perpendicular();
 void test_dim_native_roundtrip();
 void test_block_and_insert();
+void test_text_and_hatch();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -58,6 +59,7 @@ int main() {
         {"test_osnap_intersection_perpendicular", &test_osnap_intersection_perpendicular},
         {"test_dim_native_roundtrip", &test_dim_native_roundtrip},
         {"test_block_and_insert", &test_block_and_insert},
+        {"test_text_and_hatch", &test_text_and_hatch},
     };
 
     int failed = 0;

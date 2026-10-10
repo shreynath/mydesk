@@ -328,6 +328,12 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
             dim->start = shift(dim->start);
             dim->end = shift(dim->end);
             dim->dimLine = shift(dim->dimLine);
+        } else if (auto* text = std::get_if<TextEntity>(&local)) {
+            text->position = shift(text->position);
+        } else if (auto* hatch = std::get_if<HatchEntity>(&local)) {
+            for (auto& v : hatch->boundary) {
+                v = shift(v);
+            }
         }
         localBounds.expand(boundsOfGeometry(local));
         def.primitives.push_back(BlockPrimitive{local, existing->colorArgb});
@@ -360,6 +366,43 @@ bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, s
     select(insertEntity.id);
     dirty_ = true;
     return true;
+}
+
+EntityId Document::addText(geometry::Vec2 position, double height, std::string contents,
+                           double rotationDeg, std::string txLabel) {
+    if (!(height > 0.0) || !std::isfinite(height)) {
+        throw std::invalid_argument("text height must be positive");
+    }
+    if (contents.empty()) {
+        throw std::invalid_argument("text contents must not be empty");
+    }
+    Entity entity;
+    entity.id = allocateEntityId();
+    entity.layerId = activeLayerId_;
+    entity.geometry = TextEntity{position, height, rotationDeg, std::move(contents)};
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+    commit(std::move(tx));
+    return entity.id;
+}
+
+EntityId Document::addHatch(std::vector<geometry::Vec2> boundary, std::uint32_t fillArgb,
+                            std::string txLabel) {
+    if (boundary.size() < 3) {
+        throw std::invalid_argument("hatch boundary requires at least 3 points");
+    }
+    Entity entity;
+    entity.id = allocateEntityId();
+    entity.layerId = activeLayerId_;
+    entity.geometry = HatchEntity{std::move(boundary), fillArgb};
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+    commit(std::move(tx));
+    return entity.id;
 }
 
 EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, double scale,
@@ -505,6 +548,14 @@ Entity transformEntity(Entity entity, const std::function<geometry::Vec2(geometr
         insert->insertion = mapPoint(insert->insertion);
         insert->scale *= radiusScale;
         insert->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+    } else if (auto* text = std::get_if<TextEntity>(&entity.geometry)) {
+        text->position = mapPoint(text->position);
+        text->height *= radiusScale;
+        text->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+    } else if (auto* hatch = std::get_if<HatchEntity>(&entity.geometry)) {
+        for (auto& v : hatch->boundary) {
+            v = mapPoint(v);
+        }
     }
     return entity;
 }

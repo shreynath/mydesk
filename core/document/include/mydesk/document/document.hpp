@@ -63,6 +63,10 @@ public:
                                   std::string txLabel = "BLOCK");
     EntityId addInsert(std::string blockName, geometry::Vec2 insertion, double scale = 1.0,
                        double rotationDeg = 0.0, std::string txLabel = "INSERT");
+    EntityId addText(geometry::Vec2 position, double height, std::string contents,
+                     double rotationDeg = 0.0, std::string txLabel = "TEXT");
+    EntityId addHatch(std::vector<geometry::Vec2> boundary, std::uint32_t fillArgb = 0x6688AACC,
+                      std::string txLabel = "HATCH");
     bool removeEntity(EntityId id, std::string txLabel = "ERASE");
     bool replaceEntity(EntityId id, EntityGeometry geometry, std::string txLabel = "MODIFY");
 

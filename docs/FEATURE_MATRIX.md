@@ -35,7 +35,9 @@ Last updated: 2026-10-10
 | OSNAP INT/PER (+ END/MID/CEN) | implemented-tested | `test_dims_props_snaps.cpp` |
 | Layer panel (list / activate) | partial | UI |
 | BLOCK (`B`) / INSERT (`I`) | implemented-tested | `test_blocks.cpp` |
-| Hatch / linetypes / attributes | planned | |
+| TEXT (`T`) | implemented-tested | `test_text_hatch.cpp` |
+| HATCH (`H`) solid from closed PLINE | partial | `test_text_hatch.cpp` |
+| Linetypes / attributes / xrefs | planned | |
 
 ## Other catalog products
 

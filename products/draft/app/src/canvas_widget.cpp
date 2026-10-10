@@ -1,5 +1,6 @@
 #include "canvas_widget.hpp"
 
+#include <QFont>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -148,6 +149,31 @@ void CanvasWidget::drawEntity(QPainter& painter, const document::Entity& entity,
         }
         const auto textPos = worldToScreen(layout.textPos);
         painter.drawText(textPos, QString::number(layout.measurement, 'f', 2));
+    } else if (const auto* text = std::get_if<document::TextEntity>(&entity.geometry)) {
+        painter.save();
+        const auto pos = worldToScreen(text->position);
+        painter.translate(pos);
+        painter.rotate(-text->rotationDeg);
+        QFont font = painter.font();
+        font.setPointSizeF(std::max(6.0, text->height * scale_ * 0.75));
+        painter.setFont(font);
+        painter.drawText(QPointF(0, 0), QString::fromStdString(text->contents));
+        painter.restore();
+    } else if (const auto* hatch = std::get_if<document::HatchEntity>(&entity.geometry)) {
+        if (hatch->boundary.size() >= 3) {
+            QPainterPath path;
+            path.moveTo(worldToScreen(hatch->boundary.front()));
+            for (std::size_t i = 1; i < hatch->boundary.size(); ++i) {
+                path.lineTo(worldToScreen(hatch->boundary[i]));
+            }
+            path.closeSubpath();
+            const auto argb = hatch->fillArgb;
+            QColor fill(static_cast<int>((argb >> 16) & 0xFF),
+                        static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
+                        static_cast<int>((argb >> 24) & 0xFF));
+            painter.fillPath(path, fill);
+            painter.strokePath(path, pen);
+        }
     } else if (const auto* insert = std::get_if<document::InsertEntity>(&entity.geometry)) {
         const auto* block = session_.document().findBlock(insert->blockName);
         if (!block) {

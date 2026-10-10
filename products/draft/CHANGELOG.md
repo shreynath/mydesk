@@ -9,4 +9,6 @@
 - **DIMLINEAR** / **DIM**: aligned linear dimensions (native schema v3).
 - **OSNAP** / **OS**: END/MID/CEN/INT/PER toggles; intersection + perpendicular snaps.
 - **BLOCK** / **B** and **INSERT** / **I**: block definitions + scaled/rotated inserts (native round-trip).
+- **TEXT** / **T**: single-line text.
+- **HATCH** / **H**: solid fill from selected closed polyline.
 - Preset `draft-macos-release` added.

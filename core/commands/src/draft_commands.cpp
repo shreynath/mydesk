@@ -488,6 +488,70 @@ CommandResult handleDimension(CommandContext& ctx, const std::vector<std::string
     return okMsg("DIMLINEAR: need first point");
 }
 
+CommandResult handleText(CommandContext& ctx, const std::vector<std::string>& args) {
+    // TEXT x,y height content...   (content may be multiple tokens joined)
+    if (args.size() < 3) {
+        if (args.empty()) {
+            ctx.setPrompt("Specify start point of text:");
+            return okMsg("TEXT: need point");
+        }
+        return errMsg("TEXT usage: TEXT <x,y> <height> <string>");
+    }
+    geometry::Vec2 pos;
+    if (!parsePointToken(args[0], pos)) {
+        return errMsg("TEXT expects start point as x,y");
+    }
+    double height = 0.0;
+    if (!parseNumberToken(args[1], height)) {
+        return errMsg("TEXT expects height number");
+    }
+    std::ostringstream content;
+    for (std::size_t i = 2; i < args.size(); ++i) {
+        if (i > 2) {
+            content << ' ';
+        }
+        content << args[i];
+    }
+    try {
+        const auto id = ctx.document().addText(pos, height, content.str());
+        ctx.clearInputs();
+        ctx.setPrompt("");
+        return okMsg("TEXT created #" + std::to_string(id), id);
+    } catch (const std::exception& ex) {
+        return errMsg(ex.what());
+    }
+}
+
+CommandResult handleHatch(CommandContext& ctx, const std::vector<std::string>& args) {
+    (void)args;
+    const auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        return errMsg("HATCH: select a closed polyline first");
+    }
+    std::size_t created = 0;
+    for (const auto id : selected) {
+        const auto* entity = ctx.document().findEntity(id);
+        if (!entity) {
+            continue;
+        }
+        const auto* pl = std::get_if<document::PolylineEntity>(&entity->geometry);
+        if (!pl || !pl->closed || pl->vertices.size() < 3) {
+            continue;
+        }
+        try {
+            ctx.document().addHatch(pl->vertices);
+            ++created;
+        } catch (const std::exception& ex) {
+            return errMsg(ex.what());
+        }
+    }
+    if (created == 0) {
+        return errMsg("HATCH: selection must include a closed PLINE/RECTANGLE");
+    }
+    ctx.setPrompt("");
+    return okMsg("HATCH created " + std::to_string(created) + " solid fill(s)");
+}
+
 CommandResult handleBlock(CommandContext& ctx, const std::vector<std::string>& args) {
     if (ctx.document().selectionOrdered().empty()) {
         return errMsg("BLOCK: select objects first");
@@ -765,9 +829,25 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Insert block reference: name, point, optional scale/rotation",
         .handler = handleInsert,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "TEXT",
+        .label = "Text",
+        .aliases = {"T"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Single-line text: point, height, contents",
+        .handler = handleText,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "HATCH",
+        .label = "Hatch",
+        .aliases = {"H", "BH"},
+        .status = CommandStatus::Partial,
+        .notes = "Solid fill from selected closed polyline only",
+        .handler = handleHatch,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
-        {"HATCH", {"H", "BH"}}, {"ZOOM", {"Z"}}, {"ARC", {"A"}}, {"MIRROR", {"MI"}},
+        {"ZOOM", {"Z"}}, {"ARC", {"A"}}, {"MIRROR", {"MI"}},
         {"STRETCH", {"S"}}, {"EXPLODE", {"X"}}, {"XLINE", {"XL"}}, {"PAN", {"P"}},
     };
     for (const auto& [id, aliases] : planned) {
