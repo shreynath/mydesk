@@ -53,6 +53,8 @@ public:
     bool setLayerPlottable(LayerId id, bool plottable);
     bool setLayerLinetype(LayerId id, Linetype linetype);
     bool setLayerLineweight(LayerId id, double millimeters);
+    bool setLayerTransparency(LayerId id, float transparency);
+    bool setLayerThickness(LayerId id, double thickness);
     [[nodiscard]] double linetypeScale() const { return linetypeScale_; }
     void setLinetypeScale(double scale);
     [[nodiscard]] bool isEntityVisible(const Entity& entity) const;
@@ -63,9 +65,15 @@ public:
     bool setEntityLinetype(EntityId id, Linetype linetype);
     bool setEntityLineweight(EntityId id, double millimeters);
     bool setEntityLineweightByLayer(EntityId id);
+    bool setEntityTransparency(EntityId id, float transparency);
+    bool setEntityTransparencyByLayer(EntityId id);
+    bool setEntityThickness(EntityId id, double thickness);
+    bool setEntityThicknessByLayer(EntityId id);
     [[nodiscard]] std::uint32_t resolvedEntityColor(const Entity& entity) const;
     [[nodiscard]] Linetype resolvedLinetype(const Entity& entity) const;
     [[nodiscard]] double resolvedLineweightMm(const Entity& entity) const;
+    [[nodiscard]] float resolvedTransparency(const Entity& entity) const;
+    [[nodiscard]] double resolvedThickness(const Entity& entity) const;
     EntityId addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel = "LINE");
     EntityId addCircle(geometry::Vec2 center, double radius, std::string txLabel = "CIRCLE");
     EntityId addArc(geometry::Vec2 center, double radius, double startAngle, double endAngle,

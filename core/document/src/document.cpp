@@ -191,6 +191,32 @@ bool Document::setLayerLineweight(LayerId id, double millimeters) {
     return true;
 }
 
+bool Document::setLayerTransparency(LayerId id, float transparency) {
+    Layer* layer = findLayer(id);
+    if (!layer || transparency < 0.0f || transparency > 1.0f) {
+        return false;
+    }
+    if (layer->transparency == transparency) {
+        return true;
+    }
+    layer->transparency = transparency;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerThickness(LayerId id, double thickness) {
+    Layer* layer = findLayer(id);
+    if (!layer || thickness < 0.0) {
+        return false;
+    }
+    if (layer->thickness == thickness) {
+        return true;
+    }
+    layer->thickness = thickness;
+    dirty_ = true;
+    return true;
+}
+
 void Document::setLinetypeScale(double scale) {
     if (!(scale > 0.0) || !std::isfinite(scale)) {
         throw std::invalid_argument("linetype scale must be positive");
@@ -306,6 +332,80 @@ bool Document::setEntityLineweightByLayer(EntityId id) {
     return true;
 }
 
+bool Document::setEntityTransparency(EntityId id, float transparency) {
+    const Entity* existing = findEntity(id);
+    if (!existing || transparency < 0.0f || transparency > 1.0f) {
+        return false;
+    }
+    if (!existing->transparencyByLayer && existing->transparency == transparency) {
+        return true;
+    }
+    Entity after = *existing;
+    after.transparencyByLayer = false;
+    after.transparency = transparency;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::setEntityTransparencyByLayer(EntityId id) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    if (existing->transparencyByLayer) {
+        return true;
+    }
+    Entity after = *existing;
+    after.transparencyByLayer = true;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::setEntityThickness(EntityId id, double thickness) {
+    const Entity* existing = findEntity(id);
+    if (!existing || thickness < 0.0) {
+        return false;
+    }
+    if (!existing->thicknessByLayer && existing->thickness == thickness) {
+        return true;
+    }
+    Entity after = *existing;
+    after.thicknessByLayer = false;
+    after.thickness = thickness;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::setEntityThicknessByLayer(EntityId id) {
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return false;
+    }
+    if (existing->thicknessByLayer) {
+        return true;
+    }
+    Entity after = *existing;
+    after.thicknessByLayer = true;
+    Transaction tx;
+    tx.label = "CHPROP";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
+}
+
 std::uint32_t Document::resolvedEntityColor(const Entity& entity) const {
     if (entity.colorArgb != kColorByLayer) {
         return entity.colorArgb;
@@ -334,6 +434,26 @@ double Document::resolvedLineweightMm(const Entity& entity) const {
         return layer->lineweightMm;
     }
     return 0.25;
+}
+
+float Document::resolvedTransparency(const Entity& entity) const {
+    if (!entity.transparencyByLayer) {
+        return entity.transparency;
+    }
+    if (const Layer* layer = findLayer(entity.layerId)) {
+        return layer->transparency;
+    }
+    return 1.0f;
+}
+
+double Document::resolvedThickness(const Entity& entity) const {
+    if (!entity.thicknessByLayer) {
+        return entity.thickness;
+    }
+    if (const Layer* layer = findLayer(entity.layerId)) {
+        return layer->thickness;
+    }
+    return 0.0;
 }
 
 EntityId Document::addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel) {
@@ -414,8 +534,8 @@ EntityId Document::addRectangle(geometry::Vec2 cornerA, geometry::Vec2 cornerB,
     return addPolyline(std::move(verts), true, std::move(txLabel));
 }
 
-EntityId Document::addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end,
-                                      geometry::Vec2 dimLine, std::string txLabel) {
+EntityId Document::addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end, geometry::Vec2 dimLine,
+                                      std::string txLabel) {
     if (start.nearlyEqual(end)) {
         throw std::invalid_argument("dimension points must be distinct");
     }
@@ -744,7 +864,6 @@ bool Document::commitComposite() {
 }
 
 void Document::abortComposite() {
-    // Not a full rollback helper — callers should only use after failed validation before mutates.
     composite_.reset();
 }
 
@@ -1017,10 +1136,326 @@ void Document::applyReplaceEntity(const Entity& entity) {
     *existing = entity;
 }
 
-void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities,
-                               LayerId active, EntityId nextEntityId, LayerId nextLayerId,
-                               units::UnitSystem units, std::string name,
-                               std::vector<BlockDefinition> blocks, double linetypeScale) {
+void Document::beginComposite(std::string label) {
+    composite_ = Transaction{};
+    composite_->label = std::move(label);
+}
+
+void Document::compositeAdd(const Entity& entity) {
+    if (!composite_) {
+        throw std::runtime_error("no composite transaction");
+    }
+    composite_->ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+}
+
+void Document::compositeRemove(EntityId id) {
+    if (!composite_) {
+        throw std::runtime_error("no composite transaction");
+    }
+    const Entity* existing = findEntity(id);
+    if (!existing) {
+        return;
+    }
+    composite_->ops.push_back(HistoryOp{HistoryOpKind::RemoveEntity, *existing, {}});
+    applyRemoveEntity(id);
+}
+
+void Document::compositeReplace(const Entity& before, const Entity& after) {
+    if (!composite_) {
+        throw std::runtime_error("no composite transaction");
+    }
+    composite_->ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, before, after});
+    applyReplaceEntity(after);
+}
+
+bool Document::commitComposite() {
+    if (!composite_ || composite_->ops.empty()) {
+        composite_.reset();
+        return false;
+    }
+    commit(std::move(*composite_));
+    composite_.reset();
+    return true;
+}
+
+void Document::abortComposite() {
+    composite_.reset();
+}
+
+namespace {
+
+geometry::Vec2 rotatePoint(geometry::Vec2 p, geometry::Vec2 base, double radians) {
+    const geometry::Vec2 d = p - base;
+    const double c = std::cos(radians);
+    const double s = std::sin(radians);
+    return {base.x + d.x * c - d.y * s, base.y + d.x * s + d.y * c};
+}
+
+geometry::Vec2 scalePoint(geometry::Vec2 p, geometry::Vec2 base, double factor) {
+    return base + (p - base) * factor;
+}
+
+Entity transformEntity(Entity entity, const std::function<geometry::Vec2(geometry::Vec2)>& mapPoint,
+                       double radiusScale = 1.0, double angleDelta = 0.0) {
+    if (auto* line = std::get_if<LineEntity>(&entity.geometry)) {
+        line->start = mapPoint(line->start);
+        line->end = mapPoint(line->end);
+    } else if (auto* circle = std::get_if<CircleEntity>(&entity.geometry)) {
+        circle->center = mapPoint(circle->center);
+        circle->radius *= radiusScale;
+    } else if (auto* arc = std::get_if<ArcEntity>(&entity.geometry)) {
+        arc->center = mapPoint(arc->center);
+        arc->radius *= radiusScale;
+        arc->startAngle += angleDelta;
+        arc->endAngle += angleDelta;
+    } else if (auto* pl = std::get_if<PolylineEntity>(&entity.geometry)) {
+        for (auto& v : pl->vertices) {
+            v = mapPoint(v);
+        }
+    } else if (auto* dim = std::get_if<DimensionLinearEntity>(&entity.geometry)) {
+        dim->start = mapPoint(dim->start);
+        dim->end = mapPoint(dim->end);
+        dim->dimLine = mapPoint(dim->dimLine);
+    } else if (auto* insert = std::get_if<InsertEntity>(&entity.geometry)) {
+        insert->insertion = mapPoint(insert->insertion);
+        insert->scale *= radiusScale;
+        insert->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+    } else if (auto* text = std::get_if<TextEntity>(&entity.geometry)) {
+        text->position = mapPoint(text->position);
+        text->height *= radiusScale;
+        text->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
+    } else if (auto* hatch = std::get_if<HatchEntity>(&entity.geometry)) {
+        for (auto& v : hatch->boundary) {
+            v = mapPoint(v);
+        }
+    }
+    return entity;
+}
+
+} // namespace
+
+bool Document::moveEntities(const std::vector<EntityId>& ids, geometry::Vec2 delta,
+                            std::string txLabel) {
+    if (ids.empty()) {
+        return false;
+    }
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    for (const auto id : ids) {
+        const Entity* existing = findEntity(id);
+        if (!existing) {
+            continue;
+        }
+        Entity after = transformEntity(*existing, [&](geometry::Vec2 p) { return p + delta; });
+        tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+        applyReplaceEntity(after);
+    }
+    if (tx.ops.empty()) {
+        return false;
+    }
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::rotateEntities(const std::vector<EntityId>& ids, geometry::Vec2 base, double degrees,
+                              std::string txLabel) {
+    if (ids.empty() || !std::isfinite(degrees)) {
+        return false;
+    }
+    const double radians = degrees * (3.14159265358979323846 / 180.0);
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    for (const auto id : ids) {
+        const Entity* existing = findEntity(id);
+        if (!existing) {
+            continue;
+        }
+        Entity after = transformEntity(
+            *existing, [&](geometry::Vec2 p) { return rotatePoint(p, base, radians); }, 1.0,
+            radians);
+        tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+        applyReplaceEntity(after);
+    }
+    if (tx.ops.empty()) {
+        return false;
+    }
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::scaleEntities(const std::vector<EntityId>& ids, geometry::Vec2 base, double factor,
+                             std::string txLabel) {
+    if (ids.empty() || !(factor > 0.0) || !std::isfinite(factor)) {
+        return false;
+    }
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    for (const auto id : ids) {
+        const Entity* existing = findEntity(id);
+        if (!existing) {
+            continue;
+        }
+        Entity after = transformEntity(
+            *existing, [&](geometry::Vec2 p) { return scalePoint(p, base, factor); }, factor);
+        tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+        applyReplaceEntity(after);
+    }
+    if (tx.ops.empty()) {
+        return false;
+    }
+    commit(std::move(tx));
+    return true;
+}
+
+std::vector<EntityId> Document::copyEntities(const std::vector<EntityId>& ids, geometry::Vec2 delta,
+                                             std::string txLabel) {
+    std::vector<EntityId> created;
+    if (ids.empty()) {
+        return created;
+    }
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    for (const auto id : ids) {
+        const Entity* existing = findEntity(id);
+        if (!existing) {
+            continue;
+        }
+        Entity copy = transformEntity(*existing, [&](geometry::Vec2 p) { return p + delta; });
+        copy.id = allocateEntityId();
+        tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, copy});
+        applyAddEntity(copy);
+        created.push_back(copy.id);
+    }
+    if (!tx.ops.empty()) {
+        commit(std::move(tx));
+    }
+    return created;
+}
+
+void Document::select(EntityId id) {
+    if (findEntity(id)) {
+        selection_.insert(id);
+    }
+}
+
+void Document::deselect(EntityId id) { selection_.erase(id); }
+
+void Document::toggleSelect(EntityId id) {
+    if (!findEntity(id)) {
+        return;
+    }
+    if (selection_.count(id) != 0U) {
+        selection_.erase(id);
+    } else {
+        selection_.insert(id);
+    }
+}
+
+void Document::clearSelection() { selection_.clear(); }
+
+void Document::selectInRect(const geometry::BBox& rect, bool crossing, bool additive) {
+    if (!additive) {
+        selection_.clear();
+    }
+    for (const auto& entity : entities_) {
+        if (!isEntitySelectable(entity)) {
+            continue;
+        }
+        if (entity.intersectsRect(rect, crossing)) {
+            selection_.insert(entity.id);
+        }
+    }
+}
+
+EntityId Document::hitTestTop(geometry::Vec2 point, double tol) const {
+    for (auto it = entities_.rbegin(); it != entities_.rend(); ++it) {
+        if (!isEntitySelectable(*it)) {
+            continue;
+        }
+        if (const auto* insert = std::get_if<InsertEntity>(&it->geometry)) {
+            const BlockDefinition* block = findBlock(insert->blockName);
+            if (!block) {
+                continue;
+            }
+            bool hit = false;
+            for (const auto& prim : block->primitives) {
+                Entity probe;
+                probe.geometry = transformInsertGeometry(*insert, prim.geometry);
+                if (probe.hitTest(point, tol)) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) {
+                return it->id;
+            }
+            continue;
+        }
+        if (it->hitTest(point, tol)) {
+            return it->id;
+        }
+    }
+    return kInvalidEntityId;
+}
+
+std::vector<EntityId> Document::selectionOrdered() const {
+    std::vector<EntityId> ordered;
+    ordered.reserve(selection_.size());
+    for (const auto& entity : entities_) {
+        if (selection_.count(entity.id) != 0U) {
+            ordered.push_back(entity.id);
+        }
+    }
+    return ordered;
+}
+
+bool Document::undo() {
+    if (!history_.undo(*this)) {
+        return false;
+    }
+    dirty_ = true;
+    return true;
+}
+
+bool Document::redo() {
+    if (!history_.redo(*this)) {
+        return false;
+    }
+    dirty_ = true;
+    return true;
+}
+
+void Document::applyAddEntity(const Entity& entity) {
+    if (findEntity(entity.id)) {
+        throw std::runtime_error("entity id already exists");
+    }
+    entities_.push_back(entity);
+    nextEntityId_ = std::max(nextEntityId_, entity.id + 1);
+}
+
+void Document::applyRemoveEntity(EntityId id) {
+    const auto it = std::find_if(entities_.begin(), entities_.end(),
+                                 [id](const Entity& e) { return e.id == id; });
+    if (it == entities_.end()) {
+        return;
+    }
+    selection_.erase(id);
+    entities_.erase(it);
+}
+
+void Document::applyReplaceEntity(const Entity& entity) {
+    Entity* existing = findEntity(entity.id);
+    if (!existing) {
+        throw std::runtime_error("replace target missing");
+    }
+    *existing = entity;
+}
+
+void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
+                               EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
+                               std::string name, std::vector<BlockDefinition> blocks = {},
+                               double linetypeScale = 1.0) {
     layers_ = std::move(layers);
     entities_ = std::move(entities);
     blocks_ = std::move(blocks);
@@ -1037,6 +1472,8 @@ void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> en
 }
 
 void Document::markClean() { dirty_ = false; }
+
+void Document::markDirty() { dirty_ = true; }
 
 EntityId Document::allocateEntityId() { return nextEntityId_++; }
 

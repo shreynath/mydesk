@@ -450,7 +450,7 @@ CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& 
         return errMsg("CHPROP: select objects first");
     }
     if (args.empty()) {
-        return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER");
+        return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER | TRANSPARENCY <0.0-1.0>|BYLAYER | THICKNESS <mm>|BYLAYER");
     }
     const std::string op = normalizeToken(args[0]);
     if (op == "COLOR") {
@@ -525,7 +525,47 @@ CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& 
         }
         return okMsg("Lineweight set on " + std::to_string(changed) + " entity(ies)");
     }
-    return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER");
+    if (op == "TRANSPARENCY") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP TRANSPARENCY requires value (0.0-1.0) or BYLAYER");
+        }
+        if (normalizeToken(args[1]) == "BYLAYER") {
+            for (const auto id : selected) {
+                ctx.document().setEntityTransparencyByLayer(id);
+            }
+            return okMsg("Transparency set to ByLayer on " + std::to_string(selected.size()) +
+                         " entity(ies)");
+        }
+        double val = 0.0;
+        if (!parseNumberToken(args[1], val)) {
+            return errMsg("TRANSPARENCY expects value 0.0-1.0 or BYLAYER");
+        }
+        for (const auto id : selected) {
+            ctx.document().setEntityTransparency(id, static_cast<float>(val));
+        }
+        return okMsg("Transparency updated on " + std::to_string(selected.size()) + " entity(ies)");
+    }
+    if (op == "THICKNESS") {
+        if (args.size() < 2) {
+            return errMsg("CHPROP THICKNESS requires value (mm) or BYLAYER");
+        }
+        if (normalizeToken(args[1]) == "BYLAYER") {
+            for (const auto id : selected) {
+                ctx.document().setEntityThicknessByLayer(id);
+            }
+            return okMsg("Thickness set to ByLayer on " + std::to_string(selected.size()) +
+                         " entity(ies)");
+        }
+        double val = 0.0;
+        if (!parseNumberToken(args[1], val)) {
+            return errMsg("THICKNESS expects numeric value or BYLAYER");
+        }
+        for (const auto id : selected) {
+            ctx.document().setEntityThickness(id, val);
+        }
+        return okMsg("Thickness updated on " + std::to_string(selected.size()) + " entity(ies)");
+    }
+    return errMsg("CHPROP usage: COLOR <hex>|BYLAYER | LAYER <name> | LTYPE <name>|BYLAYER | LWEIGHT <mm>|BYLAYER | TRANSPARENCY <0.0-1.0>|BYLAYER | THICKNESS <mm>|BYLAYER");
 }
 
 CommandResult handleDimension(CommandContext& ctx, const std::vector<std::string>& args) {
@@ -764,7 +804,7 @@ CommandResult handleOsnap(CommandContext& ctx, const std::vector<std::string>& a
     if (tok == "INT" || tok == "INTERSECTION") {
         return setFlag(modes->snapIntersection, "INT");
     }
-    if (tok == "PER" || tok == "PERPENDICULAR") {
+    if (tok == "PER" || tok ==, "PERPENDICULAR") {
         return setFlag(modes->snapPerpendicular, "PER");
     }
     return errMsg("OSNAP usage: ON|OFF|END|MID|CEN|INT|PER [?]");

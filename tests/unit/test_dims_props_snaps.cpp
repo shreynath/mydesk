@@ -69,3 +69,71 @@ void test_dim_native_roundtrip() {
     expect(loaded.entities().front().kind() == mydesk::document::EntityKind::DimensionLinear,
            "dim kind");
 }
+
+void test_linetypes_and_lineweights() {
+    mydesk::commands::Session session;
+    
+    // 1. Set Layer Properties
+    expect(session.executeLine("LAYER NEW Props").ok, "layer Props");
+    expect(session.executeLine("LAYER LTYPE Props DASHED").ok, "layer dashed");
+    expect(session.executeLine("LAYER LWEIGHT Props 0.5").ok, "layer 0.5mm");
+    
+    // 2. Create entity on that layer
+    session.executeLine("LAYER SET Props");
+    session.executeLine("L 0,0 10,0");
+    const auto& ent = session.document().entities().front();
+    
+    // Verify inheritance
+    expect(session.document().resolvedLinetype(ent) == mydesk::document::Linetype::Dashed, "inherited dashed");
+    expect(std::abs(session.document().resolvedLineweightMm(ent) - 0.5) < 1e-9, "inherited 0.5mm");
+    
+    // 3. Override properties via CHPROP
+    session.document().select(ent.id);
+    expect(session.executeLine("CHPROP LTYPE CENTER").ok, "override center");
+    expect(session.document().resolvedLinetype(ent) == mydesk::document::Linetype::Center, "override center");
+    
+    expect(session.executeLine("CHPROP LWEIGHT 0.8").ok, "override 0.8mm");
+    expect(std::abs(session.document().resolvedLineweightMm(ent) - 0.8) < 1e-9, "override 0.8mm");
+    
+    // 4. Revert to ByLayer
+    expect(session.executeLine("CHPROP LWEIGHT BYLAYER").ok, "revert weight");
+    expect(std::abs(session.document().resolvedLineweightMm(ent) - 0.5) < 1e-9, "reverted to layer");
+    
+    // 5. Native round-trip
+    const auto json = mydesk::exchange::serializeNative(session.document());
+    mydesk::document::Document loaded;
+    auto report = mydesk::exchange::deserializeNative(loaded, json);
+    expect(report.ok, "native load");
+    
+    const auto& loadedEnt = loaded.entities().front();
+    expect(loadedEnt.linetype == mydesk::document::Linetype::Center, "roundtrip linetype");
+    expect(loadedEnt.lineweightByLayer == true, "roundtrip bylayer weight");
+    expect(std::abs(loaded.resolvedLineweightMm(loadedEnt) - 0.5) < 1e-9, "roundtrip resolved weight");
+}
+
+void test_advanced_properties() {
+    mydesk::commands::Session session;
+    
+    // 1. Setup layer
+    expect(session.executeLine("LAYER NEW Adv").ok, "layer Adv");
+    expect(session.executeLine("LAYER SET Adv").ok, "set Adv");
+    
+    // 2. Create entity
+    session.executeLine("L 0,0 10,0");
+    const auto id = session.document().entities().front().id;
+    session.document().select(id);
+    
+    // 3. Test Transparency
+    expect(session.executeLine("CHPROP TRANSPARENCY 0.5").ok, "set transparency 0.5");
+    expect(std::abs(session.document().resolvedTransparency(session.document().entities().front()) - 0.5f) < 1e-6, "resolved transparency 0.5");
+    
+    expect(session.executeLine("CHPROP TRANSPARENCY BYLAYER").ok, "transparency bylayer");
+    expect(session.document().entities().front().transparencyByLayer == true, "flag bylayer");
+    
+    // 4. Test Thickness
+    expect(session.executeLine("CHPROP THICKNESS 2.0").ok, "set thickness 2.0");
+    expect(std::abs(session.document().resolvedThickness(session.document().entities().front()) - 2.0) < 1e-9, "resolved thickness 2.0");
+    
+    expect(session.executeLine("CHPROP THICKNESS BYLAYER").ok, "thickness bylayer");
+    expect(session.document().entities().front().thicknessByLayer == true, "flag bylayer");
+}

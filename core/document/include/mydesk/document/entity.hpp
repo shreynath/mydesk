@@ -115,6 +115,10 @@ struct Entity {
     Linetype linetype{Linetype::ByLayer};
     bool lineweightByLayer{true};
     double lineweightMm{0.25};
+    float transparency{1.0f};
+    bool transparencyByLayer{true};
+    double thickness{0.0};
+    bool thicknessByLayer{true};
     EntityGeometry geometry;
 
     [[nodiscard]] EntityKind kind() const;
@@ -136,6 +140,8 @@ struct Layer {
     std::uint32_t colorArgb{0xFFE0E0E0};
     Linetype linetype{Linetype::Continuous};
     double lineweightMm{0.25};
+    float transparency{1.0f};
+    double thickness{0.0};
 };
 
 struct DimensionLayout {
