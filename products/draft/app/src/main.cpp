@@ -5,8 +5,9 @@
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
-    QApplication::setApplicationName("MyDesk");
+    QApplication::setApplicationName("MyDesk Draft");
     QApplication::setOrganizationName("MyDesk");
+    QApplication::setApplicationDisplayName(QStringLiteral("MyDesk Draft"));
     QApplication::setApplicationVersion(QStringLiteral("0.1.0"));
 
     QSurfaceFormat format;

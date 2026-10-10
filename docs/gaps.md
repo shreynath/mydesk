@@ -2,7 +2,7 @@
 
 ## P0 — Draft professionalism
 
-1. LAYER command + entity color/linetype
+1. Entity color/linetype overrides; richer layer manager UI
 2. Intersection / perpendicular / tangent snaps
 3. Multi-segment PLINE trim/extend
 4. Dimensions (linear)
@@ -14,10 +14,10 @@
 2. Lawful DWG library evaluation (ADR 0004)
 3. SVG/PDF plot
 
-## P2 — Suite
+## P2 — Other standalone products (when scheduled)
 
-1. Mechanical OCCT sketch/extrude
-2. IFC Buildings pilot
+1. MyDesk Mechanical OCCT sketch/extrude (own app)
+2. MyDesk Buildings IFC pilot (own app)
 
 ## Closed
 
@@ -28,3 +28,4 @@
 | 2026-10-10 | PLINE + TRIM/EXTEND/OFFSET/FILLET/CHAMFER | ctest 16/16 |
 | 2026-10-10 | Window/crossing selection | ctest + UI |
 | 2026-10-10 | DXF import/export partial | ctest |
+| 2026-10-10 | Standalone products pivot + LAYER/LA | ctest + ADR-0001 |

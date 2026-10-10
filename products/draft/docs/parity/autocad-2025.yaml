@@ -1,0 +1,60 @@
+# MyDesk Draft ↔ AutoCAD 2025 workflow parity (honest status)
+# status: verified | partial | unsupported | blocked | not-started
+
+target:
+  vendor: Autodesk
+  product: AutoCAD
+  version: "2025"
+mydesk_product: draft
+mydesk_version: "0.1.0"
+updated: 2026-10-10
+
+workflows:
+  - id: draw-line-circle-pline
+    status: verified
+    notes: LINE/L, CIRCLE/C, PLINE/RECTANG; tests in mydesk_tests
+    proof: tests/unit/test_commands.cpp, test_modify.cpp
+
+  - id: modify-trim-extend-offset-fillet-chamfer
+    status: verified
+    notes: Engine + command coverage; edge cases remain
+    proof: tests/unit/test_modify.cpp
+
+  - id: transform-move-copy-rotate-scale
+    status: verified
+    proof: tests/unit/test_transforms.cpp
+
+  - id: selection-window-crossing
+    status: verified
+    proof: tests/unit/test_modify.cpp (selection)
+
+  - id: layers-command-line
+    status: partial
+    notes: NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR/LIST; no freeze/plot/VP overrides; no dialog parity
+    proof: tests/unit/test_layers.cpp
+
+  - id: object-snaps
+    status: partial
+    notes: endpoint/midpoint/center + grid; aperture basics
+
+  - id: dxf-roundtrip
+    status: partial
+    notes: LINE/CIRCLE/ARC/LWPOLYLINE/LAYER; dims/blocks/xrefs unsupported
+    proof: tests/integration/test_dxf_roundtrip.cpp
+
+  - id: dwg
+    status: unsupported
+    notes: No DWG claim
+
+  - id: dimensions-annotations
+    status: not-started
+
+  - id: blocks-attributes-xrefs
+    status: not-started
+
+  - id: layouts-plot-pdf
+    status: not-started
+
+  - id: autolisp-objectarx
+    status: unsupported
+    notes: No binary plugin compatibility claimed

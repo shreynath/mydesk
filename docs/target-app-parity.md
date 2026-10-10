@@ -13,8 +13,10 @@ Last updated: 2026-10-10
 | Selection | mid | window/crossing/shift/hover/ESC |
 | Snaps / aids | low–mid | end/mid/center + F3/F7/F8/F9 |
 | Files | low–mid | `.mydesk` v2; DXF partial; DWG none |
-| Layers/blocks/dims/hatch | none–low | not started |
+| Layers/blocks/dims/hatch | low–mid | LAYER/LA + panel; blocks/dims/hatch not started |
 | UI chrome | low | command line + docks; no ribbon/CUI |
+
+Authoritative per-version matrix: `products/draft/docs/parity/autocad-2025.yaml`.
 
 ## High-traffic commands
 

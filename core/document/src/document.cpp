@@ -1,11 +1,30 @@
 #include "mydesk/document/document.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <functional>
 #include <stdexcept>
 
 namespace mydesk::document {
+
+namespace {
+
+bool layerNamesEqual(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        const auto ca = static_cast<unsigned char>(a[i]);
+        const auto cb = static_cast<unsigned char>(b[i]);
+        if (std::toupper(ca) != std::toupper(cb)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 Document::Document() {
     const LayerId id = allocateLayerId();
@@ -37,6 +56,19 @@ Layer* Document::findLayer(LayerId id) {
     return const_cast<Layer*>(static_cast<const Document*>(this)->findLayer(id));
 }
 
+const Layer* Document::findLayerByName(std::string_view name) const {
+    for (const auto& layer : layers_) {
+        if (layerNamesEqual(layer.name, name)) {
+            return &layer;
+        }
+    }
+    return nullptr;
+}
+
+Layer* Document::findLayerByName(std::string_view name) {
+    return const_cast<Layer*>(static_cast<const Document*>(this)->findLayerByName(name));
+}
+
 const Entity* Document::findEntity(EntityId id) const {
     for (const auto& entity : entities_) {
         if (entity.id == id) {
@@ -51,12 +83,75 @@ Entity* Document::findEntity(EntityId id) {
 }
 
 LayerId Document::addLayer(std::string name) {
+    if (name.empty()) {
+        throw std::invalid_argument("layer name must not be empty");
+    }
+    if (const Layer* existing = findLayerByName(name)) {
+        return existing->id;
+    }
     Layer layer;
     layer.id = allocateLayerId();
     layer.name = std::move(name);
     layers_.push_back(layer);
     dirty_ = true;
     return layer.id;
+}
+
+bool Document::setLayerVisible(LayerId id, bool visible) {
+    Layer* layer = findLayer(id);
+    if (!layer) {
+        return false;
+    }
+    if (layer->visible == visible) {
+        return true;
+    }
+    layer->visible = visible;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerLocked(LayerId id, bool locked) {
+    Layer* layer = findLayer(id);
+    if (!layer) {
+        return false;
+    }
+    if (layer->locked == locked) {
+        return true;
+    }
+    layer->locked = locked;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setLayerColor(LayerId id, std::uint32_t colorArgb) {
+    Layer* layer = findLayer(id);
+    if (!layer) {
+        return false;
+    }
+    if (layer->colorArgb == colorArgb) {
+        return true;
+    }
+    layer->colorArgb = colorArgb;
+    dirty_ = true;
+    return true;
+}
+
+bool Document::setEntityLayer(EntityId id, LayerId layerId) {
+    const Entity* existing = findEntity(id);
+    if (!existing || !findLayer(layerId)) {
+        return false;
+    }
+    if (existing->layerId == layerId) {
+        return true;
+    }
+    Entity after = *existing;
+    after.layerId = layerId;
+    Transaction tx;
+    tx.label = "CHLAYER";
+    tx.ops.push_back(HistoryOp{HistoryOpKind::ReplaceEntity, *existing, after});
+    applyReplaceEntity(after);
+    commit(std::move(tx));
+    return true;
 }
 
 EntityId Document::addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel) {
@@ -386,7 +481,7 @@ void Document::selectInRect(const geometry::BBox& rect, bool crossing, bool addi
 EntityId Document::hitTestTop(geometry::Vec2 point, double tol) const {
     for (auto it = entities_.rbegin(); it != entities_.rend(); ++it) {
         const auto* layer = findLayer(it->layerId);
-        if (layer && !layer->visible) {
+        if (layer && (!layer->visible || layer->locked)) {
             continue;
         }
         if (it->hitTest(point, tol)) {

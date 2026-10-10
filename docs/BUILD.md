@@ -1,4 +1,6 @@
-# Build instructions
+# Build instructions — MyDesk Draft
+
+Default product is Draft (`MYDESK_PRODUCT=draft`). Other catalog products are not buildable yet.
 
 ## macOS
 
@@ -10,12 +12,19 @@ cmake --build --preset default
 ctest --preset default
 ```
 
-Run the app:
+Run:
 
 ```bash
-./build/default/apps/desktop/MyDesk.app/Contents/MacOS/MyDesk
+open build/default/products/draft/app/MyDeskDraft.app
 # or
-open build/default/apps/desktop/MyDesk.app
+./build/default/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft
+```
+
+Release:
+
+```bash
+cmake --preset draft-macos-release
+cmake --build --preset draft-macos-release
 ```
 
 ## Linux (Debian/Ubuntu)
@@ -29,7 +38,7 @@ ctest --test-dir build/ci --output-on-failure
 
 ## Windows
 
-Install Visual Studio 2022 Build Tools, CMake, Ninja, and Qt 6. Set `CMAKE_PREFIX_PATH` to the Qt kit. Then:
+Install Visual Studio 2022 Build Tools, CMake, Ninja, and Qt 6. Set `CMAKE_PREFIX_PATH` to the Qt kit:
 
 ```bat
 cmake --preset ci-windows

@@ -2,7 +2,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-set(MYDESK_DESKTOP_SOURCES
+set(MYDESK_DRAFT_APP_SOURCES
   src/main.cpp
   src/main_window.cpp
   src/canvas_widget.cpp
@@ -11,7 +11,7 @@ set(MYDESK_DESKTOP_SOURCES
   src/properties_panel.cpp
 )
 
-set(MYDESK_DESKTOP_HEADERS
+set(MYDESK_DRAFT_APP_HEADERS
   src/main_window.hpp
   src/canvas_widget.hpp
   src/command_line_widget.hpp
@@ -19,14 +19,14 @@ set(MYDESK_DESKTOP_HEADERS
   src/properties_panel.hpp
 )
 
-qt_add_executable(mydesk_desktop
-  ${MYDESK_DESKTOP_SOURCES}
-  ${MYDESK_DESKTOP_HEADERS}
+qt_add_executable(mydesk_draft_app
+  ${MYDESK_DRAFT_APP_SOURCES}
+  ${MYDESK_DRAFT_APP_HEADERS}
 )
 
-target_include_directories(mydesk_desktop PRIVATE src)
+target_include_directories(mydesk_draft_app PRIVATE src)
 
-target_link_libraries(mydesk_desktop
+target_link_libraries(mydesk_draft_app
   PRIVATE
     Qt6::Widgets
     Qt6::Gui
@@ -38,10 +38,12 @@ target_link_libraries(mydesk_desktop
     mydesk::units
 )
 
-set_target_properties(mydesk_desktop PROPERTIES
-  OUTPUT_NAME "MyDesk"
+set_target_properties(mydesk_draft_app PROPERTIES
+  OUTPUT_NAME "MyDeskDraft"
   MACOSX_BUNDLE TRUE
   WIN32_EXECUTABLE TRUE
+  MACOSX_BUNDLE_BUNDLE_NAME "MyDesk Draft"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "app.mydesk.draft"
 )
 
-install(TARGETS mydesk_desktop BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+install(TARGETS mydesk_draft_app BUNDLE DESTINATION . RUNTIME DESTINATION bin)

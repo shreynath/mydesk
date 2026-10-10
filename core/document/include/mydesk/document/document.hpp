@@ -5,8 +5,10 @@
 #include "mydesk/geometry/bbox.hpp"
 #include "mydesk/units/units.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
@@ -29,10 +31,17 @@ public:
     [[nodiscard]] const std::vector<Entity>& entities() const { return entities_; }
     [[nodiscard]] const Layer* findLayer(LayerId id) const;
     [[nodiscard]] Layer* findLayer(LayerId id);
+    [[nodiscard]] const Layer* findLayerByName(std::string_view name) const;
+    [[nodiscard]] Layer* findLayerByName(std::string_view name);
     [[nodiscard]] const Entity* findEntity(EntityId id) const;
     [[nodiscard]] Entity* findEntity(EntityId id);
 
+    // Creates a layer if the name is unused (case-insensitive). Returns existing id if present.
     LayerId addLayer(std::string name);
+    bool setLayerVisible(LayerId id, bool visible);
+    bool setLayerLocked(LayerId id, bool locked);
+    bool setLayerColor(LayerId id, std::uint32_t colorArgb);
+    bool setEntityLayer(EntityId id, LayerId layerId);
     EntityId addLine(geometry::Vec2 start, geometry::Vec2 end, std::string txLabel = "LINE");
     EntityId addCircle(geometry::Vec2 center, double radius, std::string txLabel = "CIRCLE");
     EntityId addArc(geometry::Vec2 center, double radius, double startAngle, double endAngle,

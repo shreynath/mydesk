@@ -1,0 +1,180 @@
+# MyDesk product catalog — source of truth for standalone apps.
+# Presence here is a TARGET inventory, not an implementation claim.
+# maturity: catalog-stub | scaffolding | alpha | beta | production
+
+schema_version: 1
+updated: 2026-10-10
+
+products:
+  - id: draft
+    name: MyDesk Draft
+    binary: MyDeskDraft
+    target_workflow: AutoCAD / AutoCAD LT class professional CAD
+    entry_point: products/draft/app
+    version_file: products/draft/VERSION
+    cmake_product: draft
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    document_extension: .mydesk
+    maturity: alpha
+    comparison_targets:
+      - { vendor: Autodesk, product: AutoCAD, versions: ["2025", "2026"] }
+      - { vendor: Autodesk, product: AutoCAD LT, versions: ["2025", "2026"] }
+    docs: products/draft/docs
+    packaging: products/draft/packaging
+    issue_label: product:draft
+
+  - id: mechanical
+    name: MyDesk Mechanical
+    binary: MyDeskMechanical
+    target_workflow: Inventor class parametric mechanical CAD
+    entry_point: products/mechanical/app
+    version_file: products/mechanical/VERSION
+    cmake_product: mechanical
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    comparison_targets:
+      - { vendor: Autodesk, product: Inventor, versions: ["2025", "2026"] }
+    issue_label: product:mechanical
+
+  - id: fusion
+    name: MyDesk Fusion
+    binary: MyDeskFusion
+    target_workflow: Fusion class integrated CAD/CAM/CAE/ECAD
+    entry_point: products/fusion/app
+    version_file: products/fusion/VERSION
+    cmake_product: fusion
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    notes: Independent product — not a renamed Mechanical executable.
+    comparison_targets:
+      - { vendor: Autodesk, product: Fusion, versions: ["current"] }
+    issue_label: product:fusion
+
+  - id: buildings
+    name: MyDesk Buildings
+    binary: MyDeskBuildings
+    target_workflow: Revit class BIM
+    entry_point: products/buildings/app
+    version_file: products/buildings/VERSION
+    cmake_product: buildings
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    comparison_targets:
+      - { vendor: Autodesk, product: Revit, versions: ["2025", "2026"] }
+    issue_label: product:buildings
+
+  - id: civil
+    name: MyDesk Civil
+    binary: MyDeskCivil
+    target_workflow: Civil 3D class civil engineering
+    entry_point: products/civil/app
+    version_file: products/civil/VERSION
+    cmake_product: civil
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    issue_label: product:civil
+
+  - id: coordinate
+    name: MyDesk Coordinate
+    binary: MyDeskCoordinate
+    target_workflow: Navisworks class model coordination
+    entry_point: products/coordinate/app
+    version_file: products/coordinate/VERSION
+    cmake_product: coordinate
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    issue_label: product:coordinate
+
+  - id: infra
+    name: MyDesk Infra
+    binary: MyDeskInfra
+    target_workflow: InfraWorks class conceptual infrastructure
+    entry_point: products/infra/app
+    version_file: products/infra/VERSION
+    cmake_product: infra
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    issue_label: product:infra
+
+  - id: animate
+    name: MyDesk Animate
+    binary: MyDeskAnimate
+    target_workflow: Maya class animation / DCC
+    entry_point: products/animate/app
+    version_file: products/animate/VERSION
+    cmake_product: animate
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    notes: Standalone app; must not require users to install Blender.
+    issue_label: product:animate
+
+  - id: studio
+    name: MyDesk Studio
+    binary: MyDeskStudio
+    target_workflow: 3ds Max class modeling / rendering
+    entry_point: products/studio/app
+    version_file: products/studio/VERSION
+    cmake_product: studio
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    notes: Distinct UX from Animate where workflows differ.
+    issue_label: product:studio
+
+  - id: surface
+    name: MyDesk Surface
+    binary: MyDeskSurface
+    target_workflow: Alias class industrial surfacing
+    entry_point: products/surface/app
+    version_file: products/surface/VERSION
+    cmake_product: surface
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    issue_label: product:surface
+
+  - id: mill
+    name: MyDesk Mill
+    binary: MyDeskMill
+    target_workflow: PowerMill class professional CAM
+    entry_point: products/mill/app
+    version_file: products/mill/VERSION
+    cmake_product: mill
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    issue_label: product:mill
+
+  - id: simulation
+    name: MyDesk Simulation
+    binary: MyDeskSimulation
+    target_workflow: Autodesk CAE / simulation class
+    entry_point: products/simulation/app
+    version_file: products/simulation/VERSION
+    cmake_product: simulation
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    notes: May split into discipline-specific installers later.
+    issue_label: product:simulation
+
+  - id: vault
+    name: MyDesk Vault
+    binary: MyDeskVault
+    target_workflow: Engineering PDM / Vault class
+    entry_point: products/vault/app
+    version_file: products/vault/VERSION
+    cmake_product: vault
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: catalog-stub
+    notes: Optional self-hosted server; local use where appropriate.
+    issue_label: product:vault
+
+shared_libraries:
+  note: >
+    Currently live under core/ (geometry, units, document, commands, exchange, modify).
+    Incremental rename to libs/ is planned; do not break Draft builds for cosmetic moves.
+  paths:
+    - core/geometry
+    - core/units
+    - core/document
+    - core/commands
+    - core/exchange
+    - core/modify
+    - modules/draft  # Draft helpers; migrate into products/draft or libs as needed

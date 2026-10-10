@@ -1,5 +1,6 @@
 #include "layers_panel.hpp"
 
+#include <QColor>
 #include <QLabel>
 #include <QListWidget>
 #include <QVariant>
@@ -29,8 +30,22 @@ LayersPanel::LayersPanel(QWidget* parent) : QWidget(parent) {
 void LayersPanel::setDocument(const document::Document& doc) {
     list_->clear();
     for (const auto& layer : doc.layers()) {
-        auto* item = new QListWidgetItem(QString::fromStdString(layer.name), list_);
+        QString label = QString::fromStdString(layer.name);
+        if (!layer.visible) {
+            label += QStringLiteral(" [off]");
+        }
+        if (layer.locked) {
+            label += QStringLiteral(" [lock]");
+        }
+        if (layer.id == doc.activeLayerId()) {
+            label += QStringLiteral(" *");
+        }
+        auto* item = new QListWidgetItem(label, list_);
         item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(layer.id));
+        const auto argb = layer.colorArgb;
+        item->setForeground(QColor(static_cast<int>((argb >> 16) & 0xFF),
+                                   static_cast<int>((argb >> 8) & 0xFF),
+                                   static_cast<int>(argb & 0xFF)));
         if (layer.id == doc.activeLayerId()) {
             item->setSelected(true);
             list_->setCurrentItem(item);

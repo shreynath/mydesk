@@ -1,7 +1,9 @@
 #include "mydesk/commands/registry.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <sstream>
+#include <string_view>
 
 namespace mydesk::commands {
 
@@ -287,6 +289,127 @@ CommandResult handleNotImplemented(CommandContext&, const std::vector<std::strin
     return errMsg("Command registered but not yet implemented — tracked in docs/COMPATIBILITY_MATRIX.md");
 }
 
+bool parseColorToken(std::string_view token, std::uint32_t& outArgb) {
+    std::string hex(token);
+    if (hex.size() >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) {
+        hex = hex.substr(2);
+    }
+    if (!hex.empty() && hex[0] == '#') {
+        hex = hex.substr(1);
+    }
+    if (hex.size() != 6 && hex.size() != 8) {
+        return false;
+    }
+    try {
+        const unsigned long value = std::stoul(hex, nullptr, 16);
+        if (hex.size() == 6) {
+            outArgb = 0xFF000000u | static_cast<std::uint32_t>(value);
+        } else {
+            outArgb = static_cast<std::uint32_t>(value);
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& args) {
+    auto& doc = ctx.document();
+    if (args.empty() || normalizeToken(args[0]) == "?" || normalizeToken(args[0]) == "LIST" ||
+        normalizeToken(args[0]) == "?LIST") {
+        std::ostringstream oss;
+        oss << "Layers (" << doc.layers().size() << "):\n";
+        for (const auto& layer : doc.layers()) {
+            const bool current = layer.id == doc.activeLayerId();
+            oss << (current ? "* " : "  ") << layer.name << "  "
+                << (layer.visible ? "ON" : "OFF") << "  " << (layer.locked ? "LOCK" : "UNLOCK")
+                << "  #" << std::hex << (layer.colorArgb & 0xFFFFFFu) << std::dec;
+            if (current) {
+                oss << "  (current)";
+            }
+            oss << '\n';
+        }
+        ctx.setPrompt("");
+        return okMsg(oss.str());
+    }
+
+    const std::string op = normalizeToken(args[0]);
+    if (op == "NEW" || op == "MAKE" || op == "SET" || op == "ON" || op == "OFF" || op == "LOCK" ||
+        op == "UNLOCK" || op == "COLOR") {
+        if (args.size() < 2) {
+            return errMsg("LAYER " + op + " requires a layer name");
+        }
+        const std::string& name = args[1];
+        if (op == "NEW") {
+            if (doc.findLayerByName(name)) {
+                return errMsg("Layer already exists: " + name);
+            }
+            const auto id = doc.addLayer(name);
+            ctx.setPrompt("");
+            return okMsg("Created layer " + name + " #" + std::to_string(id));
+        }
+        if (op == "MAKE") {
+            const auto id = doc.addLayer(name);
+            doc.setActiveLayer(id);
+            ctx.setPrompt("");
+            return okMsg("Current layer set to " + name);
+        }
+        if (op == "SET") {
+            const auto* layer = doc.findLayerByName(name);
+            if (!layer) {
+                return errMsg("Unknown layer: " + name);
+            }
+            doc.setActiveLayer(layer->id);
+            ctx.setPrompt("");
+            return okMsg("Current layer set to " + layer->name);
+        }
+        auto* layer = doc.findLayerByName(name);
+        if (!layer) {
+            return errMsg("Unknown layer: " + name);
+        }
+        if (op == "ON") {
+            doc.setLayerVisible(layer->id, true);
+            return okMsg("Layer " + layer->name + " ON");
+        }
+        if (op == "OFF") {
+            if (layer->id == doc.activeLayerId()) {
+                return errMsg("Cannot turn off the current layer");
+            }
+            doc.setLayerVisible(layer->id, false);
+            return okMsg("Layer " + layer->name + " OFF");
+        }
+        if (op == "LOCK") {
+            doc.setLayerLocked(layer->id, true);
+            return okMsg("Layer " + layer->name + " locked");
+        }
+        if (op == "UNLOCK") {
+            doc.setLayerLocked(layer->id, false);
+            return okMsg("Layer " + layer->name + " unlocked");
+        }
+        if (op == "COLOR") {
+            if (args.size() < 3) {
+                return errMsg("LAYER COLOR <name> <RRGGBB>");
+            }
+            std::uint32_t argb = 0;
+            if (!parseColorToken(args[2], argb)) {
+                return errMsg("COLOR expects RRGGBB hex (e.g. FF8800)");
+            }
+            doc.setLayerColor(layer->id, argb);
+            return okMsg("Layer " + layer->name + " color updated");
+        }
+    }
+
+    // Shorthand: LAYER <name> sets current (creates if missing), like MAKE.
+    if (args.size() == 1) {
+        const auto id = doc.addLayer(args[0]);
+        doc.setActiveLayer(id);
+        ctx.setPrompt("");
+        return okMsg("Current layer set to " + args[0]);
+    }
+
+    return errMsg("LAYER usage: NEW|MAKE|SET|ON|OFF|LOCK|UNLOCK|COLOR|LIST|?");
+}
+
 } // namespace
 
 void registerDraftCommands(CommandRegistry& registry) {
@@ -378,9 +501,17 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Deletes current selection only (no window/crossing yet)",
         .handler = handleErase,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "LAYER",
+        .label = "Layer",
+        .aliases = {"LA"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Command-line layer manager: NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR/LIST",
+        .handler = handleLayer,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
-        {"LAYER", {"LA"}}, {"BLOCK", {"B"}},       {"INSERT", {"I"}}, {"HATCH", {"H", "BH"}},
+        {"BLOCK", {"B"}},       {"INSERT", {"I"}}, {"HATCH", {"H", "BH"}},
         {"DIMENSION", {"DIM"}}, {"ZOOM", {"Z"}},   {"ARC", {"A"}},    {"MIRROR", {"MI"}},
         {"STRETCH", {"S"}}, {"EXPLODE", {"X"}},    {"XLINE", {"XL"}}, {"OSNAP", {"OS"}},
         {"PAN", {"P"}},

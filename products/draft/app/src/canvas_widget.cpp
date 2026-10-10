@@ -159,9 +159,19 @@ void CanvasWidget::paintEvent(QPaintEvent*) {
 
     const auto& selection = session_.document().selection();
     for (const auto& entity : session_.document().entities()) {
+        const auto* layer = session_.document().findLayer(entity.layerId);
+        if (layer && !layer->visible) {
+            continue;
+        }
         const bool selected = selection.count(entity.id) != 0U;
         const bool hovered = entity.id == hoverEntity_;
         QColor color = QColor(210, 224, 236);
+        if (layer) {
+            const auto argb = layer->colorArgb;
+            color = QColor(static_cast<int>((argb >> 16) & 0xFF),
+                           static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
+                           static_cast<int>((argb >> 24) & 0xFF));
+        }
         double width = 1.6;
         if (selected) {
             color = QColor(255, 196, 72);
@@ -169,6 +179,8 @@ void CanvasWidget::paintEvent(QPaintEvent*) {
         } else if (hovered) {
             color = QColor(140, 210, 255);
             width = 2.0;
+        } else if (layer && layer->locked) {
+            color = color.darker(125);
         }
         drawEntity(painter, entity, QPen(color, width));
     }

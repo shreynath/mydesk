@@ -41,7 +41,7 @@ Last updated: 2026-10-10
 | CHA | CHAMFER | implemented-tested |
 | E | ERASE | partial |
 | U | UNDO | implemented-tested |
-| LA | LAYER | not-implemented |
+| LA | LAYER | implemented-tested |
 | H / BH | HATCH | not-implemented |
 | B | BLOCK | not-implemented |
 | DIM | DIMENSION | not-implemented |

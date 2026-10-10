@@ -1,56 +1,50 @@
 # MyDesk Architecture
 
-Status: v0.1 (2026-10-10)
+Status: v0.2 (2026-10-10) — aligned with ADR-0001 standalone products.
 
 ## Goals
 
-1. **Engine-first, headless-first.** Every feature reachable from tests/CLI without GUI.
-2. **Everything is a command.** UI, shortcuts, future automation all dispatch `CommandRegistry` ids.
-3. **Typed domain objects.** Do not collapse BIM/assemblies into anonymous meshes.
-4. **Clean-room.** Recreate workflows from public specs and observation; never copy proprietary code/assets.
-5. **Honest interoperability.** Support levels are explicit; unknown objects preserved or reported — never silently dropped without a conversion report.
+1. **Standalone products.** One executable and release stream per catalog product. No suite shell.
+2. **Engine-first, headless-first.** Features reachable from tests without GUI.
+3. **Product-owned interaction.** Draft uses a CAD command line; other products get their own UX when built — never force Draft commands onto BIM/animation.
+4. **Invisible shared libs.** `core/*` (future `libs/`) stay consumer-agnostic.
+5. **Honest interoperability.** Explicit support levels; conversion reports; no silent drops.
 
-## Layering
+## Layout
 
 ```text
-apps/desktop          Qt shell — thin; no document mutation except via Session/commands
-modules/draft         Draft domain helpers (keymap, snaps); future: dims, hatches
-core/commands         Registry + Session interaction state
-core/exchange         Native .mydesk + DXF export (more formats later)
-core/document         Entities, layers, history/transactions
+products/draft/app    Qt shell → binary MyDeskDraft
+products/<id>/…       Future standalone apps (catalog-stub until real)
+core/commands         Draft command registry + Session (Draft-owned today)
+core/exchange         Native .mydesk + partial DXF
+core/document         Entities, layers, history
+core/modify           TRIM/EXTEND/OFFSET/FILLET/CHAMFER
 core/geometry         Vec2, BBox, predicates
 core/units            Unit system
+modules/draft         Keymap, snaps (migrate into products/draft or libs later)
 ```
 
-Dependency rule: lower layers must not include Qt or module UI. `core/*` must remain testable headlessly.
+CMake: `MYDESK_PRODUCT=draft` (default). Other product ids fail configure until implemented.
 
-## Document model (Draft MVP)
+Dependency rule: `core/*` must not include Qt. Desktop UI mutates documents only via `Session` / commands.
+
+## Document model (Draft)
 
 - Stable `EntityId` / `LayerId`
-- Entities: `LINE`, `CIRCLE` (more kinds planned)
-- `HistoryStack` stores transactions of add/remove/replace ops
-- Selection is ephemeral (not persisted)
-- Native format schemaVersion `1` JSON (`.mydesk`)
-
-## Command interaction
-
-`Session` owns `Document` + `CommandRegistry` + interactive prompt state. Incomplete `LINE`/`CIRCLE` remain active until points/numbers complete or `ESC` cancels.
+- Entities: LINE, CIRCLE, ARC, POLYLINE
+- Layers: name, visible, locked, color; command `LAYER`/`LA`
+- `HistoryStack` transactions (add/remove/replace)
+- Native schema versioned JSON (`.mydesk`); selection ephemeral
 
 ## Future kernels
 
-| Concern | Planned approach | ADR |
+| Concern | Approach | ADR |
 |---|---|---|
-| B-rep / STEP | OCCT behind `core/geometry` adapter | `docs/DECISIONS/0002-occt.md` |
+| B-rep / STEP | OCCT behind adapter | `0002-occt.md` |
 | Sketch constraints | Evaluate SolveSpace / native | TBD |
-| BIM | IFC-first semantic model | TBD |
-| GPU | Qt RHI / Vulkan-Metal-D3D with software fallback | TBD |
+| BIM | Separate **MyDesk Buildings** product + IFC | ADR-0001 |
+| GPU | Qt RHI with software fallback | TBD |
 
 ## Avoiding late rewrites
 
-Bake in from day one:
-
-- Units and tolerances as data
-- Schema versioning + migration hooks
-- Command ids stable and documented
-- Conversion reports for every import/export
-- Plugin ABI separated from private headers (scaffold later)
+Units/tolerances as data; schema migrations; stable command ids; conversion reports; product-specific plugin SDKs when needed.

@@ -1,9 +1,10 @@
 # MyDesk Roadmap
 
+Standalone products per ADR-0001. Only **MyDesk Draft** is in active delivery.
+
 ## Current focus
 
-**Phase 1 Draft modify commands + Phase 2 selection + Phase 3 DXF partial — landed (2026-10-10).**  
-Next: layers commands, dimensions, linetypes, blocks; deepen DXF; evaluate lawful DWG.
+**Draft layers command landed.** Next: dimensions, linetypes, blocks; deepen DXF; grips; packaging.
 
 ## Phases
 
@@ -11,7 +12,7 @@ Next: layers commands, dimensions, linetypes, blocks; deepen DXF; evaluate lawfu
 
 - [x] Monorepo + CMake presets
 - [x] Core libraries + headless tests
-- [x] Qt desktop shell named MyDesk
+- [x] Qt desktop app **MyDesk Draft** (`MyDeskDraft`)
 - [x] CI workflow for macOS/Linux/Windows
 - [x] Docs: architecture, matrices, ADRs, legal inventory
 
@@ -40,10 +41,10 @@ Next: layers commands, dimensions, linetypes, blocks; deepen DXF; evaluate lawfu
 - [ ] DXF dimensions/blocks/xrefs
 - [ ] Lawful DWG evaluation
 
-### Phase 4 — Professional drafting experience (active next)
+### Phase 4 — Professional drafting experience (active)
 
-- [ ] LAYER command + properties
-- [ ] Linetypes, colors per entity
+- [x] LAYER command + visibility/lock/color (partial properties UI)
+- [ ] Linetypes, per-entity override colors
 - [ ] Blocks / INSERT
 - [ ] Dimensions
 - [ ] Advanced snaps (intersection, perp, tangent)

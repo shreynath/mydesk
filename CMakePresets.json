@@ -9,6 +9,20 @@
       "binaryDir": "${sourceDir}/build/default",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "draft",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/qt;/usr/local/opt/qt"
+      }
+    },
+    {
+      "name": "draft-macos-release",
+      "displayName": "MyDesk Draft Release (macOS)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/draft-macos-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MYDESK_PRODUCT": "draft",
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON",
         "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/qt;/usr/local/opt/qt"
@@ -17,7 +31,7 @@
     {
       "name": "release",
       "inherits": "default",
-      "displayName": "Release",
+      "displayName": "Release (Draft)",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
@@ -25,11 +39,12 @@
     },
     {
       "name": "headless",
-      "displayName": "Headless (no Qt UI)",
+      "displayName": "Headless Draft tests (no Qt UI)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/headless",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "draft",
         "MYDESK_BUILD_DESKTOP": "OFF",
         "MYDESK_BUILD_TESTS": "ON"
       }
@@ -37,27 +52,29 @@
     {
       "name": "ci-macos",
       "inherits": "default",
-      "displayName": "CI macOS",
+      "displayName": "CI macOS Draft",
       "binaryDir": "${sourceDir}/build/ci"
     },
     {
       "name": "ci-linux",
-      "displayName": "CI Linux",
+      "displayName": "CI Linux Draft",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/ci",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "MYDESK_PRODUCT": "draft",
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON"
       }
     },
     {
       "name": "ci-windows",
-      "displayName": "CI Windows",
+      "displayName": "CI Windows Draft",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/ci",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "MYDESK_PRODUCT": "draft",
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON"
       }
@@ -65,6 +82,7 @@
   ],
   "buildPresets": [
     { "name": "default", "configurePreset": "default" },
+    { "name": "draft-macos-release", "configurePreset": "draft-macos-release" },
     { "name": "release", "configurePreset": "release" },
     { "name": "headless", "configurePreset": "headless" },
     { "name": "ci-macos", "configurePreset": "ci-macos" },

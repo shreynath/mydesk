@@ -6,7 +6,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(MYDESK_BUILD_DESKTOP "Build Qt desktop shell" ON)
+# Standalone product selection (ADR-0001). Default builds MyDesk Draft only.
+set(MYDESK_PRODUCT "draft" CACHE STRING "Which standalone product to build (draft|...)")
+set_property(CACHE MYDESK_PRODUCT PROPERTY STRINGS draft)
+
+option(MYDESK_BUILD_DESKTOP "Build the selected product's Qt desktop app" ON)
 option(MYDESK_BUILD_TESTS "Build unit and integration tests" ON)
 option(MYDESK_ENABLE_WARNINGS "Enable strict warnings" ON)
 
@@ -20,6 +24,7 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# Shared infrastructure (migrating toward libs/ — keep core/ paths for now).
 add_subdirectory(core/geometry)
 add_subdirectory(core/units)
 add_subdirectory(core/document)
@@ -28,10 +33,14 @@ add_subdirectory(core/commands)
 add_subdirectory(core/exchange)
 add_subdirectory(modules/draft)
 
-if(MYDESK_BUILD_DESKTOP)
-  find_package(Qt6 COMPONENTS Widgets Gui REQUIRED)
-  qt_standard_project_setup()
-  add_subdirectory(apps/desktop)
+if(MYDESK_PRODUCT STREQUAL "draft")
+  if(MYDESK_BUILD_DESKTOP)
+    find_package(Qt6 COMPONENTS Widgets Gui REQUIRED)
+    qt_standard_project_setup()
+    add_subdirectory(products/draft/app)
+  endif()
+else()
+  message(FATAL_ERROR "Product '${MYDESK_PRODUCT}' is catalog-stub only. Implemented product: draft")
 endif()
 
 if(MYDESK_BUILD_TESTS)
@@ -39,4 +48,4 @@ if(MYDESK_BUILD_TESTS)
   add_subdirectory(tests)
 endif()
 
-install(DIRECTORY samples/ DESTINATION share/mydesk/samples)
+install(DIRECTORY samples/ DESTINATION share/mydesk-draft/samples)

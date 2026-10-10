@@ -1,0 +1,15 @@
+---
+description: MyDesk standalone product architecture — never reintroduce a suite shell
+alwaysApply: true
+---
+
+# MyDesk product rules
+
+- **Standalone products only.** Users install MyDesk Draft, MyDesk Buildings, etc. separately. No suite launcher, no mega-workspace, no tabs that turn Draft into BIM.
+- **Monorepo OK; monolith forbidden.** Ship one product binary per release (`MYDESK_PRODUCT`).
+- **Shared code is invisible infrastructure** under `core/`→`libs/`. Never leak irrelevant menus across products.
+- **Catalog ≠ shipped.** `products/catalog.yaml` lists targets; only build real apps that have code + tests.
+- **Draft is the current implemented product.** Preserve its commands, formats, and tests across refactors.
+- **No push/publish/remote destructive ops** without explicit user authorization.
+- **Honest parity.** Status lives in per-product matrices; never fake completeness.
+- When docs still say “one platform with modules”, update them and point at `docs/DECISIONS/ADR-0001-standalone-products.md`.

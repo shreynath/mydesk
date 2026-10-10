@@ -23,11 +23,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     buildUi();
     buildMenus();
     refreshUi();
-    setStatus(QStringLiteral("Ready — MyDesk Draft MVP"));
+    setStatus(QStringLiteral("Ready — MyDesk Draft"));
 }
 
 void MainWindow::buildUi() {
-    setWindowTitle(QStringLiteral("MyDesk"));
+    setWindowTitle(QStringLiteral("MyDesk Draft"));
     resize(1280, 800);
     setStyleSheet("QMainWindow { background: #0f141a; }"
                   "QMenuBar { background: #161d27; color: #e8eef4; }"
@@ -172,8 +172,8 @@ void MainWindow::openFile() {
         return;
     }
     const QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("Open MyDesk drawing"), QString(),
-        QStringLiteral("MyDesk drawings (*.mydesk);;All files (*)"));
+        this, QStringLiteral("Open MyDesk Draft drawing"), QString(),
+        QStringLiteral("MyDesk Draft (*.mydesk);;All files (*)"));
     if (path.isEmpty()) {
         return;
     }
@@ -204,8 +204,8 @@ void MainWindow::saveFile() {
 
 void MainWindow::saveFileAs() {
     const QString path = QFileDialog::getSaveFileName(
-        this, QStringLiteral("Save MyDesk drawing"), QStringLiteral("Drawing1.mydesk"),
-        QStringLiteral("MyDesk drawings (*.mydesk)"));
+        this, QStringLiteral("Save MyDesk Draft drawing"), QStringLiteral("Drawing1.mydesk"),
+        QStringLiteral("MyDesk Draft (*.mydesk)"));
     if (path.isEmpty()) {
         return;
     }
@@ -373,11 +373,11 @@ void MainWindow::refreshUi() {
                 .arg(session_.modes().gridSnap ? QStringLiteral("On") : QStringLiteral("Off")));
     }
     const QString title = session_.filePath()
-                              ? QStringLiteral("MyDesk — %1%2")
+                              ? QStringLiteral("MyDesk Draft — %1%2")
                                     .arg(QString::fromStdString(session_.filePath()->filename().string()))
                                     .arg(session_.document().isDirty() ? QStringLiteral("*")
                                                                        : QString())
-                              : QStringLiteral("MyDesk — Drawing1%1")
+                              : QStringLiteral("MyDesk Draft — Drawing1%1")
                                     .arg(session_.document().isDirty() ? QStringLiteral("*")
                                                                        : QString());
     setWindowTitle(title);

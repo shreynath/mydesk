@@ -1,49 +1,41 @@
 # MyDesk
 
-**MyDesk** is an open-source, offline-first engineering and design platform — a clean-room suite aimed at Autodesk-class CAD/BIM/CAM/CAE workflows, built as one shared engine with modular domain apps.
+**MyDesk** is a family of **standalone**, free and open-source desktop applications for Autodesk-class engineering workflows. Each product installs and ships on its own — there is no suite launcher or mega-workspace.
 
-> Independent project. Not affiliated with, sponsored by, or endorsed by Autodesk Inc. Autodesk product names appear only for nominative workflow comparison.
+> Independent project. Not affiliated with, sponsored by, or endorsed by Autodesk Inc. Vendor names appear only for nominative workflow comparison.
 
-Inspired by the depth and honesty culture of [ArtCraft / storytold](https://github.com/storytold) open creative tools (PhotoCraft, VectorCraft, …), MyDesk applies the same discipline — engine-first commands, compatibility matrices, and no pretend parity — to the engineering desk.
+Architecture decision: [`docs/DECISIONS/ADR-0001-standalone-products.md`](docs/DECISIONS/ADR-0001-standalone-products.md). Target inventory: [`products/catalog.yaml`](products/catalog.yaml).
 
-## What’s real today (v0.1+)
+## What’s real today
 
 | Capability | Status |
 |---|---|
-| Cross-platform CMake monorepo (C++20) | **working** |
+| **MyDesk Draft** (`MyDeskDraft`) | **alpha** — 2D CAD vertical slice |
 | Document model + transactional undo/redo | **working** |
-| Draft commands: LINE, CIRCLE, PLINE, RECTANG, MOVE/COPY/ROTATE/SCALE, TRIM/EXTEND/OFFSET/FILLET/CHAMFER | **working** (tested) |
-| Window/crossing selection, Shift toggle, hover, F3/F7/F8/F9 | **working** |
-| Qt 6 Draft workspace | **working** (macOS verified here) |
-| Native `.mydesk` v2 round-trip | **working** |
-| DXF import/export (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER) | **partial** — reports warn |
-| DWG / RVT / Fusion native / ObjectARX | **not implemented** |
-| Mechanical / BIM / Civil / CAM modules | **planned** |
+| Commands: LINE, CIRCLE, PLINE, RECTANG, MOVE/COPY/ROTATE/SCALE, TRIM/EXTEND/OFFSET/FILLET/CHAMFER, LAYER/LA | **working** (tested) |
+| Window/crossing selection, F3/F7/F8/F9 | **working** |
+| Native `.mydesk` round-trip | **working** |
+| DXF import/export (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER) | **partial** |
+| DWG / RVT / ObjectARX / other products | **not implemented** (catalog stubs only) |
 
-Authoritative status: [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and [`docs/COMPATIBILITY_MATRIX.md`](docs/COMPATIBILITY_MATRIX.md).
+Draft status: [`products/draft/docs/`](products/draft/docs/) and [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md).
 
-## Product family (planned modules)
+## Product family (independent apps)
 
-| Module | Autodesk-class workflow |
-|---|---|
-| **Draft** | AutoCAD-class 2D precision drafting |
-| **Mechanical** | Fusion / Inventor parametric design |
-| **Buildings** | Revit-class BIM |
-| **Civil** | Civil 3D / infra |
-| **Manufacture** | CAM toolpaths |
-| **Analyze** | Simulation (open solvers) |
-| **Coordinate** | Federated model review |
-| **Create** | DCC bridges (prefer Blender interop) |
-| **Electronics** | ECAD–MCAD (KiCad-oriented) |
-| **Data** | Project history / collaboration |
+| Product | Target workflow | Maturity |
+|---|---|---|
+| **MyDesk Draft** | AutoCAD / LT class 2D CAD | alpha |
+| MyDesk Mechanical | Inventor class | catalog-stub |
+| MyDesk Fusion | Fusion class | catalog-stub |
+| MyDesk Buildings | Revit class BIM | catalog-stub |
+| MyDesk Civil / Coordinate / Infra / … | See catalog | catalog-stub |
 
-## Build
+## Build MyDesk Draft
 
 ### Requirements
 
 - CMake ≥ 3.24, Ninja, C++20 compiler
 - Qt 6 (Widgets) for the desktop app
-- Optional later: Open CASCADE Technology for B-rep
 
 ### macOS (Homebrew)
 
@@ -52,10 +44,12 @@ brew install cmake ninja qt@6
 cmake --preset default
 cmake --build --preset default
 ctest --preset default
-open build/default/apps/desktop/MyDesk.app   # or run the MyDesk binary produced by the build
+open build/default/products/draft/app/MyDeskDraft.app
 ```
 
-### Headless (tests only, no Qt UI)
+Release preset: `cmake --preset draft-macos-release && cmake --build --preset draft-macos-release`.
+
+### Headless (engine tests only)
 
 ```bash
 cmake --preset headless
@@ -65,41 +59,24 @@ ctest --preset headless
 
 ### Quick Draft exercise
 
-1. Launch **MyDesk**.
-2. Type `L` then click two points (or `L 0,0 100,50`).
-3. Type `C` then center + radius (`C 40,25 15`).
-4. `U` / redo; File → Save as `.mydesk`; optional Export DXF.
+1. Launch **MyDesk Draft**.
+2. `L 0,0 100,50` then `C 40,25 15`.
+3. `LAYER NEW Walls` / `LA MAKE Doors` / `LAYER OFF Walls`.
+4. File → Save `.mydesk`; optional Export DXF.
 
-Sample file: [`samples/draft/hello_line.mydesk`](samples/draft/hello_line.mydesk).
+Sample: [`samples/draft/hello_line.mydesk`](samples/draft/hello_line.mydesk).
 
 ## Repository map
 
 ```text
-apps/desktop/       Qt shell (MyDesk)
-core/               geometry, document, commands, units, exchange
-modules/draft/      keymap, snaps (Draft domain)
-tests/              unit + integration
-docs/               architecture, roadmap, matrices, ADRs
-samples/            redistributable drawings
-.github/workflows/  CI matrix
+products/draft/app/   MyDesk Draft Qt app (MyDeskDraft)
+products/catalog.yaml Standalone product inventory
+core/                 Shared geometry, document, commands, exchange
+modules/draft/        Draft helpers (keymap, snaps)
+tests/                Unit + integration
+docs/                 Architecture, ADRs, matrices
 ```
-
-## Documentation for humans and agents
-
-| Doc | Purpose |
-|---|---|
-| [`AGENTS.md`](AGENTS.md) | Binding rules for AI agents and contributors |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Engine layout and dependency rules |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases and current focus |
-| [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) | What exists |
-| [`docs/COMPATIBILITY_MATRIX.md`](docs/COMPATIBILITY_MATRIX.md) | File/command/plugin honesty |
-| [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) | Budgets and measured numbers |
-| [`docs/legal/THIRD_PARTY.md`](docs/legal/THIRD_PARTY.md) | Dependency licenses |
 
 ## License
 
-Original MyDesk code is licensed under the [Mozilla Public License 2.0](LICENSE). Third-party notices live in `docs/legal/`.
-
-## Contributing
-
-Read `AGENTS.md` first. Prefer small vertical slices with tests and matrix updates over broad unfinished surfaces.
+MPL-2.0 for original code. Notices: `docs/legal/`. Read `AGENTS.md` before contributing.

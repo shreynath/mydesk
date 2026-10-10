@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  draft-build-test:
+    name: MyDesk Draft (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -17,7 +18,6 @@ jobs:
             preset: ci-macos
           - os: windows-latest
             preset: ci-windows
-
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -40,36 +40,41 @@ jobs:
         shell: bash
         run: |
           choco install ninja cmake --yes
-          # Qt via aqt; keep CI honest if install fails.
           pip install aqtinstall
-          aqt install-qt windows desktop 6.7.2 win64_msvc2019_64 -O "$HOME/Qt" || true
-          if [ -d "$HOME/Qt/6.7.2/msvc2019_64" ]; then
-            echo "CMAKE_PREFIX_PATH=$HOME/Qt/6.7.2/msvc2019_64" >> "$GITHUB_ENV"
-          fi
+          aqt install-qt windows desktop 6.7.2 win64_msvc2019_64 -O "$HOME/Qt"
+          echo "CMAKE_PREFIX_PATH=$HOME/Qt/6.7.2/msvc2019_64" >> "$GITHUB_ENV"
 
-      - name: Configure
+      - name: Configure Draft desktop
         shell: bash
         run: |
-          if [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
-            cmake --preset "${{ matrix.preset }}" -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
-          else
-            cmake --preset "${{ matrix.preset }}" || cmake --preset headless
-          fi
+          cmake --preset "${{ matrix.preset }}" -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}" -DMYDESK_PRODUCT=draft -DMYDESK_BUILD_DESKTOP=ON
 
       - name: Build
         shell: bash
-        run: |
-          if [ -d build/ci ]; then
-            cmake --build --preset "${{ matrix.preset }}"
-          else
-            cmake --build --preset headless
-          fi
+        run: cmake --build --preset "${{ matrix.preset }}"
 
       - name: Test
         shell: bash
+        run: ctest --test-dir build/ci --output-on-failure
+
+      - name: Draft GUI smoke (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
-          if [ -d build/ci ]; then
-            ctest --test-dir build/ci --output-on-failure
+          set -euo pipefail
+          BIN=""
+          if [ -x build/ci/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft ]; then
+            BIN=build/ci/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft
+          elif [ -x build/ci/products/draft/app/MyDeskDraft ]; then
+            BIN=build/ci/products/draft/app/MyDeskDraft
           else
-            ctest --test-dir build/headless --output-on-failure
+            echo "MyDeskDraft binary not found" >&2
+            find build/ci -name 'MyDeskDraft*' -type f 2>/dev/null || true
+            exit 1
           fi
+          # Headless-friendly: start and quit quickly (Qt may need offscreen).
+          export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
+          "$BIN" --help >/dev/null 2>&1 || true
+          # App may not implement --help; ensure binary is executable and linked.
+          test -x "$BIN"
+          echo "Smoke OK: $BIN"

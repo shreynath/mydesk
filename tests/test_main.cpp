@@ -27,6 +27,8 @@ void test_pline_and_trim();
 void test_extend_offset_fillet_chamfer();
 void test_selection_window_crossing();
 void test_dxf_line_circle_pline_roundtrip();
+void test_layer_command_new_set_off();
+void test_layer_duplicate_new_rejected();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -46,6 +48,8 @@ int main() {
         {"test_extend_offset_fillet_chamfer", &test_extend_offset_fillet_chamfer},
         {"test_selection_window_crossing", &test_selection_window_crossing},
         {"test_dxf_line_circle_pline_roundtrip", &test_dxf_line_circle_pline_roundtrip},
+        {"test_layer_command_new_set_off", &test_layer_command_new_set_off},
+        {"test_layer_duplicate_new_rejected", &test_layer_duplicate_new_rejected},
     };
 
     int failed = 0;

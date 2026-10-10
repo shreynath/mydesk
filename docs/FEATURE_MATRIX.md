@@ -4,7 +4,7 @@ Statuses: `implemented-tested` · `partial` · `experimental` · `planned` · `u
 
 Last updated: 2026-10-10
 
-## Draft module
+## MyDesk Draft (standalone product)
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -29,10 +29,12 @@ Last updated: 2026-10-10
 | Native `.mydesk` v2 | implemented-tested | roundtrip tests |
 | DXF import/export | partial | LINE/CIRCLE/ARC/LWPOLYLINE/LAYER |
 | DWG | unsupported | ADR 0004 |
-| Layers command / linetypes / blocks / dims | planned | |
+| LAYER (`LA`) NEW/MAKE/SET/ON/OFF/LOCK/UNLOCK/COLOR | implemented-tested | `test_layers.cpp` |
+| Layer panel (list / activate) | partial | UI |
+| Linetypes / blocks / dims | planned | |
 
-## Other modules
+## Other catalog products
 
-| Module | Status |
+| Product | Status |
 |---|---|
-| Mechanical / Buildings / Civil / Manufacture / Analyze / Coordinate / Create / Electronics / Data | planned |
+| Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault | catalog-stub — see `products/catalog.yaml` |
