@@ -29,6 +29,9 @@ public:
 
     [[nodiscard]] const std::vector<Layer>& layers() const { return layers_; }
     [[nodiscard]] const std::vector<Entity>& entities() const { return entities_; }
+    [[nodiscard]] const std::vector<BlockDefinition>& blocks() const { return blocks_; }
+    [[nodiscard]] const BlockDefinition* findBlock(std::string_view name) const;
+    [[nodiscard]] BlockDefinition* findBlock(std::string_view name);
     [[nodiscard]] const Layer* findLayer(LayerId id) const;
     [[nodiscard]] Layer* findLayer(LayerId id);
     [[nodiscard]] const Layer* findLayerByName(std::string_view name) const;
@@ -55,6 +58,11 @@ public:
                           std::string txLabel = "RECTANGLE");
     EntityId addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end, geometry::Vec2 dimLine,
                                 std::string txLabel = "DIMLINEAR");
+    // Creates/replaces a block from selection (geometries relative to base). Removes source entities.
+    bool defineBlockFromSelection(std::string name, geometry::Vec2 base,
+                                  std::string txLabel = "BLOCK");
+    EntityId addInsert(std::string blockName, geometry::Vec2 insertion, double scale = 1.0,
+                       double rotationDeg = 0.0, std::string txLabel = "INSERT");
     bool removeEntity(EntityId id, std::string txLabel = "ERASE");
     bool replaceEntity(EntityId id, EntityGeometry geometry, std::string txLabel = "MODIFY");
 
@@ -99,7 +107,7 @@ public:
 
     void restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
                          EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
-                         std::string name);
+                         std::string name, std::vector<BlockDefinition> blocks = {});
 
     void markClean();
     [[nodiscard]] bool isDirty() const { return dirty_; }
@@ -114,6 +122,7 @@ private:
     units::UnitSystem units_{};
     std::vector<Layer> layers_;
     std::vector<Entity> entities_;
+    std::vector<BlockDefinition> blocks_;
     LayerId activeLayerId_{kInvalidLayerId};
     EntityId nextEntityId_{1};
     LayerId nextLayerId_{1};

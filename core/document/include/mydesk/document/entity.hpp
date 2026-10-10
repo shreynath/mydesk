@@ -25,6 +25,7 @@ enum class EntityKind {
     Arc,
     Polyline,
     DimensionLinear,
+    Insert,
 };
 
 struct LineEntity {
@@ -57,8 +58,29 @@ struct DimensionLinearEntity {
     geometry::Vec2 dimLine;
 };
 
-using EntityGeometry =
-    std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity, DimensionLinearEntity>;
+// Block reference. localBounds is the definition AABB (block space) for fast bounds.
+struct InsertEntity {
+    std::string blockName;
+    geometry::Vec2 insertion;
+    double scale{1.0};
+    double rotationDeg{0.0};
+    geometry::BBox localBounds;
+};
+
+using EntityGeometry = std::variant<LineEntity, CircleEntity, ArcEntity, PolylineEntity,
+                                    DimensionLinearEntity, InsertEntity>;
+
+// Geometry stored in block-definition coordinates (relative to block origin).
+// Must not nest InsertEntity (enforced at BLOCK time).
+struct BlockPrimitive {
+    EntityGeometry geometry;
+    std::uint32_t colorArgb{kColorByLayer};
+};
+
+struct BlockDefinition {
+    std::string name;
+    std::vector<BlockPrimitive> primitives;
+};
 
 struct Entity {
     EntityId id{kInvalidEntityId};
@@ -91,6 +113,10 @@ struct DimensionLayout {
 };
 
 [[nodiscard]] DimensionLayout layoutDimension(const DimensionLinearEntity& dim);
+[[nodiscard]] geometry::Vec2 transformInsertPoint(const InsertEntity& insert, geometry::Vec2 local);
+[[nodiscard]] EntityGeometry transformInsertGeometry(const InsertEntity& insert,
+                                                     const EntityGeometry& local);
+[[nodiscard]] geometry::BBox boundsOfGeometry(const EntityGeometry& geometry);
 [[nodiscard]] std::string_view entityKindName(EntityKind kind);
 [[nodiscard]] std::size_t polylineSegmentCount(const PolylineEntity& pl);
 [[nodiscard]] geometry::Vec2 polylineSegmentStart(const PolylineEntity& pl, std::size_t i);

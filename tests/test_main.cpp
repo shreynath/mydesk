@@ -32,6 +32,7 @@ void test_layer_duplicate_new_rejected();
 void test_chprop_and_dimlinear();
 void test_osnap_intersection_perpendicular();
 void test_dim_native_roundtrip();
+void test_block_and_insert();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -56,6 +57,7 @@ int main() {
         {"test_chprop_and_dimlinear", &test_chprop_and_dimlinear},
         {"test_osnap_intersection_perpendicular", &test_osnap_intersection_perpendicular},
         {"test_dim_native_roundtrip", &test_dim_native_roundtrip},
+        {"test_block_and_insert", &test_block_and_insert},
     };
 
     int failed = 0;

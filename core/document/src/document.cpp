@@ -277,6 +277,120 @@ EntityId Document::addDimensionLinear(geometry::Vec2 start, geometry::Vec2 end,
     return entity.id;
 }
 
+const BlockDefinition* Document::findBlock(std::string_view name) const {
+    for (const auto& block : blocks_) {
+        if (layerNamesEqual(block.name, name)) {
+            return &block;
+        }
+    }
+    return nullptr;
+}
+
+BlockDefinition* Document::findBlock(std::string_view name) {
+    return const_cast<BlockDefinition*>(static_cast<const Document*>(this)->findBlock(name));
+}
+
+bool Document::defineBlockFromSelection(std::string name, geometry::Vec2 base, std::string txLabel) {
+    if (name.empty()) {
+        throw std::invalid_argument("block name must not be empty");
+    }
+    const auto selected = selectionOrdered();
+    if (selected.empty()) {
+        return false;
+    }
+    BlockDefinition def;
+    def.name = std::move(name);
+    geometry::BBox localBounds;
+    beginComposite(std::move(txLabel));
+    for (const auto id : selected) {
+        const Entity* existing = findEntity(id);
+        if (!existing) {
+            continue;
+        }
+        if (std::holds_alternative<InsertEntity>(existing->geometry)) {
+            abortComposite();
+            throw std::invalid_argument("BLOCK cannot include INSERT entities yet");
+        }
+        auto shift = [&](geometry::Vec2 p) { return p - base; };
+        EntityGeometry local = existing->geometry;
+        if (auto* line = std::get_if<LineEntity>(&local)) {
+            line->start = shift(line->start);
+            line->end = shift(line->end);
+        } else if (auto* circle = std::get_if<CircleEntity>(&local)) {
+            circle->center = shift(circle->center);
+        } else if (auto* arc = std::get_if<ArcEntity>(&local)) {
+            arc->center = shift(arc->center);
+        } else if (auto* pl = std::get_if<PolylineEntity>(&local)) {
+            for (auto& v : pl->vertices) {
+                v = shift(v);
+            }
+        } else if (auto* dim = std::get_if<DimensionLinearEntity>(&local)) {
+            dim->start = shift(dim->start);
+            dim->end = shift(dim->end);
+            dim->dimLine = shift(dim->dimLine);
+        }
+        localBounds.expand(boundsOfGeometry(local));
+        def.primitives.push_back(BlockPrimitive{local, existing->colorArgb});
+        compositeRemove(id);
+    }
+    if (def.primitives.empty()) {
+        abortComposite();
+        return false;
+    }
+    const std::string blockName = def.name;
+    if (auto* existing = findBlock(blockName)) {
+        *existing = std::move(def);
+    } else {
+        blocks_.push_back(std::move(def));
+    }
+    // Place an insert at the base so the drawing still shows the geometry.
+    Entity insertEntity;
+    insertEntity.id = allocateEntityId();
+    insertEntity.layerId = activeLayerId_;
+    InsertEntity insert;
+    insert.blockName = blockName;
+    insert.insertion = base;
+    insert.localBounds = localBounds;
+    insertEntity.geometry = insert;
+    compositeAdd(insertEntity);
+    if (!commitComposite()) {
+        return false;
+    }
+    clearSelection();
+    select(insertEntity.id);
+    dirty_ = true;
+    return true;
+}
+
+EntityId Document::addInsert(std::string blockName, geometry::Vec2 insertion, double scale,
+                             double rotationDeg, std::string txLabel) {
+    const BlockDefinition* block = findBlock(blockName);
+    if (!block) {
+        throw std::invalid_argument("unknown block: " + blockName);
+    }
+    if (!(std::isfinite(scale)) || std::abs(scale) < 1e-12) {
+        throw std::invalid_argument("insert scale must be non-zero");
+    }
+    InsertEntity insert;
+    insert.blockName = block->name;
+    insert.insertion = insertion;
+    insert.scale = scale;
+    insert.rotationDeg = rotationDeg;
+    for (const auto& prim : block->primitives) {
+        insert.localBounds.expand(boundsOfGeometry(prim.geometry));
+    }
+    Entity entity;
+    entity.id = allocateEntityId();
+    entity.layerId = activeLayerId_;
+    entity.geometry = insert;
+    Transaction tx;
+    tx.label = std::move(txLabel);
+    tx.ops.push_back(HistoryOp{HistoryOpKind::AddEntity, {}, entity});
+    applyAddEntity(entity);
+    commit(std::move(tx));
+    return entity.id;
+}
+
 bool Document::removeEntity(EntityId id, std::string txLabel) {
     const Entity* existing = findEntity(id);
     if (!existing) {
@@ -387,6 +501,10 @@ Entity transformEntity(Entity entity, const std::function<geometry::Vec2(geometr
         dim->start = mapPoint(dim->start);
         dim->end = mapPoint(dim->end);
         dim->dimLine = mapPoint(dim->dimLine);
+    } else if (auto* insert = std::get_if<InsertEntity>(&entity.geometry)) {
+        insert->insertion = mapPoint(insert->insertion);
+        insert->scale *= radiusScale;
+        insert->rotationDeg += angleDelta * (180.0 / 3.14159265358979323846);
     }
     return entity;
 }
@@ -533,6 +651,25 @@ EntityId Document::hitTestTop(geometry::Vec2 point, double tol) const {
         if (layer && (!layer->visible || layer->locked)) {
             continue;
         }
+        if (const auto* insert = std::get_if<InsertEntity>(&it->geometry)) {
+            const BlockDefinition* block = findBlock(insert->blockName);
+            if (!block) {
+                continue;
+            }
+            bool hit = false;
+            for (const auto& prim : block->primitives) {
+                Entity probe;
+                probe.geometry = transformInsertGeometry(*insert, prim.geometry);
+                if (probe.hitTest(point, tol)) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) {
+                return it->id;
+            }
+            continue;
+        }
         if (it->hitTest(point, tol)) {
             return it->id;
         }
@@ -595,9 +732,11 @@ void Document::applyReplaceEntity(const Entity& entity) {
 
 void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities,
                                LayerId active, EntityId nextEntityId, LayerId nextLayerId,
-                               units::UnitSystem units, std::string name) {
+                               units::UnitSystem units, std::string name,
+                               std::vector<BlockDefinition> blocks) {
     layers_ = std::move(layers);
     entities_ = std::move(entities);
+    blocks_ = std::move(blocks);
     activeLayerId_ = active;
     nextEntityId_ = nextEntityId;
     nextLayerId_ = nextLayerId;

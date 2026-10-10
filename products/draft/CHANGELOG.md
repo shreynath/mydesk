@@ -8,4 +8,5 @@
 - **CHPROP** / **CH**: selection COLOR (hex|BYLAYER) and LAYER.
 - **DIMLINEAR** / **DIM**: aligned linear dimensions (native schema v3).
 - **OSNAP** / **OS**: END/MID/CEN/INT/PER toggles; intersection + perpendicular snaps.
+- **BLOCK** / **B** and **INSERT** / **I**: block definitions + scaled/rotated inserts (native round-trip).
 - Preset `draft-macos-release` added.

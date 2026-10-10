@@ -34,7 +34,8 @@ Last updated: 2026-10-10
 | DIMLINEAR (`DIM`) | implemented-tested | `test_dims_props_snaps.cpp` |
 | OSNAP INT/PER (+ END/MID/CEN) | implemented-tested | `test_dims_props_snaps.cpp` |
 | Layer panel (list / activate) | partial | UI |
-| Blocks / hatch / linetypes | planned | |
+| BLOCK (`B`) / INSERT (`I`) | implemented-tested | `test_blocks.cpp` |
+| Hatch / linetypes / attributes | planned | |
 
 ## Other catalog products
 

@@ -59,6 +59,9 @@ public:
     void setLastCommand(std::string name) { lastCommand_ = std::move(name); }
     [[nodiscard]] const std::string& lastCommand() const { return lastCommand_; }
 
+    void setScratch(std::string value) { scratch_ = std::move(value); }
+    [[nodiscard]] const std::string& scratch() const { return scratch_; }
+
 private:
     document::Document& document_;
     DraftModes* modes_{nullptr};
@@ -66,6 +69,7 @@ private:
     std::vector<geometry::Vec2> points_;
     std::vector<double> numbers_;
     std::string lastCommand_;
+    std::string scratch_;
 };
 
 using CommandHandler = std::function<CommandResult(CommandContext&, const std::vector<std::string>&)>;

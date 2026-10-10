@@ -57,7 +57,9 @@ workflows:
     proof: tests/unit/test_dims_props_snaps.cpp
 
   - id: blocks-attributes-xrefs
-    status: not-started
+    status: partial
+    notes: BLOCK/INSERT with scale/rotation; no attributes/xrefs/EXPLODE yet
+    proof: tests/unit/test_blocks.cpp
 
   - id: layouts-plot-pdf
     status: not-started

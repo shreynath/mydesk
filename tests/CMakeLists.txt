@@ -4,6 +4,7 @@ add_executable(mydesk_tests
   unit/test_commands.cpp
   unit/test_layers.cpp
   unit/test_dims_props_snaps.cpp
+  unit/test_blocks.cpp
   unit/test_snaps.cpp
   unit/test_transforms.cpp
   unit/test_modify.cpp

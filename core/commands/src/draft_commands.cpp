@@ -488,6 +488,87 @@ CommandResult handleDimension(CommandContext& ctx, const std::vector<std::string
     return okMsg("DIMLINEAR: need first point");
 }
 
+CommandResult handleBlock(CommandContext& ctx, const std::vector<std::string>& args) {
+    if (ctx.document().selectionOrdered().empty()) {
+        return errMsg("BLOCK: select objects first");
+    }
+    std::string name = ctx.scratch();
+    geometry::Vec2 base{};
+    bool haveBase = false;
+    for (const auto& arg : args) {
+        geometry::Vec2 p;
+        if (parsePointToken(arg, p)) {
+            base = p;
+            haveBase = true;
+        } else if (name.empty()) {
+            name = arg;
+        } else {
+            return errMsg("BLOCK usage: BLOCK <name> <baseX,baseY>");
+        }
+    }
+    if (name.empty()) {
+        return errMsg("BLOCK usage: BLOCK <name> <baseX,baseY>");
+    }
+    ctx.setScratch(name);
+    if (!haveBase) {
+        ctx.setPrompt("Specify insertion base point:");
+        return okMsg("BLOCK: need base point");
+    }
+    try {
+        if (!ctx.document().defineBlockFromSelection(name, base)) {
+            return errMsg("BLOCK failed");
+        }
+        ctx.clearInputs();
+        ctx.setScratch("");
+        ctx.setPrompt("");
+        return okMsg("Block " + name + " defined");
+    } catch (const std::exception& ex) {
+        return errMsg(ex.what());
+    }
+}
+
+CommandResult handleInsert(CommandContext& ctx, const std::vector<std::string>& args) {
+    // INSERT <name> [x,y] [scale] [rotationDeg]
+    std::string name = ctx.scratch();
+    std::vector<geometry::Vec2> points;
+    std::vector<double> numbers;
+    for (const auto& arg : args) {
+        geometry::Vec2 p;
+        double n = 0.0;
+        if (parsePointToken(arg, p)) {
+            points.push_back(p);
+        } else if (parseNumberToken(arg, n)) {
+            numbers.push_back(n);
+        } else if (name.empty()) {
+            name = arg;
+        } else {
+            return errMsg("INSERT usage: INSERT <name> <x,y> [scale] [rotation]");
+        }
+    }
+    if (name.empty()) {
+        return errMsg("INSERT usage: INSERT <name> <x,y> [scale] [rotation]");
+    }
+    if (!ctx.document().findBlock(name)) {
+        return errMsg("Unknown block: " + name);
+    }
+    ctx.setScratch(name);
+    if (points.empty()) {
+        ctx.setPrompt("Specify insertion point:");
+        return okMsg("INSERT: need insertion point");
+    }
+    const double scale = numbers.empty() ? 1.0 : numbers[0];
+    const double rot = numbers.size() >= 2 ? numbers[1] : 0.0;
+    try {
+        const auto id = ctx.document().addInsert(name, points.front(), scale, rot);
+        ctx.clearInputs();
+        ctx.setScratch("");
+        ctx.setPrompt("");
+        return okMsg("INSERT created #" + std::to_string(id), id);
+    } catch (const std::exception& ex) {
+        return errMsg(ex.what());
+    }
+}
+
 CommandResult handleOsnap(CommandContext& ctx, const std::vector<std::string>& args) {
     DraftModes* modes = ctx.modes();
     if (!modes) {
@@ -668,12 +749,26 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Toggle snap modes END/MID/CEN/INT/PER",
         .handler = handleOsnap,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "BLOCK",
+        .label = "Block",
+        .aliases = {"B"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Define block from selection + base point; replaces selection with INSERT",
+        .handler = handleBlock,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "INSERT",
+        .label = "Insert",
+        .aliases = {"I"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Insert block reference: name, point, optional scale/rotation",
+        .handler = handleInsert,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
-        {"BLOCK", {"B"}},       {"INSERT", {"I"}}, {"HATCH", {"H", "BH"}},
-        {"ZOOM", {"Z"}},   {"ARC", {"A"}},    {"MIRROR", {"MI"}},
-        {"STRETCH", {"S"}}, {"EXPLODE", {"X"}},    {"XLINE", {"XL"}},
-        {"PAN", {"P"}},
+        {"HATCH", {"H", "BH"}}, {"ZOOM", {"Z"}}, {"ARC", {"A"}}, {"MIRROR", {"MI"}},
+        {"STRETCH", {"S"}}, {"EXPLODE", {"X"}}, {"XLINE", {"XL"}}, {"PAN", {"P"}},
     };
     for (const auto& [id, aliases] : planned) {
         registry.registerCommand(CommandSpec{

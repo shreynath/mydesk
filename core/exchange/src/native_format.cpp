@@ -238,9 +238,58 @@ std::string serializeNative(const document::Document& doc) {
                 << "}, \"end\": {\"x\": " << dim->end.x << ", \"y\": " << dim->end.y
                 << "}, \"dimLine\": {\"x\": " << dim->dimLine.x << ", \"y\": " << dim->dimLine.y
                 << "}";
+        } else if (const auto* insert = std::get_if<document::InsertEntity>(&entity.geometry)) {
+            oss << "\"blockName\": \"" << escapeJson(insert->blockName) << "\", \"insertion\": {\"x\": "
+                << insert->insertion.x << ", \"y\": " << insert->insertion.y
+                << "}, \"scale\": " << insert->scale << ", \"rotationDeg\": " << insert->rotationDeg
+                << ", \"localBounds\": {\"minX\": " << insert->localBounds.minX << ", \"minY\": "
+                << insert->localBounds.minY << ", \"maxX\": " << insert->localBounds.maxX
+                << ", \"maxY\": " << insert->localBounds.maxY << "}";
         }
         oss << "}";
         if (i + 1 < doc.entities().size()) {
+            oss << ",";
+        }
+        oss << "\n";
+    }
+    oss << "  ],\n";
+    oss << "  \"blocks\": [\n";
+    for (std::size_t bi = 0; bi < doc.blocks().size(); ++bi) {
+        const auto& block = doc.blocks()[bi];
+        oss << "    {\"name\": \"" << escapeJson(block.name) << "\", \"primitives\": [\n";
+        for (std::size_t pi = 0; pi < block.primitives.size(); ++pi) {
+            const auto& prim = block.primitives[pi];
+            document::Entity tmp;
+            tmp.geometry = prim.geometry;
+            oss << "      {\"colorArgb\": " << prim.colorArgb << ", \"kind\": \""
+                << document::entityKindName(tmp.kind()) << "\", ";
+            if (const auto* line = std::get_if<document::LineEntity>(&prim.geometry)) {
+                oss << "\"start\": {\"x\": " << line->start.x << ", \"y\": " << line->start.y
+                    << "}, \"end\": {\"x\": " << line->end.x << ", \"y\": " << line->end.y << "}";
+            } else if (const auto* circle = std::get_if<document::CircleEntity>(&prim.geometry)) {
+                oss << "\"center\": {\"x\": " << circle->center.x << ", \"y\": " << circle->center.y
+                    << "}, \"radius\": " << circle->radius;
+            } else if (const auto* pl = std::get_if<document::PolylineEntity>(&prim.geometry)) {
+                oss << "\"closed\": " << (pl->closed ? "true" : "false") << ", \"vertices\": [";
+                for (std::size_t vi = 0; vi < pl->vertices.size(); ++vi) {
+                    oss << "{\"x\": " << pl->vertices[vi].x << ", \"y\": " << pl->vertices[vi].y
+                        << "}";
+                    if (vi + 1 < pl->vertices.size()) {
+                        oss << ", ";
+                    }
+                }
+                oss << "]";
+            } else {
+                oss << "\"unsupported\": true";
+            }
+            oss << "}";
+            if (pi + 1 < block.primitives.size()) {
+                oss << ",";
+            }
+            oss << "\n";
+        }
+        oss << "    ]}";
+        if (bi + 1 < doc.blocks().size()) {
             oss << ",";
         }
         oss << "\n";
@@ -408,6 +457,26 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
             extractNumberAfterKey(dimSlice, "x", dim.dimLine.x);
             extractNumberAfterKey(dimSlice, "y", dim.dimLine.y);
             entity.geometry = dim;
+        } else if (kind == "INSERT") {
+            document::InsertEntity insert;
+            extractStringField(obj, "blockName", insert.blockName);
+            const auto insPos = obj.find("\"insertion\"");
+            if (insPos != std::string_view::npos) {
+                const auto slice = obj.substr(insPos);
+                extractNumberAfterKey(slice, "x", insert.insertion.x);
+                extractNumberAfterKey(slice, "y", insert.insertion.y);
+            }
+            extractNumberAfterKey(obj, "scale", insert.scale);
+            extractNumberAfterKey(obj, "rotationDeg", insert.rotationDeg);
+            const auto lb = obj.find("\"localBounds\"");
+            if (lb != std::string_view::npos) {
+                const auto slice = obj.substr(lb);
+                extractNumberAfterKey(slice, "minX", insert.localBounds.minX);
+                extractNumberAfterKey(slice, "minY", insert.localBounds.minY);
+                extractNumberAfterKey(slice, "maxX", insert.localBounds.maxX);
+                extractNumberAfterKey(slice, "maxY", insert.localBounds.maxY);
+            }
+            entity.geometry = insert;
         } else {
             report.warnings.push_back("Unsupported entity kind: " + kind);
             continue;
@@ -415,8 +484,69 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         entities.push_back(entity);
     }
 
+    std::vector<document::BlockDefinition> blocks;
+    for (const auto bobj : splitTopLevelObjects(extractArrayBody(json, "blocks"))) {
+        document::BlockDefinition block;
+        extractStringField(bobj, "name", block.name);
+        for (const auto pobj : splitTopLevelObjects(extractArrayBody(bobj, "primitives"))) {
+            document::BlockPrimitive prim;
+            double color = 0;
+            if (extractNumberAfterKey(pobj, "colorArgb", color)) {
+                prim.colorArgb = static_cast<std::uint32_t>(color);
+            }
+            std::string pkind;
+            extractStringField(pobj, "kind", pkind);
+            if (pkind == "LINE") {
+                document::LineEntity line;
+                const auto startPos = pobj.find("\"start\"");
+                const auto endPos = pobj.find("\"end\"");
+                if (startPos == std::string_view::npos || endPos == std::string_view::npos) {
+                    continue;
+                }
+                const auto startSlice = pobj.substr(startPos, endPos - startPos);
+                const auto endSlice = pobj.substr(endPos);
+                extractNumberAfterKey(startSlice, "x", line.start.x);
+                extractNumberAfterKey(startSlice, "y", line.start.y);
+                extractNumberAfterKey(endSlice, "x", line.end.x);
+                extractNumberAfterKey(endSlice, "y", line.end.y);
+                prim.geometry = line;
+            } else if (pkind == "CIRCLE") {
+                document::CircleEntity circle;
+                const auto centerPos = pobj.find("\"center\"");
+                if (centerPos == std::string_view::npos) {
+                    continue;
+                }
+                const auto centerSlice = pobj.substr(centerPos);
+                extractNumberAfterKey(centerSlice, "x", circle.center.x);
+                extractNumberAfterKey(centerSlice, "y", circle.center.y);
+                extractNumberAfterKey(pobj, "radius", circle.radius);
+                prim.geometry = circle;
+            } else if (pkind == "PLINE") {
+                document::PolylineEntity pl;
+                pl.closed = pobj.find("\"closed\": true") != std::string_view::npos;
+                for (const auto vobj : splitTopLevelObjects(extractArrayBody(pobj, "vertices"))) {
+                    geometry::Vec2 v;
+                    extractNumberAfterKey(vobj, "x", v.x);
+                    extractNumberAfterKey(vobj, "y", v.y);
+                    pl.vertices.push_back(v);
+                }
+                if (pl.vertices.size() < 2) {
+                    continue;
+                }
+                prim.geometry = pl;
+            } else {
+                report.warnings.push_back("Skipping unsupported block primitive: " + pkind);
+                continue;
+            }
+            block.primitives.push_back(std::move(prim));
+        }
+        if (!block.name.empty() && !block.primitives.empty()) {
+            blocks.push_back(std::move(block));
+        }
+    }
+
     doc.restoreSnapshot(std::move(layers), std::move(entities), activeLayer, nextEntity, nextLayer,
-                        unitSystem, name);
+                        unitSystem, name, std::move(blocks));
     report.ok = true;
     report.entityCount = doc.entities().size();
     report.layerCount = doc.layers().size();

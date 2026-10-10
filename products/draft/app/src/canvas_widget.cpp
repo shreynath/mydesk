@@ -148,6 +148,24 @@ void CanvasWidget::drawEntity(QPainter& painter, const document::Entity& entity,
         }
         const auto textPos = worldToScreen(layout.textPos);
         painter.drawText(textPos, QString::number(layout.measurement, 'f', 2));
+    } else if (const auto* insert = std::get_if<document::InsertEntity>(&entity.geometry)) {
+        const auto* block = session_.document().findBlock(insert->blockName);
+        if (!block) {
+            return;
+        }
+        for (const auto& prim : block->primitives) {
+            document::Entity proxy = entity;
+            proxy.colorArgb = prim.colorArgb;
+            proxy.geometry = document::transformInsertGeometry(*insert, prim.geometry);
+            const auto argb = session_.document().resolvedEntityColor(proxy);
+            QColor primColor(static_cast<int>((argb >> 16) & 0xFF),
+                             static_cast<int>((argb >> 8) & 0xFF), static_cast<int>(argb & 0xFF),
+                             static_cast<int>((argb >> 24) & 0xFF));
+            if (pen.color() == QColor(255, 196, 72) || pen.color() == QColor(140, 210, 255)) {
+                primColor = pen.color();
+            }
+            drawEntity(painter, proxy, QPen(primColor, pen.widthF()));
+        }
     }
 }
 

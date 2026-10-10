@@ -46,7 +46,8 @@ Last updated: 2026-10-10
 | OS | OSNAP | implemented-tested |
 | DIM | DIMLINEAR | implemented-tested |
 | H / BH | HATCH | not-implemented |
-| B | BLOCK | not-implemented |
+| B | BLOCK | implemented-tested |
+| I | INSERT | implemented-tested |
 
 ## Drawing aids
 

@@ -52,6 +52,49 @@ geometry::Vec2 polylineSegmentEnd(const PolylineEntity& pl, std::size_t i) {
     return pl.vertices[(i + 1) % pl.vertices.size()];
 }
 
+geometry::Vec2 transformInsertPoint(const InsertEntity& insert, geometry::Vec2 local) {
+    const double rad = insert.rotationDeg * kPi / 180.0;
+    const double c = std::cos(rad);
+    const double s = std::sin(rad);
+    const geometry::Vec2 scaled{local.x * insert.scale, local.y * insert.scale};
+    const geometry::Vec2 rotated{scaled.x * c - scaled.y * s, scaled.x * s + scaled.y * c};
+    return insert.insertion + rotated;
+}
+
+geometry::BBox boundsOfGeometry(const EntityGeometry& geometry) {
+    Entity temp;
+    temp.geometry = geometry;
+    return temp.bounds();
+}
+
+EntityGeometry transformInsertGeometry(const InsertEntity& insert, const EntityGeometry& local) {
+    auto map = [&](geometry::Vec2 p) { return transformInsertPoint(insert, p); };
+    if (const auto* line = std::get_if<LineEntity>(&local)) {
+        return LineEntity{map(line->start), map(line->end)};
+    }
+    if (const auto* circle = std::get_if<CircleEntity>(&local)) {
+        return CircleEntity{map(circle->center), circle->radius * std::abs(insert.scale)};
+    }
+    if (const auto* arc = std::get_if<ArcEntity>(&local)) {
+        const double rad = insert.rotationDeg * kPi / 180.0;
+        return ArcEntity{map(arc->center), arc->radius * std::abs(insert.scale),
+                         arc->startAngle + rad, arc->endAngle + rad};
+    }
+    if (const auto* pl = std::get_if<PolylineEntity>(&local)) {
+        PolylineEntity out;
+        out.closed = pl->closed;
+        out.vertices.reserve(pl->vertices.size());
+        for (const auto& v : pl->vertices) {
+            out.vertices.push_back(map(v));
+        }
+        return out;
+    }
+    if (const auto* dim = std::get_if<DimensionLinearEntity>(&local)) {
+        return DimensionLinearEntity{map(dim->start), map(dim->end), map(dim->dimLine)};
+    }
+    return local;
+}
+
 DimensionLayout layoutDimension(const DimensionLinearEntity& dim) {
     DimensionLayout layout;
     layout.start = dim.start;
@@ -89,6 +132,9 @@ EntityKind Entity::kind() const {
     if (std::holds_alternative<DimensionLinearEntity>(geometry)) {
         return EntityKind::DimensionLinear;
     }
+    if (std::holds_alternative<InsertEntity>(geometry)) {
+        return EntityKind::Insert;
+    }
     return EntityKind::Polyline;
 }
 
@@ -118,6 +164,23 @@ geometry::BBox Entity::bounds() const {
         box.expand(layout.dimStart);
         box.expand(layout.dimEnd);
         box.expand(layout.textPos);
+        return box;
+    }
+    if (const auto* insert = std::get_if<InsertEntity>(&geometry)) {
+        geometry::BBox box;
+        if (!insert->localBounds.isValid()) {
+            box.expand(insert->insertion);
+            return box;
+        }
+        const geometry::Vec2 corners[] = {
+            {insert->localBounds.minX, insert->localBounds.minY},
+            {insert->localBounds.maxX, insert->localBounds.minY},
+            {insert->localBounds.maxX, insert->localBounds.maxY},
+            {insert->localBounds.minX, insert->localBounds.maxY},
+        };
+        for (const auto& c : corners) {
+            box.expand(transformInsertPoint(*insert, c));
+        }
         return box;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
@@ -155,6 +218,12 @@ bool Entity::hitTest(geometry::Vec2 point, double tol) const {
             return true;
         }
         return layout.textPos.distanceTo(point) <= tol * 2.0;
+    }
+    if (std::holds_alternative<InsertEntity>(geometry)) {
+        // Precise insert hit-testing is done via Document::hitTestTop using block defs.
+        const auto box = bounds();
+        return point.x >= box.minX - tol && point.x <= box.maxX + tol &&
+               point.y >= box.minY - tol && point.y <= box.maxY + tol;
     }
     const auto& pl = std::get<PolylineEntity>(geometry);
     const std::size_t n = polylineSegmentCount(pl);
@@ -221,6 +290,14 @@ bool Entity::intersectsRect(const geometry::BBox& rect, bool crossing) const {
                segmentCrossesRect({layout.end, layout.dimEnd}, rect) ||
                rect.contains(layout.textPos);
     }
+    if (std::holds_alternative<InsertEntity>(geometry)) {
+        const auto box = bounds();
+        if (box.maxX < rect.minX || box.minX > rect.maxX || box.maxY < rect.minY ||
+            box.minY > rect.maxY) {
+            return false;
+        }
+        return true;
+    }
     const auto& pl = std::get<PolylineEntity>(geometry);
     const std::size_t n = polylineSegmentCount(pl);
     for (std::size_t i = 0; i < n; ++i) {
@@ -243,6 +320,8 @@ std::string_view entityKindName(EntityKind kind) {
         return "PLINE";
     case EntityKind::DimensionLinear:
         return "DIMLINEAR";
+    case EntityKind::Insert:
+        return "INSERT";
     }
     return "UNKNOWN";
 }
