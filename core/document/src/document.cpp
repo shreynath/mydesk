@@ -240,6 +240,115 @@ bool Document::setLayerThickness(LayerId id, double thickness) {
     return true;
 }
 
+const LayerState* Document::findLayerState(std::string_view name) const {
+    const auto it = std::find_if(layerStates_.begin(), layerStates_.end(), [&](const LayerState& state) {
+        return layerNamesEqual(state.name, name);
+    });
+    return it == layerStates_.end() ? nullptr : &*it;
+}
+
+bool Document::saveLayerState(std::string name) {
+    if (name.empty()) {
+        return false;
+    }
+    LayerState snapshot;
+    snapshot.name = std::move(name);
+    if (const Layer* active = findLayer(activeLayerId_)) {
+        snapshot.activeLayerName = active->name;
+    }
+    snapshot.entries.reserve(layers_.size());
+    for (const auto& layer : layers_) {
+        snapshot.entries.push_back(LayerStateEntry{
+            layer.name, layer.visible, layer.locked, layer.frozen, layer.plottable,
+            layer.colorArgb, layer.linetype, layer.lineweightMm, layer.transparency,
+            layer.thickness});
+    }
+    const auto it = std::find_if(layerStates_.begin(), layerStates_.end(), [&](const LayerState& state) {
+        return layerNamesEqual(state.name, snapshot.name);
+    });
+    if (it == layerStates_.end()) {
+        layerStates_.push_back(std::move(snapshot));
+    } else {
+        *it = std::move(snapshot);
+    }
+    dirty_ = true;
+    return true;
+}
+
+bool Document::restoreLayerState(std::string_view name) {
+    const LayerState* stored = findLayerState(name);
+    if (!stored) {
+        return false;
+    }
+    // Copy because applying the transaction can reallocate unrelated containers
+    // in future implementations without invalidating our source snapshot.
+    const LayerState state = *stored;
+    Transaction tx;
+    tx.label = "LAYERSTATE RESTORE " + state.name;
+    for (const auto& entry : state.entries) {
+        Layer* current = findLayerByName(entry.layerName);
+        if (!current) {
+            continue;
+        }
+        Layer after = *current;
+        after.visible = entry.visible;
+        after.locked = entry.locked;
+        after.frozen = entry.frozen;
+        after.plottable = entry.plottable;
+        after.colorArgb = entry.colorArgb;
+        after.linetype = entry.linetype;
+        after.lineweightMm = entry.lineweightMm;
+        after.transparency = entry.transparency;
+        after.thickness = entry.thickness;
+        if (after.visible != current->visible || after.locked != current->locked ||
+            after.frozen != current->frozen || after.plottable != current->plottable ||
+            after.colorArgb != current->colorArgb || after.linetype != current->linetype ||
+            after.lineweightMm != current->lineweightMm ||
+            after.transparency != current->transparency || after.thickness != current->thickness) {
+            HistoryOp op;
+            op.kind = HistoryOpKind::ReplaceLayer;
+            op.beforeLayer = *current;
+            op.afterLayer = after;
+            tx.ops.push_back(std::move(op));
+        }
+    }
+    LayerId restoredActive = activeLayerId_;
+    if (const Layer* layer = findLayerByName(state.activeLayerName)) {
+        restoredActive = layer->id;
+    }
+    if (restoredActive != activeLayerId_) {
+        HistoryOp op;
+        op.kind = HistoryOpKind::SetActiveLayer;
+        op.beforeActiveLayer = activeLayerId_;
+        op.afterActiveLayer = restoredActive;
+        tx.ops.push_back(std::move(op));
+    }
+    if (tx.ops.empty()) {
+        return true;
+    }
+    for (const auto& op : tx.ops) {
+        if (op.kind == HistoryOpKind::ReplaceLayer) {
+            applyReplaceLayer(op.afterLayer);
+        } else if (op.kind == HistoryOpKind::SetActiveLayer) {
+            applySetActiveLayer(op.afterActiveLayer);
+        }
+    }
+    commit(std::move(tx));
+    return true;
+}
+
+bool Document::deleteLayerState(std::string_view name) {
+    const auto it = std::find_if(layerStates_.begin(), layerStates_.end(), [&](const LayerState& state) {
+        return layerNamesEqual(state.name, name);
+    });
+    if (it == layerStates_.end()) {
+        return false;
+    }
+    layerStates_.erase(it);
+    dirty_ = true;
+    return true;
+}
+
 void Document::setLinetypeScale(double scale) {
     if (!(scale > 0.0) || !std::isfinite(scale)) {
         throw std::invalid_argument("linetype scale must be positive");
@@ -1297,13 +1406,30 @@ void Document::applyReplaceEntity(const Entity& entity) {
     *existing = entity;
 }
 
+void Document::applyReplaceLayer(const Layer& layer) {
+    Layer* existing = findLayer(layer.id);
+    if (!existing) {
+        throw std::runtime_error("replace layer target missing");
+    }
+    *existing = layer;
+}
+
+void Document::applySetActiveLayer(LayerId id) {
+    if (!findLayer(id)) {
+        throw std::runtime_error("active layer target missing");
+    }
+    activeLayerId_ = id;
+}
+
 void Document::restoreSnapshot(std::vector<Layer> layers, std::vector<Entity> entities, LayerId active,
                                EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
                                std::string name, std::vector<BlockDefinition> blocks,
-                               double linetypeScale, AttributeDisplayMode attdisp) {
+                               double linetypeScale, AttributeDisplayMode attdisp,
+                               std::vector<LayerState> layerStates) {
     layers_ = std::move(layers);
     entities_ = std::move(entities);
     blocks_ = std::move(blocks);
+    layerStates_ = std::move(layerStates);
     activeLayerId_ = active;
     nextEntityId_ = nextEntityId;
     nextLayerId_ = nextLayerId;

@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -78,7 +79,7 @@ public:
     StudioDocument();
 
     [[nodiscard]] const std::string& name() const { return name_; }
-    void setName(std::string name) { name_ = std::move(name); }
+    void setName(std::string name);
 
     // Primitive creation
     ObjectId addBox(std::string name, double length, double width, double height);
@@ -95,6 +96,11 @@ public:
     ModifierId addTwistModifier(ObjectId objId, double angleDeg);
     ModifierId addTurboSmoothModifier(ObjectId objId, int iterations = 1);
     bool setModifierEnabled(ObjectId objId, ModifierId modId, bool enabled);
+    bool setModifierParameter(ObjectId objId, ModifierId modId, std::string parameter, double value);
+    bool moveModifier(ObjectId objId, ModifierId modId, std::size_t newIndex);
+    bool removeModifier(ObjectId objId, ModifierId modId);
+    bool removeObject(ObjectId objId);
+    bool setPrimitiveParameter(ObjectId objId, std::string parameter, double value);
 
     // Evaluation
     void evaluateObject(StudioObject& obj);
@@ -110,6 +116,16 @@ public:
     // Native persistence
     [[nodiscard]] std::string serializeNative() const;
     static StudioDocument deserializeNative(std::string_view json, std::string* error = nullptr);
+    bool saveNativeFile(const std::filesystem::path& path, std::string* error = nullptr) const;
+    static StudioDocument loadNativeFile(const std::filesystem::path& path,
+                                         std::string* error = nullptr);
+
+    // Product-local transactional history. Evaluated meshes are regenerated
+    // from preserved primitive and modifier parameters after restoration.
+    [[nodiscard]] bool canUndo() const noexcept { return !undo_.empty(); }
+    [[nodiscard]] bool canRedo() const noexcept { return !redo_.empty(); }
+    bool undo();
+    bool redo();
 
 private:
     std::string name_{"Untitled_Studio"};
@@ -118,8 +134,21 @@ private:
     ObjectId nextObjId_{1};
     ModifierId nextModId_{1};
 
+    struct Snapshot {
+        std::string name;
+        std::vector<StudioObject> objects;
+        std::vector<PbrMaterial> materials;
+        ObjectId nextObjId{1};
+        ModifierId nextModId{1};
+    };
+    std::vector<Snapshot> undo_;
+    std::vector<Snapshot> redo_;
+
     static MeshGeometry generateBaseMesh(PrimitiveKind prim, const std::unordered_map<std::string, double>& params);
     static void applyModifier(MeshGeometry& mesh, const Modifier& mod);
+    [[nodiscard]] Snapshot capture() const;
+    void restore(Snapshot snapshot);
+    void checkpoint();
 };
 
 } // namespace mydesk::studio

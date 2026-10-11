@@ -5,7 +5,7 @@
   "binary": "MyDeskStudio",
   "target_application": "3ds Max",
   "target_version": "2025",
-  "note": "MyDesk Studio is a modifier-stack-oriented 3D modeling, procedural deformation, and rendering environment targeting Autodesk 3ds Max.",
+  "note": "Tested clean-room procedural-mesh and modifier-stack subsets. FUNCTIONAL entries are not claims of complete 3ds Max parity, professional GUI coverage, animation, or rendering.",
   "capabilities": [
     {
       "id": "MAX-PROCEDURAL-BOX",
@@ -119,7 +119,7 @@
       "performance": "Fast linear subdivision",
       "status": "FUNCTIONAL",
       "evidence": "products/studio/tests/test_studio.cpp",
-      "differences": "Midpoint subdivision verified."
+      "differences": "One through four midpoint-subdivision iterations are evaluated deterministically. This is not Catmull-Clark subdivision and does not yet share edge vertices or preserve crease weights."
     },
     {
       "id": "MAX-OBJ-EXPORT",
@@ -152,12 +152,31 @@
       "expected_output": "Full round-trip document recovery",
       "formats": [".mystudio"],
       "implementation": "products/studio/engine/src/studio_document.cpp",
-      "tests": ["test_studio_native_roundtrip"],
+      "tests": ["test_studio_native_roundtrip", "test_schema_v2_materials_and_atomic_file_roundtrip", "test_native_rejects_malformed_and_unknown_schema"],
       "manual_tests": [],
       "performance": "Fast atomic JSON persistence",
       "status": "FUNCTIONAL",
       "evidence": "products/studio/tests/test_studio.cpp",
-      "differences": "Modifier stack round-trip verified."
+      "differences": "Schema-v2 structural JSON preserves supported objects, stack order and state, parameters, materials, and stable ID allocation; validates temporary saves and retains backups. Schema-v1 migration is supported. Unknown future schemas are rejected. Scene transforms, hierarchy, animation, textures, plugins, and unknown extension data are not yet supported."
+    },
+    {
+      "id": "MAX-MODIFIER-STACK-TRANSACTIONS",
+      "target_application": "3ds Max",
+      "target_version": "2025",
+      "category": "editing",
+      "name": "Non-destructive modifier stack editing with undo and redo",
+      "command": "MODIFIER / MOVE / REMOVE / SET / UNDO / REDO",
+      "reference_behavior": "Edit modifier parameters, enabled state and order non-destructively, regenerate evaluated geometry, and restore edits through undo/redo.",
+      "expected_input": "Primitive with ordered taper and twist modifiers",
+      "expected_output": "Order and parameter changes regenerate the mesh; undo/redo restores stack state and evaluated geometry",
+      "formats": [".mystudio"],
+      "implementation": "products/studio/engine/src/studio_document.cpp",
+      "tests": ["test_modifier_stack_transactions", "test_schema_v2_materials_and_atomic_file_roundtrip"],
+      "manual_tests": [],
+      "performance": "Full selected-object regeneration after each edit",
+      "status": "FUNCTIONAL",
+      "evidence": "products/studio/tests/test_studio.cpp",
+      "differences": "Tested for Bend, Taper, Twist, and midpoint subdivision stacks. Instancing, stack collapse, sub-object selections, world-space modifiers, dependency graphs, and GUI command-panel interaction remain unsupported."
     }
   ]
 }

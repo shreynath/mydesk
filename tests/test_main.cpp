@@ -29,6 +29,7 @@ void test_selection_window_crossing();
 void test_dxf_line_circle_pline_roundtrip();
 void test_layer_command_new_set_off();
 void test_layer_duplicate_new_rejected();
+void test_layer_states_restore_undo_and_roundtrip();
 void test_chprop_and_dimlinear();
 void test_osnap_intersection_perpendicular();
 void test_dim_native_roundtrip();
@@ -65,6 +66,8 @@ int main() {
         {"test_dxf_line_circle_pline_roundtrip", &test_dxf_line_circle_pline_roundtrip},
         {"test_layer_command_new_set_off", &test_layer_command_new_set_off},
         {"test_layer_duplicate_new_rejected", &test_layer_duplicate_new_rejected},
+        {"test_layer_states_restore_undo_and_roundtrip",
+         &test_layer_states_restore_undo_and_roundtrip},
         {"test_chprop_and_dimlinear", &test_chprop_and_dimlinear},
         {"test_osnap_intersection_perpendicular", &test_osnap_intersection_perpendicular},
         {"test_dim_native_roundtrip", &test_dim_native_roundtrip},

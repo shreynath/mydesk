@@ -185,3 +185,8 @@ else()
   message(FATAL_ERROR
     "Product '${MYDESK_PRODUCT}' is unknown. Supported: draft, draft-lt, mechanical, fusion, buildings, civil, infra, coordinate, animate, studio, surface, mill, simulation, vault")
 endif()
+
+# Every configured build produces packaging metadata for exactly one standalone
+# product. Keep this after product selection so all executable install rules are
+# registered before CPack snapshots the install tree.
+include(MyDeskPackaging)

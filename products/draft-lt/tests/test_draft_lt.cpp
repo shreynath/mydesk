@@ -114,6 +114,35 @@ static void test_draft_lt_no_3d_solids() {
     CHECK(!r2.ok);
 }
 
+static void test_draft_lt_layer_states() {
+    Session session;
+    CHECK(session.executeLine("LAYER MAKE ANNOTATION").ok);
+    const auto annotationId = session.document().activeLayerId();
+    CHECK(session.executeLine("LAYER COLOR ANNOTATION 00AAFF").ok);
+    CHECK(session.executeLine("LAYER LTYPE ANNOTATION DASHED").ok);
+    CHECK(session.executeLine("LAYERSTATE SAVE SHEET").ok);
+    CHECK(session.executeLine("LAYER SET 0").ok);
+    CHECK(session.executeLine("LAYER OFF ANNOTATION").ok);
+    CHECK(session.executeLine("LAYER LOCK ANNOTATION").ok);
+    CHECK(session.executeLine("LAYERSTATE RESTORE SHEET").ok);
+    const auto* restored = session.document().findLayer(annotationId);
+    CHECK(restored != nullptr);
+    CHECK(restored->visible);
+    CHECK(!restored->locked);
+    CHECK(restored->colorArgb == 0xFF00AAFFu);
+    CHECK(restored->linetype == Linetype::Dashed);
+    CHECK(session.document().activeLayerId() == annotationId);
+    CHECK(session.executeLine("UNDO").ok);
+    CHECK(!session.document().findLayer(annotationId)->visible);
+    CHECK(session.executeLine("REDO").ok);
+
+    const auto json = mydesk::exchange::serializeNative(session.document());
+    Document loaded;
+    CHECK(mydesk::exchange::deserializeNative(loaded, json).ok);
+    CHECK(loaded.layerStates().size() == 1);
+    CHECK(loaded.findLayerState("sheet") != nullptr);
+}
+
 int main() {
     // Registered capability test identifiers:
     // "test_draft_lt_2d_drafting"
@@ -126,6 +155,8 @@ int main() {
     test_draft_lt_plot();
     // "test_draft_lt_no_3d_solids"
     test_draft_lt_no_3d_solids();
+    // "test_draft_lt_layer_states"
+    test_draft_lt_layer_states();
 
     if (g_failed == 0) {
         std::printf("All Draft LT tests passed.\n");

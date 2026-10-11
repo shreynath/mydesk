@@ -1,0 +1,18 @@
+@MYDESK_PACKAGE_DISPLAY_NAME@ @MYDESK_PACKAGE_VERSION@
+
+@MYDESK_PACKAGE_SUMMARY@.
+
+This package contains only the @MYDESK_PACKAGE_DISPLAY_NAME@ application and
+its product documentation. It is not a suite launcher and does not install any
+other MyDesk product.
+
+Package status
+--------------
+This is an unsigned development package produced by CPack. Third-party runtime
+libraries are not bundled yet. It must not be described as a notarized,
+redistributable, or production installer until the platform release gates in
+docs/PACKAGING.md have passed.
+
+MyDesk is an independent open-source project. It is not affiliated with,
+sponsored by, or endorsed by Autodesk Inc. See LICENSE, NOTICE,
+ATTRIBUTION.md, and THIRD_PARTY.md in this directory.

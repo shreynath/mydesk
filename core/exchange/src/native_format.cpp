@@ -8,7 +8,7 @@ namespace mydesk::exchange {
 
 namespace {
 
-constexpr const char* kSchemaVersion = "6";
+constexpr const char* kSchemaVersion = "7";
 
 std::string escapeJson(std::string_view s) {
     std::string out;
@@ -241,8 +241,37 @@ std::string serializeNative(const document::Document& doc) {
             << ", \"plottable\": " << (layer.plottable ? "true" : "false")
             << ", \"linetype\": \"" << document::linetypeName(layer.linetype)
             << "\", \"lineweightMm\": " << layer.lineweightMm << ", \"colorArgb\": "
-            << layer.colorArgb << "}";
+            << layer.colorArgb << ", \"transparency\": " << layer.transparency
+            << ", \"thickness\": " << layer.thickness << "}";
         if (i + 1 < doc.layers().size()) {
+            oss << ",";
+        }
+        oss << "\n";
+    }
+    oss << "  ],\n";
+    oss << "  \"layerStates\": [\n";
+    for (std::size_t si = 0; si < doc.layerStates().size(); ++si) {
+        const auto& state = doc.layerStates()[si];
+        oss << "    {\"name\": \"" << escapeJson(state.name) << "\", \"activeLayerName\": \""
+            << escapeJson(state.activeLayerName) << "\", \"entries\": [\n";
+        for (std::size_t ei = 0; ei < state.entries.size(); ++ei) {
+            const auto& entry = state.entries[ei];
+            oss << "      {\"layerName\": \"" << escapeJson(entry.layerName)
+                << "\", \"visible\": " << (entry.visible ? "true" : "false")
+                << ", \"locked\": " << (entry.locked ? "true" : "false")
+                << ", \"frozen\": " << (entry.frozen ? "true" : "false")
+                << ", \"plottable\": " << (entry.plottable ? "true" : "false")
+                << ", \"colorArgb\": " << entry.colorArgb << ", \"linetype\": \""
+                << document::linetypeName(entry.linetype) << "\", \"lineweightMm\": "
+                << entry.lineweightMm << ", \"transparency\": " << entry.transparency
+                << ", \"thickness\": " << entry.thickness << "}";
+            if (ei + 1 < state.entries.size()) {
+                oss << ",";
+            }
+            oss << "\n";
+        }
+        oss << "    ]}";
+        if (si + 1 < doc.layerStates().size()) {
             oss << ",";
         }
         oss << "\n";
@@ -398,7 +427,7 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         report.errors.push_back("Missing schemaVersion");
         return report;
     }
-    if (schema != "3" && schema != "4" && schema != "5" && schema != "6") {
+    if (schema != "3" && schema != "4" && schema != "5" && schema != "6" && schema != "7") {
         report.warnings.push_back("schemaVersion " + schema + " differs from supported " +
                                   kSchemaVersion);
     }
@@ -461,11 +490,57 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
         if (extractNumberAfterKey(obj, "colorArgb", color)) {
             layer.colorArgb = static_cast<std::uint32_t>(color);
         }
+        double transparency = static_cast<double>(layer.transparency);
+        if (extractNumberAfterKey(obj, "transparency", transparency) && transparency >= 0.0 &&
+            transparency <= 1.0) {
+            layer.transparency = static_cast<float>(transparency);
+        }
+        extractNumberAfterKey(obj, "thickness", layer.thickness);
         layers.push_back(layer);
     }
     if (layers.empty()) {
         report.errors.push_back("Document has no layers");
         return report;
+    }
+
+    std::vector<document::LayerState> layerStates;
+    for (const auto sobj : splitTopLevelObjects(extractArrayBody(json, "layerStates"))) {
+        document::LayerState state;
+        extractStringField(sobj, "name", state.name);
+        extractStringField(sobj, "activeLayerName", state.activeLayerName);
+        for (const auto eobj : splitTopLevelObjects(extractArrayBody(sobj, "entries"))) {
+            document::LayerStateEntry entry;
+            extractStringField(eobj, "layerName", entry.layerName);
+            extractBoolAfterKey(eobj, "visible", entry.visible);
+            extractBoolAfterKey(eobj, "locked", entry.locked);
+            extractBoolAfterKey(eobj, "frozen", entry.frozen);
+            extractBoolAfterKey(eobj, "plottable", entry.plottable);
+            double color = static_cast<double>(entry.colorArgb);
+            if (extractNumberAfterKey(eobj, "colorArgb", color)) {
+                entry.colorArgb = static_cast<std::uint32_t>(color);
+            }
+            std::string typeName;
+            if (extractStringField(eobj, "linetype", typeName)) {
+                document::Linetype parsed = document::Linetype::Continuous;
+                if (document::parseLinetype(typeName, parsed) &&
+                    parsed != document::Linetype::ByLayer) {
+                    entry.linetype = parsed;
+                }
+            }
+            extractNumberAfterKey(eobj, "lineweightMm", entry.lineweightMm);
+            double transparency = static_cast<double>(entry.transparency);
+            if (extractNumberAfterKey(eobj, "transparency", transparency) && transparency >= 0.0 &&
+                transparency <= 1.0) {
+                entry.transparency = static_cast<float>(transparency);
+            }
+            extractNumberAfterKey(eobj, "thickness", entry.thickness);
+            if (!entry.layerName.empty()) {
+                state.entries.push_back(std::move(entry));
+            }
+        }
+        if (!state.name.empty()) {
+            layerStates.push_back(std::move(state));
+        }
     }
 
     std::vector<document::Entity> entities;
@@ -748,7 +823,8 @@ ConversionReport deserializeNative(document::Document& doc, std::string_view jso
     }
 
     doc.restoreSnapshot(std::move(layers), std::move(entities), activeLayer, nextEntity, nextLayer,
-                        unitSystem, name, std::move(blocks), linetypeScale, attdisp);
+                        unitSystem, name, std::move(blocks), linetypeScale, attdisp,
+                        std::move(layerStates));
     report.ok = true;
     report.entityCount = doc.entities().size();
     report.layerCount = doc.layers().size();

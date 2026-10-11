@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace mydesk::document {
@@ -14,12 +15,22 @@ enum class HistoryOpKind {
     AddEntity,
     RemoveEntity,
     ReplaceEntity,
+    ReplaceLayer,
+    SetActiveLayer,
 };
 
 struct HistoryOp {
+    HistoryOp() = default;
+    HistoryOp(HistoryOpKind opKind, Entity beforeEntity, Entity afterEntity)
+        : kind(opKind), before(std::move(beforeEntity)), after(std::move(afterEntity)) {}
+
     HistoryOpKind kind{HistoryOpKind::AddEntity};
     Entity before;
     Entity after;
+    Layer beforeLayer;
+    Layer afterLayer;
+    LayerId beforeActiveLayer{kInvalidLayerId};
+    LayerId afterActiveLayer{kInvalidLayerId};
 };
 
 struct Transaction {

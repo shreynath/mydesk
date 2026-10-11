@@ -106,3 +106,65 @@ void test_layer_duplicate_new_rejected() {
     auto dup = session.executeLine("LAYER NEW a");
     expect(!dup.ok, "case-insensitive duplicate rejected");
 }
+
+void test_layer_states_restore_undo_and_roundtrip() {
+    mydesk::commands::Session session;
+    auto& doc = session.document();
+    expect(session.executeLine("LAYER MAKE Walls").ok, "make Walls current");
+    const auto wallsId = doc.activeLayerId();
+    expect(doc.setLayerColor(wallsId, 0xFF336699u), "set state color");
+    expect(doc.setLayerLinetype(wallsId, mydesk::document::Linetype::Dashed), "set state linetype");
+    expect(doc.setLayerLineweight(wallsId, 0.50), "set state lineweight");
+    expect(doc.setLayerTransparency(wallsId, 0.65f), "set state transparency");
+    expect(doc.setLayerThickness(wallsId, 12.0), "set state thickness");
+    expect(session.executeLine("LAYERSTATE SAVE Presentation").ok, "save layer state");
+
+    expect(session.executeLine("LAYER SET 0").ok, "change active layer");
+    expect(session.executeLine("LAYER OFF Walls").ok, "turn Walls off");
+    expect(session.executeLine("LAYER FREEZE Walls").ok, "freeze Walls");
+    expect(session.executeLine("LAYER LOCK Walls").ok, "lock Walls");
+    expect(session.executeLine("LAYER NOPLOT Walls").ok, "disable plotting");
+    expect(doc.setLayerColor(wallsId, 0xFFFF0000u), "mutate color");
+    expect(doc.setLayerLinetype(wallsId, mydesk::document::Linetype::Center), "mutate linetype");
+    expect(doc.setLayerLineweight(wallsId, 1.0), "mutate lineweight");
+    expect(doc.setLayerTransparency(wallsId, 0.2f), "mutate transparency");
+    expect(doc.setLayerThickness(wallsId, 1.0), "mutate thickness");
+
+    expect(session.executeLine("LAS RESTORE presentation").ok, "restore is case insensitive");
+    const auto* restored = doc.findLayer(wallsId);
+    expect(restored != nullptr, "Walls still exists");
+    expect(restored->visible && !restored->frozen && !restored->locked && restored->plottable,
+           "visibility, freeze, lock, and plot restored");
+    expect(restored->colorArgb == 0xFF336699u &&
+               restored->linetype == mydesk::document::Linetype::Dashed &&
+               restored->lineweightMm == 0.50 && restored->transparency == 0.65f &&
+               restored->thickness == 12.0,
+           "graphical layer properties restored");
+    expect(doc.activeLayerId() == wallsId, "active layer restored");
+
+    expect(session.executeLine("UNDO").ok, "layer state restore is undoable");
+    const auto* undone = doc.findLayer(wallsId);
+    expect(undone != nullptr && !undone->visible && undone->frozen && undone->locked &&
+               !undone->plottable && undone->colorArgb == 0xFFFF0000u,
+           "undo restores pre-restore properties");
+    expect(doc.findLayer(doc.activeLayerId())->name == "0", "undo restores active layer");
+    expect(session.executeLine("REDO").ok, "layer state restore is redoable");
+
+    const auto json = mydesk::exchange::serializeNative(doc);
+    expect(json.find("\"schemaVersion\": \"7\"") != std::string::npos, "schema 7 emitted");
+    mydesk::document::Document loaded;
+    const auto report = mydesk::exchange::deserializeNative(loaded, json);
+    expect(report.ok, "schema 7 layer state reload");
+    expect(loaded.layerStates().size() == 1, "named layer state persisted");
+    const auto* loadedWalls = loaded.findLayerByName("Walls");
+    expect(loadedWalls != nullptr, "Walls loaded");
+    const auto loadedWallsId = loadedWalls->id;
+    expect(loaded.setActiveLayer(loaded.findLayerByName("0")->id), "change loaded active layer");
+    expect(loaded.setLayerColor(loadedWallsId, 0xFF010203u), "change loaded layer");
+    expect(loaded.restoreLayerState("PRESENTATION"), "persisted state can restore");
+    expect(loaded.findLayer(loadedWallsId)->colorArgb == 0xFF336699u,
+           "persisted snapshot values restore");
+
+    expect(session.executeLine("LAYERSTATE DELETE presentation").ok, "delete state");
+    expect(doc.layerStates().empty(), "deleted state removed");
+}

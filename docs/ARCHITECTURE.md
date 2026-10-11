@@ -32,10 +32,10 @@ Dependency rule: `core/*` must not include Qt. Desktop UI mutates documents only
 
 - Stable `EntityId` / `LayerId`
 - Entities: LINE, CIRCLE, ARC, POLYLINE, aligned DIMLINEAR, INSERT, TEXT, solid HATCH
-- Layers: name, visible, locked, frozen, plottable, color. Freeze is independent of on/off.
+- Layers: name, visible, locked, frozen, plottable, color, linetype, lineweight, transparency, and thickness. Freeze is independent of on/off. Named layer states persist complete property snapshots and restore as one undoable transaction.
 - Coordinates: absolute `x,y`, relative `@dx,dy`, polar `dist<angle` and `@dist<angle`, absolute `#x,y`
-- `HistoryStack` transactions (add/remove/replace). EXPLODE of an insert or polyline is one transaction.
-- Native schema version 4 JSON (`.mydesk`); schema 3 still loads. Selection is ephemeral.
+- `HistoryStack` transactions cover entity add/remove/replace and layer/current-layer restoration. EXPLODE and LAYERSTATE restore each commit as one transaction.
+- Native schema version 7 JSON (`.mydesk`); schemas 3–6 still load. Selection is ephemeral.
 
 ## Future kernels
 

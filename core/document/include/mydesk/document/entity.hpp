@@ -196,6 +196,28 @@ struct Layer {
     double thickness{0.0};
 };
 
+// A named snapshot of layer-table display and plotting properties. Entries are
+// keyed by layer name so a state remains usable when documents are migrated and
+// layer ids are reallocated.
+struct LayerStateEntry {
+    std::string layerName;
+    bool visible{true};
+    bool locked{false};
+    bool frozen{false};
+    bool plottable{true};
+    std::uint32_t colorArgb{0xFFE0E0E0};
+    Linetype linetype{Linetype::Continuous};
+    double lineweightMm{0.25};
+    float transparency{1.0f};
+    double thickness{0.0};
+};
+
+struct LayerState {
+    std::string name;
+    std::string activeLayerName;
+    std::vector<LayerStateEntry> entries;
+};
+
 struct DimensionLayout {
     geometry::Vec2 start;
     geometry::Vec2 end;

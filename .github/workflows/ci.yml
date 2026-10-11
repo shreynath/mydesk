@@ -6,11 +6,13 @@ on:
   pull_request:
 
 jobs:
-  product-linux:
-    name: MyDesk ${{ matrix.product }} (Linux)
+  standalone-products:
+    name: MyDesk ${{ matrix.product }} (${{ matrix.os }})
     strategy:
       fail-fast: false
+      max-parallel: 8
       matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
         product:
           - draft
           - draft-lt
@@ -26,50 +28,6 @@ jobs:
           - mill
           - simulation
           - vault
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build and product dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            qt6-base-dev \
-            libgl1-mesa-dev \
-            libocct-foundation-dev \
-            libocct-modeling-data-dev \
-            libocct-modeling-algorithms-dev \
-            libocct-data-exchange-dev
-
-      - name: Configure standalone product
-        run: |
-          cmake -S . -B "build/ci-${{ matrix.product }}" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DMYDESK_PRODUCT="${{ matrix.product }}" \
-            -DMYDESK_BUILD_DESKTOP=ON \
-            -DMYDESK_BUILD_TESTS=ON
-
-      - name: Build standalone product
-        run: cmake --build "build/ci-${{ matrix.product }}" --parallel 2
-
-      - name: Test standalone product
-        run: ctest --test-dir "build/ci-${{ matrix.product }}" --output-on-failure
-
-  draft-build-test:
-    name: MyDesk Draft (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            preset: ci-linux
-          - os: macos-latest
-            preset: ci-macos
-          - os: windows-latest
-            preset: ci-windows
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -77,56 +35,134 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
+          set -euo pipefail
+          packages=(cmake ninja-build)
+          if [ "${{ matrix.product }}" = draft ]; then
+            packages+=(qt6-base-dev libgl1-mesa-dev)
+          fi
+          if [ "${{ matrix.product }}" = mechanical ] || [ "${{ matrix.product }}" = fusion ]; then
+            packages+=(
+              libocct-foundation-dev
+              libocct-modeling-data-dev
+              libocct-modeling-algorithms-dev
+              libocct-data-exchange-dev
+            )
+          fi
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake qt6-base-dev libgl1-mesa-dev
+          sudo apt-get install -y "${packages[@]}"
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew install ninja cmake qt@6
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install ninja cmake --yes
-          pip install aqtinstall
+          set -euo pipefail
+          packages=(cmake ninja)
+          if [ "${{ matrix.product }}" = draft ]; then
+            packages+=(qt@6)
+          fi
+          if [ "${{ matrix.product }}" = mechanical ] || [ "${{ matrix.product }}" = fusion ]; then
+            packages+=(opencascade)
+          fi
+          brew install "${packages[@]}"
+          if [ "${{ matrix.product }}" = draft ]; then
+            echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install build tools (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: choco install ninja cmake --yes --no-progress
+
+      - name: Configure MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt (Windows Draft)
+        if: runner.os == 'Windows' && matrix.product == 'draft'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install aqtinstall
           aqt install-qt windows desktop 6.7.2 win64_msvc2019_64 -O "$HOME/Qt"
           echo "CMAKE_PREFIX_PATH=$HOME/Qt/6.7.2/msvc2019_64" >> "$GITHUB_ENV"
 
-      - name: Configure Draft desktop
+      - name: Install Open CASCADE (Windows Mechanical/Fusion)
+        if: runner.os == 'Windows' && (matrix.product == 'mechanical' || matrix.product == 'fusion')
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install opencascade:x64-windows
+          $toolchain = "$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -replace '\\', '/'
+          "CMAKE_TOOLCHAIN_FILE=$toolchain" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure standalone product
         shell: bash
         run: |
-          cmake --preset "${{ matrix.preset }}" -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}" -DMYDESK_PRODUCT=draft -DMYDESK_BUILD_DESKTOP=ON
+          set -euo pipefail
+          extra_args=()
+          if [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
+            extra_args+=("-DCMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH")
+          fi
+          if [ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]; then
+            extra_args+=("-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE")
+          fi
+          cmake -S . -B "build/ci-${{ matrix.product }}" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DMYDESK_PRODUCT="${{ matrix.product }}" \
+            -DMYDESK_BUILD_DESKTOP=ON \
+            -DMYDESK_BUILD_TESTS=ON \
+            "${extra_args[@]}"
 
-      - name: Build
+      - name: Build standalone product
         shell: bash
-        run: cmake --build --preset "${{ matrix.preset }}"
+        run: cmake --build "build/ci-${{ matrix.product }}" --parallel 2
 
-      - name: Test
+      - name: Test standalone product
         shell: bash
-        run: ctest --test-dir build/ci --output-on-failure
+        run: ctest --test-dir "build/ci-${{ matrix.product }}" --output-on-failure
+
+      - name: Package standalone product
+        shell: bash
+        run: |
+          set -euo pipefail
+          generator=TGZ
+          if [ "$RUNNER_OS" = Windows ]; then
+            generator=ZIP
+          fi
+          mkdir -p "build/ci-${{ matrix.product }}/packages"
+          cpack \
+            --config "build/ci-${{ matrix.product }}/CPackConfig.cmake" \
+            -G "$generator" \
+            -B "build/ci-${{ matrix.product }}/packages"
+
+      - name: Upload standalone development package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mydesk-${{ matrix.product }}-${{ runner.os }}-development-package
+          path: |
+            build/ci-${{ matrix.product }}/packages/*.tar.gz
+            build/ci-${{ matrix.product }}/packages/*.zip
+            build/ci-${{ matrix.product }}/packages/*.sha256
+          if-no-files-found: error
 
       - name: Draft GUI smoke (macOS/Linux)
-        if: runner.os != 'Windows'
+        if: matrix.product == 'draft' && runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           BIN=""
-          if [ -x build/ci/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft ]; then
-            BIN=build/ci/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft
-          elif [ -x build/ci/products/draft/app/MyDeskDraft ]; then
-            BIN=build/ci/products/draft/app/MyDeskDraft
+          if [ -x build/ci-draft/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft ]; then
+            BIN=build/ci-draft/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft
+          elif [ -x build/ci-draft/products/draft/app/MyDeskDraft ]; then
+            BIN=build/ci-draft/products/draft/app/MyDeskDraft
           else
             echo "MyDeskDraft binary not found" >&2
-            find build/ci -name 'MyDeskDraft*' -type f 2>/dev/null || true
+            find build/ci-draft -name 'MyDeskDraft*' -type f 2>/dev/null || true
             exit 1
           fi
-          # Headless-friendly: start and quit quickly (Qt may need offscreen).
           export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
           "$BIN" --help >/dev/null 2>&1 || true
-          # App may not implement --help; ensure binary is executable and linked.
           test -x "$BIN"
           echo "Smoke OK: $BIN"

@@ -30,7 +30,7 @@ workflows:
 
   - id: layers-command-line
     status: partial
-    notes: NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/NOPLOT/COLOR/LIST; no layer states, filters, or VP overrides
+    notes: NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/NOPLOT/COLOR/LIST plus persistent LAYERSTATE SAVE/RESTORE/DELETE/LIST with undo; no filters, .las interchange, selective masks, or VP overrides
     proof: tests/unit/test_layers.cpp
 
   - id: coordinate-entry

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
-// MyDesk Simulation v0.1.0 — CST FEA application
-// Interactive command-line interface for linear static structural analysis.
+// MyDesk Simulation v0.2.0 — structural FEA application
+// Interactive command-line interface for static and modal analysis.
 #include "mydesk/simulation/simulation_document.hpp"
 
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -15,19 +16,20 @@ using namespace mydesk::simulation;
 static void printBanner() {
     std::cout << R"(
 ╔══════════════════════════════════════════════════════╗
-║      MyDesk Simulation  v0.1.0 — FEA System          ║
+║      MyDesk Simulation  v0.2.0 — FEA System          ║
 ║  Open-source professional structural analysis tool   ║
 ╚══════════════════════════════════════════════════════╝
 Solver: 2D Plane-Stress CST (Constant Strain Triangle)
         Gaussian elimination with partial pivoting
         Von Mises yield criterion
+        Undamped modal analysis with consistent mass
 )" << '\n';
 }
 
 static void printHelp() {
     std::cout <<
         "Commands:\n"
-        "  mat <name> <E_GPa> <nu> <yield_MPa>   Add material\n"
+        "  mat <name> <E_GPa> <nu> <yield_MPa> [density_kg_m3]  Add material\n"
         "  node <x_m> <y_m>                       Add node (metres)\n"
         "  elem <n0> <n1> <n2> <mat_id> [thick_m] Add CST element\n"
         "  fix <node_id> <dof>     Fix DOF: x | y | xy\n"
@@ -35,7 +37,13 @@ static void printHelp() {
         "  nodes                   List nodes\n"
         "  elements                List elements\n"
         "  solve                   Run linear static solve\n"
+        "  modal [mode_count]      Solve undamped natural frequencies\n"
         "  report [output.txt]     Print analysis report\n"
+        "  modalreport [file.txt]  Print last modal analysis report\n"
+        "  save <project.mdsim>    Atomically save native schema-v2 project\n"
+        "  open <project.mdsim>    Open and validate native project\n"
+        "  new                     Clear the current project\n"
+        "  undo | redo             Undo or redo the last model command\n"
         "  demo cantilever         Load cantilever beam benchmark\n"
         "  demo bracket            Load L-bracket benchmark\n"
         "  help                    Show this help\n"
@@ -52,6 +60,18 @@ static std::vector<std::string> tokenize(const std::string& line) {
 
 static double toDouble(const std::string& s) { return std::stod(s); }
 static std::uint32_t toU32(const std::string& s) { return static_cast<std::uint32_t>(std::stoul(s)); }
+
+template <typename Action>
+static void transact(SimulationDocument& doc, const std::string& label, Action&& action) {
+    doc.begin_transaction(label);
+    try {
+        action();
+        doc.commit_transaction();
+    } catch (...) {
+        doc.rollback_transaction();
+        throw;
+    }
+}
 
 // ─── Pre-built benchmarks ────────────────────────────────────────────────────
 
@@ -140,7 +160,9 @@ int main(int argc, char** argv) {
 
     SimulationDocument doc;
     SimulationResult lastResult;
+    ModalResult lastModalResult;
     bool haveSolution = false;
+    bool haveModalSolution = false;
 
     std::cout << "sim> " << std::flush;
     std::string line;
@@ -151,6 +173,7 @@ int main(int argc, char** argv) {
 
         const std::string& cmd = tok[0];
 
+        try {
         if (cmd == "exit" || cmd == "quit") {
             std::cout << "Exiting MyDesk Simulation.\n";
             break;
@@ -164,27 +187,34 @@ int main(int argc, char** argv) {
             m.youngs_modulus_pa = toDouble(tok[2]) * 1e9; // input in GPa
             m.poissons_ratio    = toDouble(tok[3]);
             m.yield_strength_pa = toDouble(tok[4]) * 1e6; // input in MPa
-            auto id = doc.add_material(m);
+            if (tok.size() >= 6) m.density_kg_m3 = toDouble(tok[5]);
+            std::uint32_t id{};
+            transact(doc, "add material", [&] { id = doc.add_material(m); });
             std::cout << "Material [" << id << "] " << m.name
                       << "  E=" << toDouble(tok[2]) << " GPa"
                       << "  nu=" << m.poissons_ratio
                       << "  yield=" << toDouble(tok[4]) << " MPa\n";
             haveSolution = false;
+            haveModalSolution = false;
 
         } else if (cmd == "node" && tok.size() >= 3) {
-            auto id = doc.add_node(toDouble(tok[1]), toDouble(tok[2]));
+            std::uint32_t id{};
+            transact(doc, "add node", [&] { id = doc.add_node(toDouble(tok[1]), toDouble(tok[2])); });
             std::cout << "Node [" << id << "] at ("
                       << toDouble(tok[1]) << ", " << toDouble(tok[2]) << ") m\n";
             haveSolution = false;
+            haveModalSolution = false;
 
         } else if (cmd == "elem" && tok.size() >= 5) {
             auto n0 = toU32(tok[1]), n1 = toU32(tok[2]), n2 = toU32(tok[3]);
             auto mat = toU32(tok[4]);
             double thick = (tok.size() >= 6) ? toDouble(tok[5]) : 0.01;
-            auto id = doc.add_element({n0, n1, n2}, mat, thick);
+            std::uint32_t id{};
+            transact(doc, "add element", [&] { id = doc.add_element({n0, n1, n2}, mat, thick); });
             std::cout << "Element [" << id << "] nodes=(" << n0 << "," << n1 << "," << n2
                       << ")  mat=" << mat << "  t=" << thick << " m\n";
             haveSolution = false;
+            haveModalSolution = false;
 
         } else if (cmd == "fix" && tok.size() >= 3) {
             auto nid = toU32(tok[1]);
@@ -192,17 +222,20 @@ int main(int argc, char** argv) {
             if      (tok[2] == "x")  kind = BCKind::FixedX;
             else if (tok[2] == "y")  kind = BCKind::FixedY;
             else if (tok[2] == "xy") kind = BCKind::FixedXY;
-            doc.add_bc({nid, kind, 0.0});
+            else throw std::invalid_argument("fix DOF must be x, y, or xy");
+            transact(doc, "add boundary condition", [&] { doc.add_bc({nid, kind, 0.0}); });
             std::cout << "Fixed node " << nid << " DOF " << tok[2] << "\n";
             haveSolution = false;
+            haveModalSolution = false;
 
         } else if (cmd == "load" && tok.size() >= 4) {
             auto nid = toU32(tok[1]);
-            doc.add_load({nid, toDouble(tok[2]), toDouble(tok[3])});
+            transact(doc, "add nodal load", [&] { doc.add_load({nid, toDouble(tok[2]), toDouble(tok[3])}); });
             std::cout << "Load on node " << nid
                       << ": Fx=" << toDouble(tok[2]) << " N"
                       << "  Fy=" << toDouble(tok[3]) << " N\n";
             haveSolution = false;
+            haveModalSolution = false;
 
         } else if (cmd == "nodes") {
             for (std::size_t i = 0; i < doc.node_count(); ++i) {
@@ -244,6 +277,21 @@ int main(int argc, char** argv) {
                 std::cout << "ERROR: " << lastResult.message << "\n";
             }
 
+        } else if (cmd == "modal") {
+            const std::size_t count = tok.size() >= 2 ? static_cast<std::size_t>(std::stoul(tok[1])) : 6;
+            std::cout << "Assembling stiffness and consistent mass matrices...\n";
+            lastModalResult = doc.solve_modal(count);
+            haveModalSolution = lastModalResult.converged;
+            if (lastModalResult.converged) {
+                std::cout << "Modal solution converged with " << lastModalResult.modes.size() << " flexible mode(s).\n";
+                for (const auto& mode : lastModalResult.modes)
+                    std::cout << "  Mode " << mode.mode_number << ": " << std::fixed << std::setprecision(6)
+                              << mode.frequency_hz << " Hz  residual=" << std::scientific
+                              << mode.relative_residual << "\n";
+            } else {
+                std::cout << "ERROR: " << lastModalResult.message << "\n";
+            }
+
         } else if (cmd == "report") {
             if (!haveSolution) {
                 std::cout << "No valid solution — run 'solve' first.\n";
@@ -258,14 +306,57 @@ int main(int argc, char** argv) {
                 }
             }
 
+        } else if (cmd == "modalreport") {
+            if (!haveModalSolution) {
+                std::cout << "No valid modal solution — run 'modal' first.\n";
+            } else {
+                const auto report = doc.export_modal_report(lastModalResult);
+                if (tok.size() >= 2) {
+                    std::ofstream file(tok[1]);
+                    if (file) { file << report; std::cout << "Modal report written to " << tok[1] << "\n"; }
+                    else { std::cout << "ERROR: cannot write " << tok[1] << "\n"; }
+                } else {
+                    std::cout << report;
+                }
+            }
+
+        } else if (cmd == "save" && tok.size() >= 2) {
+            doc.save_native_file(tok[1]);
+            std::cout << "Saved validated simulation project to " << tok[1] << "\n";
+
+        } else if (cmd == "open" && tok.size() >= 2) {
+            doc = SimulationDocument::load_native_file(tok[1]);
+            haveSolution = false;
+            haveModalSolution = false;
+            std::cout << "Opened " << tok[1] << ": " << doc.node_count() << " nodes, "
+                      << doc.element_count() << " elements.\n";
+
+        } else if (cmd == "new") {
+            doc = SimulationDocument{};
+            haveSolution = false;
+            haveModalSolution = false;
+            std::cout << "Started a new simulation project.\n";
+
+        } else if (cmd == "undo" || cmd == "redo") {
+            const bool changed = cmd == "undo" ? doc.undo() : doc.redo();
+            if (changed) {
+                haveSolution = false;
+                haveModalSolution = false;
+                std::cout << (cmd == "undo" ? "Undid: " : "Redid: ") << doc.last_history_label() << "\n";
+            } else {
+                std::cout << "Nothing to " << cmd << ".\n";
+            }
+
         } else if (cmd == "demo" && tok.size() >= 2) {
             if (tok[1] == "cantilever") {
                 loadCantilever(doc);
                 haveSolution = false;
+                haveModalSolution = false;
                 std::cout << "Run 'solve' to compute.\n";
             } else if (tok[1] == "bracket") {
                 loadBracket(doc);
                 haveSolution = false;
+                haveModalSolution = false;
                 std::cout << "Run 'solve' to compute.\n";
             } else {
                 std::cout << "Unknown demo. Use: cantilever | bracket\n";
@@ -273,6 +364,9 @@ int main(int argc, char** argv) {
 
         } else {
             std::cout << "Unknown command: " << cmd << "  (type 'help')\n";
+        }
+        } catch (const std::exception& error) {
+            std::cout << "ERROR: " << error.what() << "\n";
         }
 
         std::cout << "sim> " << std::flush;

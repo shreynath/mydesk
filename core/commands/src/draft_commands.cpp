@@ -445,6 +445,43 @@ CommandResult handleLayer(CommandContext& ctx, const std::vector<std::string>& a
         "LAYER usage: NEW|MAKE|SET|ON|OFF|FREEZE|THAW|LOCK|UNLOCK|PLOT|NOPLOT|COLOR|LTYPE|LWEIGHT|LIST|?");
 }
 
+CommandResult handleLayerState(CommandContext& ctx, const std::vector<std::string>& args) {
+    auto& doc = ctx.document();
+    if (args.empty() || normalizeToken(args[0]) == "?" || normalizeToken(args[0]) == "LIST") {
+        std::ostringstream oss;
+        oss << "Layer states (" << doc.layerStates().size() << "):";
+        for (const auto& state : doc.layerStates()) {
+            oss << "\n  " << state.name << " (" << state.entries.size() << " layers, current="
+                << state.activeLayerName << ")";
+        }
+        return okMsg(oss.str());
+    }
+    const std::string op = normalizeToken(args[0]);
+    if (args.size() != 2) {
+        return errMsg("LAYERSTATE " + op + " requires a state name");
+    }
+    const std::string& name = args[1];
+    if (op == "SAVE") {
+        if (!doc.saveLayerState(name)) {
+            return errMsg("LAYERSTATE SAVE requires a non-empty name");
+        }
+        return okMsg("Layer state '" + name + "' saved");
+    }
+    if (op == "RESTORE") {
+        if (!doc.restoreLayerState(name)) {
+            return errMsg("Unknown layer state: " + name);
+        }
+        return okMsg("Layer state '" + name + "' restored");
+    }
+    if (op == "DELETE") {
+        if (!doc.deleteLayerState(name)) {
+            return errMsg("Unknown layer state: " + name);
+        }
+        return okMsg("Layer state '" + name + "' deleted");
+    }
+    return errMsg("LAYERSTATE usage: SAVE|RESTORE|DELETE|LIST [name]");
+}
+
 CommandResult handleChprop(CommandContext& ctx, const std::vector<std::string>& args) {
     auto selected = ctx.document().selectionOrdered();
     if (selected.empty()) {
@@ -1424,6 +1461,14 @@ void registerDraftCommands(CommandRegistry& registry) {
         .status = CommandStatus::ImplementedTested,
         .notes = "Command-line layer manager: NEW/MAKE/SET/ON/OFF/FREEZE/THAW/LOCK/UNLOCK/PLOT/NOPLOT/COLOR/LIST",
         .handler = handleLayer,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "LAYERSTATE",
+        .label = "Layer State Manager",
+        .aliases = {"LAS"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Save, list, restore, and delete persistent named layer-property snapshots",
+        .handler = handleLayerState,
     });
     registry.registerCommand(CommandSpec{
         .id = "CHPROP",

@@ -1,6 +1,8 @@
-# Build instructions — MyDesk Draft
+# Build instructions — MyDesk standalone products
 
-Default product is Draft (`MYDESK_PRODUCT=draft`). Other catalog products are not buildable yet.
+Default product is Draft (`MYDESK_PRODUCT=draft`). Each other preset selects
+and builds one independent product; see `CMakePresets.json` for the complete
+list. Mechanical and Fusion additionally require Open CASCADE.
 
 ## macOS
 
@@ -53,3 +55,16 @@ cmake --preset headless
 cmake --build --preset headless
 ctest --preset headless
 ```
+
+## Standalone development packages
+
+After building and testing a product, use its generated CPack configuration:
+
+```bash
+cpack --config build/mill/CPackConfig.cmake -G TGZ -B build/mill/packages
+```
+
+The resulting artifact contains only that selected application and its package
+metadata. These are unsigned development packages whose external runtimes are
+not yet bundled. See [`docs/PACKAGING.md`](PACKAGING.md) for the verified
+install contract and the remaining native release gates.

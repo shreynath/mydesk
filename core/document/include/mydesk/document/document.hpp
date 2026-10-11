@@ -35,6 +35,7 @@ public:
     bool setActiveLayer(LayerId id);
 
     [[nodiscard]] const std::vector<Layer>& layers() const { return layers_; }
+    [[nodiscard]] const std::vector<LayerState>& layerStates() const { return layerStates_; }
     [[nodiscard]] const std::vector<Entity>& entities() const { return entities_; }
     [[nodiscard]] const std::vector<BlockDefinition>& blocks() const { return blocks_; }
     [[nodiscard]] const BlockDefinition* findBlock(std::string_view name) const;
@@ -56,6 +57,12 @@ public:
     bool setLayerLineweight(LayerId id, double millimeters);
     bool setLayerTransparency(LayerId id, float transparency);
     bool setLayerThickness(LayerId id, double thickness);
+    // Saves or replaces a case-insensitively named snapshot. Restore affects
+    // layers present in both the snapshot and drawing and is one undoable edit.
+    bool saveLayerState(std::string name);
+    bool restoreLayerState(std::string_view name);
+    bool deleteLayerState(std::string_view name);
+    [[nodiscard]] const LayerState* findLayerState(std::string_view name) const;
     [[nodiscard]] double linetypeScale() const { return linetypeScale_; }
     void setLinetypeScale(double scale);
     [[nodiscard]] bool isEntityVisible(const Entity& entity) const;
@@ -144,6 +151,8 @@ public:
     void applyAddEntity(const Entity& entity);
     void applyRemoveEntity(EntityId id);
     void applyReplaceEntity(const Entity& entity);
+    void applyReplaceLayer(const Layer& layer);
+    void applySetActiveLayer(LayerId id);
 
     [[nodiscard]] EntityId nextEntityIdPeek() const { return nextEntityId_; }
     [[nodiscard]] LayerId nextLayerIdPeek() const { return nextLayerId_; }
@@ -153,7 +162,8 @@ public:
                          EntityId nextEntityId, LayerId nextLayerId, units::UnitSystem units,
                          std::string name, std::vector<BlockDefinition> blocks = {},
                          double linetypeScale = 1.0,
-                         AttributeDisplayMode attdisp = AttributeDisplayMode::Normal);
+                         AttributeDisplayMode attdisp = AttributeDisplayMode::Normal,
+                         std::vector<LayerState> layerStates = {});
 
     void markClean();
     [[nodiscard]] bool isDirty() const { return dirty_; }
@@ -183,6 +193,7 @@ private:
     std::string name_{"Drawing1"};
     units::UnitSystem units_{};
     std::vector<Layer> layers_;
+    std::vector<LayerState> layerStates_;
     std::vector<Entity> entities_;
     std::vector<BlockDefinition> blocks_;
     std::vector<Layout> layouts_;

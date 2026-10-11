@@ -5,10 +5,10 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <optional>
 
 namespace mydesk::simulation {
 
@@ -84,6 +84,22 @@ struct SimulationResult {
     double max_von_mises{};
 };
 
+// A real-valued undamped normal mode.  The shape is mass-normalized, so
+// phi^T M phi = 1.  Rigid-body modes are not returned.
+struct ModalMode {
+    std::size_t mode_number{};
+    double eigenvalue_rad2_s2{};
+    double frequency_hz{};
+    std::vector<NodeResult> shape;
+    double relative_residual{}; ///< ||K phi - lambda M phi|| / max(||K phi||, eps)
+};
+
+struct ModalResult {
+    bool converged{false};
+    std::string message;
+    std::vector<ModalMode> modes;
+};
+
 // ────────────────────────────────────────────────────────────────────────────
 // Document
 // ────────────────────────────────────────────────────────────────────────────
@@ -94,6 +110,7 @@ public:
     // Materials
     std::uint32_t add_material(Material m);
     Material&     material(std::uint32_t id);
+    const Material& material(std::uint32_t id) const;
     std::size_t   material_count() const noexcept { return materials_.size(); }
 
     // Mesh
@@ -109,12 +126,36 @@ public:
     // Boundary conditions and loads
     void add_bc(const BoundaryCondition& bc);
     void add_load(const NodalLoad& load);
+    std::size_t boundary_condition_count() const noexcept { return bcs_.size(); }
+    std::size_t load_count() const noexcept { return loads_.size(); }
 
     // Solve (linear static, plane-stress, CST elements)
     SimulationResult solve() const;
 
+    // Undamped free-vibration analysis, K phi = omega^2 M phi.  Dirichlet
+    // constraints are eliminated exactly and the CST consistent mass matrix
+    // includes the material density and element thickness.
+    ModalResult solve_modal(std::size_t requested_modes = 6) const;
+
     // Report export (plain text)
     std::string export_report(const SimulationResult& res) const;
+    std::string export_modal_report(const ModalResult& res) const;
+
+    // Command transaction boundary used by interactive clients.  A transaction
+    // captures all model inputs; results are intentionally derived, not stored.
+    void begin_transaction(std::string label);
+    void commit_transaction();
+    void rollback_transaction();
+    bool undo();
+    bool redo();
+    bool transaction_active() const noexcept { return transaction_active_; }
+    const std::string& last_history_label() const noexcept { return last_history_label_; }
+
+    // Native schema-v2 project persistence.
+    std::string serialize_native() const;
+    static SimulationDocument deserialize_native(const std::string& text);
+    void save_native_file(const std::filesystem::path& path) const;
+    static SimulationDocument load_native_file(const std::filesystem::path& path);
 
 private:
     std::vector<Material>        materials_;
@@ -123,12 +164,31 @@ private:
     std::vector<BoundaryCondition> bcs_;
     std::vector<NodalLoad>         loads_;
 
+    struct State {
+        std::vector<Material> materials;
+        std::vector<Node2D> nodes;
+        std::vector<Element2D> elements;
+        std::vector<BoundaryCondition> bcs;
+        std::vector<NodalLoad> loads;
+        std::string label;
+    };
+    std::vector<State> undo_stack_;
+    std::vector<State> redo_stack_;
+    std::optional<State> transaction_before_;
+    bool transaction_active_{false};
+    std::string transaction_label_;
+    std::string last_history_label_;
+
+    State capture_state(std::string label = {}) const;
+    void restore_state(const State& state);
+
     // Internal helpers
     // Returns 6x6 element stiffness matrix (ke) for a CST element
     std::array<double, 36> element_stiffness(const Element2D& el) const;
 
     // Assemble global stiffness matrix (dense, for small problems)
     std::vector<double> assemble_K() const;
+    std::vector<double> assemble_M() const;
 
     // Apply BCs (penalty method)
     void apply_bcs(std::vector<double>& K, std::vector<double>& F) const;

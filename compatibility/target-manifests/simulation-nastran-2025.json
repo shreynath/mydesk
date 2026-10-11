@@ -5,26 +5,26 @@
   "binary": "MyDeskSimulation",
   "target_application": "Simulation Mechanical / Nastran",
   "target_version": "2025",
-  "note": "MyDesk Simulation provides finite element structural analysis (FEA), 2D plane stress constant strain triangles (CST), Von Mises stress evaluation, material libraries, and yield factor of safety diagnostics targeting Autodesk Nastran and Simulation Mechanical.",
+  "note": "MyDesk Simulation provides a tested independent 2D plane-stress CST workflow for linear static and undamped modal analysis. This is a functional solver subset, not complete Autodesk Nastran or Simulation Mechanical parity.",
   "capabilities": [
     {
       "id": "SIM-MATERIAL-LIBRARY",
       "target_application": "Simulation Mechanical / Nastran",
       "target_version": "2025",
       "category": "materials",
-      "name": "Linear elastic isotropic material database",
+      "name": "Linear elastic isotropic material definitions",
       "command": "MATERIAL / ADD_MATERIAL",
       "reference_behavior": "Define linear elastic isotropic materials with Young's modulus, Poisson's ratio, density, and yield strength.",
       "expected_input": "Young's modulus E, Poisson's ratio nu, yield strength",
-      "expected_output": "Calibrated material definition in simulation project",
+      "expected_output": "Validated material definition in simulation project",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
       "tests": ["test_material_add"],
       "manual_tests": [],
-      "performance": "Instantaneous database lookup",
+      "performance": "In-memory material storage",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Linear elastic isotropic constitutive model verified."
+      "differences": "Validated per-project isotropic properties are implemented; no searchable vendor library, temperature curves, orthotropy, or nonlinear constitutive data."
     },
     {
       "id": "SIM-FEA-MESHING",
@@ -35,15 +35,15 @@
       "command": "MESH / CREATE_ELEMENTS",
       "reference_behavior": "Construct 2D planar finite element meshes with nodes, degrees of freedom, and element thickness.",
       "expected_input": "Node coordinates, element connectivity, thickness",
-      "expected_output": "Consistent topological finite element mesh",
+      "expected_output": "Indexed node and triangle connectivity",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
-      "tests": ["test_mesh_construction"],
+      "tests": ["test_mesh_construction", "test_input_validation"],
       "manual_tests": [],
       "performance": "Linear mesh assembly",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "CST element formulation verified."
+      "differences": "Direct node/CST construction and element validation are tested; no automatic mesh generation, refinement, quality optimization, or 3D topology."
     },
     {
       "id": "SIM-STATIC-SOLVER",
@@ -54,15 +54,15 @@
       "command": "SOLVE / LINEAR_STATIC",
       "reference_behavior": "Assemble global stiffness matrix K, apply Dirichlet boundary constraints, and solve K*u = F for nodal displacements.",
       "expected_input": "Constrained boundary nodes and applied point loads",
-      "expected_output": "Converged global displacement vector matching analytical physics",
+      "expected_output": "Converged global displacement vector for a constrained small model",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
       "tests": ["test_single_element_uniaxial", "test_two_element_bar"],
       "manual_tests": [],
-      "performance": "Fast direct sparse stiffness solver",
+      "performance": "Dense direct solver intended for small models",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Plane stress stiffness assembly and solution verified."
+      "differences": "Small CST benchmarks verify convergence, load direction, constraints, and stress recovery. The dense penalty-based static solver is not a sparse production Nastran solver."
     },
     {
       "id": "SIM-VON-MISES-STRESS",
@@ -81,26 +81,26 @@
       "performance": "Analytical element stress recovery",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Von Mises equivalent yield stress verified."
+      "differences": "Plane-stress recovery and a positive Von Mises result are regression-tested; no nodal averaging, contour rendering, principal-stress UI, or 3D stress tensor."
     },
     {
       "id": "SIM-YIELD-SAFETY-FACTOR",
       "target_application": "Simulation Mechanical / Nastran",
       "target_version": "2025",
       "category": "postprocessing",
-      "name": "Yield factor of safety (FoS) and failure criteria",
+      "name": "Von Mises yield threshold detection",
       "command": "POST / SAFETY_FACTOR",
-      "reference_behavior": "Compare Von Mises equivalent stress against material yield strength to evaluate Factor of Safety.",
+      "reference_behavior": "Compare Von Mises equivalent stress against material yield strength and identify elements at or above yield.",
       "expected_input": "Element stress and material yield limit",
-      "expected_output": "Safety factor FoS and yield threshold detection",
+      "expected_output": "Per-element yield threshold flag",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
       "tests": ["test_yield_detection"],
       "manual_tests": [],
-      "performance": "Instantaneous safety factor calculation",
+      "performance": "Linear pass over recovered element stresses",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Yield factor of safety calculation verified."
+      "differences": "Boolean yield threshold detection is tested; numerical factor-of-safety fields and additional failure criteria are not implemented."
     },
     {
       "id": "SIM-REPORT-EXPORT",
@@ -119,7 +119,45 @@
       "performance": "Fast text generation",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Engineering report export verified."
+      "differences": "Plain-text static and modal reports are implemented; formatted PDF/HTML reports and graphical plots are not."
+    },
+    {
+      "id": "SIM-MODAL-SOLVER",
+      "target_application": "Simulation Mechanical / Nastran",
+      "target_version": "2025",
+      "category": "solver",
+      "name": "Undamped normal-mode analysis",
+      "command": "MODAL / SOLVE_MODES",
+      "reference_behavior": "Assemble stiffness and mass matrices, enforce displacement constraints, and solve the generalized eigenproblem for natural frequencies and mode shapes.",
+      "expected_input": "CST mesh, elastic modulus, density, thickness, and displacement constraints",
+      "expected_output": "Ordered natural frequencies, mass-normalized mode shapes, and eigenpair residuals",
+      "formats": [],
+      "implementation": "products/simulation/engine/src/simulation_document.cpp",
+      "tests": ["test_modal_cst_analytical_frequencies"],
+      "manual_tests": [],
+      "performance": "Dense symmetric eigensolver intended for small models",
+      "status": "FUNCTIONAL",
+      "evidence": "products/simulation/tests/test_simulation.cpp",
+      "differences": "Closed-form two-DOF CST frequencies and residuals are verified. Limited to undamped 2D CST modes; no Lanczos extraction, damping, prestress, frequency response, or 3D elements."
+    },
+    {
+      "id": "SIM-NATIVE-PROJECT-HISTORY",
+      "target_application": "Simulation Mechanical / Nastran",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Versioned native project persistence and model undo/redo",
+      "command": "OPEN / SAVE / UNDO / REDO",
+      "reference_behavior": "Persist a simulation model and support reversible model editing in the application workflow.",
+      "expected_input": "Materials, nodes, CST elements, displacement constraints, and nodal loads",
+      "expected_output": "Validated schema-v2 project round-trip with reversible transactions",
+      "formats": [".mdsim"],
+      "implementation": "products/simulation/engine/src/simulation_document.cpp",
+      "tests": ["test_transaction_undo_redo", "test_native_persistence_roundtrip_and_validation"],
+      "manual_tests": [],
+      "performance": "Whole-document snapshots and JSON files intended for small models",
+      "status": "FUNCTIONAL",
+      "evidence": "products/simulation/tests/test_simulation.cpp",
+      "differences": "Schema-v2 round-trip, malformed-version rejection, temporary-file validation, backup creation, undo, redo, and rollback are tested. Solver results and undo history are intentionally not persisted; no Nastran deck interoperability."
     }
   ]
 }

@@ -10,9 +10,11 @@ A release is **not** done because the window opens. Minimum shipping gates for a
 - [x] Classic coordinate entry, including relative and polar forms
 - [x] Layers: create/set/on/off/freeze/thaw/lock/unlock/plot/color via `LAYER`/`LA`
 - [x] Window/crossing selection; F3/F7/F8/F9 modes
-- [x] Save/reopen native `.mydesk` schema 4; undo/redo for entity edits
+- [x] Save/reopen native `.mydesk` schema 7; undo/redo for entity edits and layer-state restores
 - [x] BLOCK/INSERT and one-level EXPLODE; aligned DIMLINEAR; single-line TEXT; solid HATCH
-- [ ] Linetypes, lineweights, attributes, xrefs
+- [x] Linetypes, lineweights, and block attributes for the documented subsets
+- [x] Named layer-state save/restore/delete/list with native persistence and undo/redo
+- [ ] External references
 - [ ] Industrial-grade curve edge cases and grips
 - [ ] Layouts / paper space / scale-accurate PDF plot
 - [ ] DXF round-trip on a documented corpus (beyond LINE/CIRCLE/ARC/LWPOLYLINE/LAYER)
@@ -24,8 +26,8 @@ A release is **not** done because the window opens. Minimum shipping gates for a
 ## Explicit limitations (current)
 
 - No DWG. DXF is partial (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER).
-- No attributes, xrefs, linetypes, lineweights, or paper-space plot.
-- Layer freeze/plot flags persist. There is no layer-state manager.
+- No xrefs. Attributes, linetypes, lineweights, and paper-space plotting remain limited to the subsets documented in the capability manifest.
+- Layer freeze/plot flags and named layer states persist. Layer-state `.las` interchange, selective masks, and viewport overrides are not implemented.
 - Hatch is a solid fill from a closed polyline.
 - EXPLODE handles inserts and polylines one level deep.
 - Cross-OS GUI CI: see workflow; do not claim platforms not built.

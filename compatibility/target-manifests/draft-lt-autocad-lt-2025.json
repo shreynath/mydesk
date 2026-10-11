@@ -65,6 +65,25 @@
       "differences": "Full parity on standard linetypes and lineweights."
     },
     {
+      "id": "ACADLT-LAYER-STATES",
+      "target_application": "AutoCAD LT",
+      "target_version": "2025",
+      "category": "layers",
+      "name": "Named layer states",
+      "command": "LAYERSTATE / LAS",
+      "reference_behavior": "Named layer snapshots restore drawing visibility and graphical layer properties.",
+      "expected_input": "Save a state, alter layers, restore the state",
+      "expected_output": "Captured properties and current layer are restored as one undoable edit",
+      "formats": [".mydesk"],
+      "implementation": "core/document/src/document.cpp",
+      "tests": ["test_draft_lt_layer_states"],
+      "manual_tests": [],
+      "performance": "Capture and restore are linear in layer count",
+      "status": "FUNCTIONAL",
+      "evidence": "Draft LT regression coverage verifies command save/restore, property and active-layer restoration, undo/redo, and native schema-7 persistence.",
+      "differences": "No .las interchange, selective property masks, viewport overrides, or added-layer restore options."
+    },
+    {
       "id": "ACADLT-PLOT",
       "target_application": "AutoCAD LT",
       "target_version": "2025",

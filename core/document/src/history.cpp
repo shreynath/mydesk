@@ -17,6 +17,12 @@ void applyForward(Document& doc, const HistoryOp& op) {
     case HistoryOpKind::ReplaceEntity:
         doc.applyReplaceEntity(op.after);
         break;
+    case HistoryOpKind::ReplaceLayer:
+        doc.applyReplaceLayer(op.afterLayer);
+        break;
+    case HistoryOpKind::SetActiveLayer:
+        doc.applySetActiveLayer(op.afterActiveLayer);
+        break;
     }
 }
 
@@ -30,6 +36,12 @@ void applyInverse(Document& doc, const HistoryOp& op) {
         break;
     case HistoryOpKind::ReplaceEntity:
         doc.applyReplaceEntity(op.before);
+        break;
+    case HistoryOpKind::ReplaceLayer:
+        doc.applyReplaceLayer(op.beforeLayer);
+        break;
+    case HistoryOpKind::SetActiveLayer:
+        doc.applySetActiveLayer(op.beforeActiveLayer);
         break;
     }
 }

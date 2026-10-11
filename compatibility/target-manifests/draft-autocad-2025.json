@@ -220,7 +220,7 @@
       "performance": "Linear in layer count for name lookup.",
       "status": "PARTIAL_PARITY",
       "evidence": "tests/unit/test_layers.cpp",
-      "differences": "No layer states, filters, description, transparency, viewport overrides, or full layer-manager dialog."
+      "differences": "No layer filters, description, viewport overrides, or full layer-manager dialog. Named layer states are tracked separately by ACAD-LAYER-STATES."
     },
     {
       "id": "ACAD-LAYER-FREEZE",
@@ -708,13 +708,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/document/src/document.cpp",
+      "tests": [
+        "test_layer_states_restore_undo_and_roundtrip"
+      ],
       "manual_tests": [],
       "performance": "Restore is linear in layer count.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Automated coverage saves a named snapshot, restores visibility/freeze/lock/plot/color/linetype/lineweight/transparency/thickness and the current layer, verifies undo/redo, then round-trips and reuses the snapshot through native schema 7.",
+      "differences": "Tested for full-drawing named snapshots and case-insensitive SAVE/RESTORE/DELETE/LIST commands. AutoCAD import/export of .las files, selective property masks, viewport overrides, and restore options for layers added after capture are not implemented."
     },
     {
       "id": "ACAD-UCS",

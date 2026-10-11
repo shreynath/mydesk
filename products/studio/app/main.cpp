@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
-// MyDesk Studio v0.1.0 — 3ds Max-class DCC application
+// MyDesk Studio v0.2.0 — 3ds Max-class DCC application
 // Interactive command-line interface for 3D modeling and animation.
 #include "mydesk/studio/studio_document.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -15,7 +16,7 @@ using namespace mydesk::studio;
 static void printBanner() {
     std::cout << R"(
 ╔══════════════════════════════════════════════════════╗
-║       MyDesk Studio  v0.1.0 — 3D Modeling            ║
+║       MyDesk Studio  v0.2.0 — 3D Modeling            ║
 ║  Open-source Autodesk 3ds Max class alternative      ║
 ╚══════════════════════════════════════════════════════╝
 )" << '\n';
@@ -33,15 +34,25 @@ static void printHelp() {
         "  taper <obj_id> <amount> [curve]         Add Taper modifier\n"
         "  turbosmooth <obj_id> [iterations]       Add TurboSmooth modifier\n"
         "  togglemod <obj_id> <mod_id>             Enable/disable modifier\n"
+        "  setmod <obj_id> <mod_id> <param> <value> Edit modifier parameter\n"
+        "  movemod <obj_id> <mod_id> <index>        Reorder modifier stack\n"
+        "  removemod <obj_id> <mod_id>              Remove modifier\n"
         "\nObjects:\n"
         "  ls                     List all objects\n"
         "  info <obj_id>          Show object details and modifier stack\n"
+        "  setprim <obj_id> <param> <value>  Edit primitive parameter\n"
+        "  delete <obj_id>        Delete object\n"
         "  eval                   Evaluate all objects (update meshes)\n"
         "\nMaterials:\n"
         "  mat <name> <r> <g> <b> [metallic] [roughness]  Add PBR material\n"
         "  mats                   List materials\n"
         "\nExport:\n"
         "  exportobj <obj_id> [output.obj]  Export mesh as Wavefront OBJ\n"
+        "\nProject:\n"
+        "  new [name]            Create a new scene\n"
+        "  open <file.mystudio>  Open a native scene\n"
+        "  save [file.mystudio]  Atomically save the current scene\n"
+        "  undo | redo           Restore transactional edit history\n"
         "\n  help                 Show this help\n"
         "  exit                 Exit\n\n";
 }
@@ -84,6 +95,7 @@ int main(int argc, char** argv) {
 
     StudioDocument doc;
     doc.setName("Untitled");
+    std::filesystem::path currentPath;
 
     std::cout << "studio> " << std::flush;
     std::string line;
@@ -93,6 +105,7 @@ int main(int argc, char** argv) {
         if (tok.empty()) { std::cout << "studio> " << std::flush; continue; }
 
         const std::string& cmd = tok[0];
+        try {
 
         if (cmd == "exit" || cmd == "quit") {
             std::cout << "Exiting MyDesk Studio.\n";
@@ -100,6 +113,43 @@ int main(int argc, char** argv) {
 
         } else if (cmd == "help") {
             printHelp();
+
+        } else if (cmd == "new") {
+            doc = StudioDocument{};
+            if (tok.size() >= 2) doc.setName(tok[1]);
+            currentPath.clear();
+            std::cout << "Created scene '" << doc.name() << "'.\n";
+
+        } else if (cmd == "open" && tok.size() >= 2) {
+            std::string error;
+            StudioDocument loaded = StudioDocument::loadNativeFile(tok[1], &error);
+            if (!error.empty()) {
+                std::cout << "ERROR: " << error << "\n";
+            } else {
+                doc = std::move(loaded);
+                currentPath = tok[1];
+                std::cout << "Opened '" << doc.name() << "' with "
+                          << doc.objects().size() << " objects.\n";
+            }
+
+        } else if (cmd == "save") {
+            if (tok.size() >= 2) currentPath = tok[1];
+            if (currentPath.empty()) {
+                std::cout << "ERROR: provide a .mystudio path for the first save.\n";
+            } else {
+                std::string error;
+                if (doc.saveNativeFile(currentPath, &error)) {
+                    std::cout << "Saved " << currentPath.string() << "\n";
+                } else {
+                    std::cout << "ERROR: " << error << "\n";
+                }
+            }
+
+        } else if (cmd == "undo") {
+            std::cout << (doc.undo() ? "Undid last edit.\n" : "Nothing to undo.\n");
+
+        } else if (cmd == "redo") {
+            std::cout << (doc.redo() ? "Redid last edit.\n" : "Nothing to redo.\n");
 
         } else if (cmd == "box" && tok.size() >= 5) {
             auto id = doc.addBox(tok[1], toDouble(tok[2]), toDouble(tok[3]), toDouble(tok[4]));
@@ -177,6 +227,32 @@ int main(int argc, char** argv) {
                 }
             }
 
+        } else if (cmd == "setmod" && tok.size() >= 5) {
+            const bool changed = doc.setModifierParameter(
+                toObjId(tok[1]), static_cast<ModifierId>(std::stoull(tok[2])),
+                tok[3], toDouble(tok[4]));
+            std::cout << (changed ? "Modifier parameter updated.\n" : "Modifier edit rejected.\n");
+
+        } else if (cmd == "movemod" && tok.size() >= 4) {
+            const bool changed = doc.moveModifier(
+                toObjId(tok[1]), static_cast<ModifierId>(std::stoull(tok[2])),
+                static_cast<std::size_t>(std::stoull(tok[3])));
+            std::cout << (changed ? "Modifier reordered.\n" : "Modifier reorder rejected.\n");
+
+        } else if (cmd == "removemod" && tok.size() >= 3) {
+            const bool changed = doc.removeModifier(
+                toObjId(tok[1]), static_cast<ModifierId>(std::stoull(tok[2])));
+            std::cout << (changed ? "Modifier removed.\n" : "Modifier not found.\n");
+
+        } else if (cmd == "setprim" && tok.size() >= 4) {
+            const bool changed = doc.setPrimitiveParameter(toObjId(tok[1]), tok[2],
+                                                           toDouble(tok[3]));
+            std::cout << (changed ? "Primitive parameter updated.\n" : "Primitive edit rejected.\n");
+
+        } else if (cmd == "delete" && tok.size() >= 2) {
+            std::cout << (doc.removeObject(toObjId(tok[1])) ?
+                          "Object deleted.\n" : "Object not found.\n");
+
         } else if (cmd == "ls") {
             if (doc.objects().empty()) { std::cout << "  (no objects)\n"; }
             for (const auto& obj : doc.objects()) {
@@ -250,6 +326,9 @@ int main(int argc, char** argv) {
 
         } else {
             std::cout << "Unknown command: " << cmd << "  (type 'help')\n";
+        }
+        } catch (const std::exception& exception) {
+            std::cout << "ERROR: " << exception.what() << "\n";
         }
 
         std::cout << "studio> " << std::flush;

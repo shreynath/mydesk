@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "mydesk/studio/studio_document.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
+#include <system_error>
 
 namespace mydesk::studio {
 
@@ -12,42 +18,18 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-std::string escapeJson(std::string_view s) {
-    std::string out;
-    out.reserve(s.size() + 8);
-    for (char c : s) {
-        if (c == '"' || c == '\\') {
-            out.push_back('\\');
-        }
-        out.push_back(c);
-    }
-    return out;
+bool finitePositive(double value) noexcept {
+    return std::isfinite(value) && value > 0.0;
 }
 
-bool extractString(std::string_view json, std::string_view key, std::string& out) {
-    const std::string needle = "\"" + std::string(key) + "\"";
-    const auto pos = json.find(needle);
-    if (pos == std::string_view::npos) return false;
-    const auto q1 = json.find('"', json.find(':', pos));
-    if (q1 == std::string_view::npos) return false;
-    const auto q2 = json.find('"', q1 + 1);
-    if (q2 == std::string_view::npos) return false;
-    out = std::string(json.substr(q1 + 1, q2 - q1 - 1));
-    return true;
+bool validPrimitive(int value) noexcept {
+    return value >= static_cast<int>(PrimitiveKind::Box) &&
+           value <= static_cast<int>(PrimitiveKind::Sphere);
 }
 
-bool extractNumber(std::string_view json, std::string_view key, double& out) {
-    const std::string needle = "\"" + std::string(key) + "\"";
-    const auto pos = json.find(needle);
-    if (pos == std::string_view::npos) return false;
-    const auto colon = json.find(':', pos);
-    if (colon == std::string_view::npos) return false;
-    try {
-        out = std::stod(std::string(json.substr(colon + 1)));
-        return std::isfinite(out);
-    } catch (...) {
-        return false;
-    }
+bool validModifier(int value) noexcept {
+    return value >= static_cast<int>(ModifierKind::Bend) &&
+           value <= static_cast<int>(ModifierKind::TurboSmooth);
 }
 
 } // namespace
@@ -88,7 +70,55 @@ std::array<double, 6> MeshGeometry::computeBoundingBox() const {
 
 StudioDocument::StudioDocument() = default;
 
+StudioDocument::Snapshot StudioDocument::capture() const {
+    return {name_, objects_, materials_, nextObjId_, nextModId_};
+}
+
+void StudioDocument::restore(Snapshot snapshot) {
+    name_ = std::move(snapshot.name);
+    objects_ = std::move(snapshot.objects);
+    materials_ = std::move(snapshot.materials);
+    nextObjId_ = snapshot.nextObjId;
+    nextModId_ = snapshot.nextModId;
+    evaluateAll();
+}
+
+void StudioDocument::checkpoint() {
+    undo_.push_back(capture());
+    redo_.clear();
+}
+
+void StudioDocument::setName(std::string name) {
+    if (name.empty()) throw std::invalid_argument("scene name cannot be empty");
+    if (name == name_) return;
+    checkpoint();
+    name_ = std::move(name);
+}
+
+bool StudioDocument::undo() {
+    if (undo_.empty()) return false;
+    redo_.push_back(capture());
+    Snapshot previous = std::move(undo_.back());
+    undo_.pop_back();
+    restore(std::move(previous));
+    return true;
+}
+
+bool StudioDocument::redo() {
+    if (redo_.empty()) return false;
+    undo_.push_back(capture());
+    Snapshot next = std::move(redo_.back());
+    redo_.pop_back();
+    restore(std::move(next));
+    return true;
+}
+
 ObjectId StudioDocument::addBox(std::string name, double length, double width, double height) {
+    if (name.empty() || !finitePositive(length) || !finitePositive(width) ||
+        !finitePositive(height)) {
+        throw std::invalid_argument("box name and dimensions must be valid");
+    }
+    checkpoint();
     StudioObject obj;
     obj.id = nextObjId_++;
     obj.name = std::move(name);
@@ -102,6 +132,10 @@ ObjectId StudioDocument::addBox(std::string name, double length, double width, d
 }
 
 ObjectId StudioDocument::addCylinder(std::string name, double radius, double height, int sides) {
+    if (name.empty() || !finitePositive(radius) || !finitePositive(height) || sides < 3) {
+        throw std::invalid_argument("cylinder name, dimensions, and side count must be valid");
+    }
+    checkpoint();
     StudioObject obj;
     obj.id = nextObjId_++;
     obj.name = std::move(name);
@@ -115,6 +149,10 @@ ObjectId StudioDocument::addCylinder(std::string name, double radius, double hei
 }
 
 ObjectId StudioDocument::addSphere(std::string name, double radius, int segments) {
+    if (name.empty() || !finitePositive(radius) || segments < 4) {
+        throw std::invalid_argument("sphere name, radius, and segment count must be valid");
+    }
+    checkpoint();
     StudioObject obj;
     obj.id = nextObjId_++;
     obj.name = std::move(name);
@@ -142,7 +180,9 @@ const StudioObject* StudioDocument::findObject(ObjectId id) const {
 
 ModifierId StudioDocument::addBendModifier(ObjectId objId, double angleDeg, double directionDeg) {
     auto* obj = findObject(objId);
-    if (!obj) return 0;
+    if (!obj || !std::isfinite(angleDeg) || !std::isfinite(directionDeg)) return 0;
+    checkpoint();
+    obj = findObject(objId);
     Modifier m;
     m.id = nextModId_++;
     m.kind = ModifierKind::Bend;
@@ -156,7 +196,9 @@ ModifierId StudioDocument::addBendModifier(ObjectId objId, double angleDeg, doub
 
 ModifierId StudioDocument::addTaperModifier(ObjectId objId, double amount, double curve) {
     auto* obj = findObject(objId);
-    if (!obj) return 0;
+    if (!obj || !std::isfinite(amount) || !std::isfinite(curve)) return 0;
+    checkpoint();
+    obj = findObject(objId);
     Modifier m;
     m.id = nextModId_++;
     m.kind = ModifierKind::Taper;
@@ -170,7 +212,9 @@ ModifierId StudioDocument::addTaperModifier(ObjectId objId, double amount, doubl
 
 ModifierId StudioDocument::addTwistModifier(ObjectId objId, double angleDeg) {
     auto* obj = findObject(objId);
-    if (!obj) return 0;
+    if (!obj || !std::isfinite(angleDeg)) return 0;
+    checkpoint();
+    obj = findObject(objId);
     Modifier m;
     m.id = nextModId_++;
     m.kind = ModifierKind::Twist;
@@ -183,7 +227,9 @@ ModifierId StudioDocument::addTwistModifier(ObjectId objId, double angleDeg) {
 
 ModifierId StudioDocument::addTurboSmoothModifier(ObjectId objId, int iterations) {
     auto* obj = findObject(objId);
-    if (!obj) return 0;
+    if (!obj || iterations < 1 || iterations > 4) return 0;
+    checkpoint();
+    obj = findObject(objId);
     Modifier m;
     m.id = nextModId_++;
     m.kind = ModifierKind::TurboSmooth;
@@ -199,12 +245,96 @@ bool StudioDocument::setModifierEnabled(ObjectId objId, ModifierId modId, bool e
     if (!obj) return false;
     for (auto& mod : obj->modifierStack) {
         if (mod.id == modId) {
-            mod.enabled = enabled;
+            if (mod.enabled == enabled) return true;
+            checkpoint();
+            obj = findObject(objId);
+            auto found = std::find_if(obj->modifierStack.begin(), obj->modifierStack.end(),
+                                      [modId](const Modifier& value) { return value.id == modId; });
+            if (found == obj->modifierStack.end()) return false;
+            found->enabled = enabled;
             evaluateObject(*obj);
             return true;
         }
     }
     return false;
+}
+
+bool StudioDocument::setModifierParameter(ObjectId objId, ModifierId modId,
+                                          std::string parameter, double value) {
+    if (parameter.empty() || !std::isfinite(value)) return false;
+    auto* obj = findObject(objId);
+    if (!obj) return false;
+    auto found = std::find_if(obj->modifierStack.begin(), obj->modifierStack.end(),
+                              [modId](const Modifier& modifier) { return modifier.id == modId; });
+    if (found == obj->modifierStack.end()) return false;
+    if (found->kind == ModifierKind::TurboSmooth &&
+        (parameter != "iterations" || value < 1.0 || value > 4.0 || std::floor(value) != value)) {
+        return false;
+    }
+    checkpoint();
+    obj = findObject(objId);
+    found = std::find_if(obj->modifierStack.begin(), obj->modifierStack.end(),
+                         [modId](const Modifier& modifier) { return modifier.id == modId; });
+    found->parameters[std::move(parameter)] = value;
+    evaluateObject(*obj);
+    return true;
+}
+
+bool StudioDocument::moveModifier(ObjectId objId, ModifierId modId, std::size_t newIndex) {
+    auto* obj = findObject(objId);
+    if (!obj || newIndex >= obj->modifierStack.size()) return false;
+    const auto found = std::find_if(obj->modifierStack.begin(), obj->modifierStack.end(),
+                                    [modId](const Modifier& modifier) { return modifier.id == modId; });
+    if (found == obj->modifierStack.end()) return false;
+    const std::size_t oldIndex = static_cast<std::size_t>(std::distance(obj->modifierStack.begin(), found));
+    if (oldIndex == newIndex) return true;
+    checkpoint();
+    obj = findObject(objId);
+    Modifier moved = std::move(obj->modifierStack[oldIndex]);
+    obj->modifierStack.erase(obj->modifierStack.begin() + static_cast<std::ptrdiff_t>(oldIndex));
+    obj->modifierStack.insert(obj->modifierStack.begin() + static_cast<std::ptrdiff_t>(newIndex),
+                              std::move(moved));
+    evaluateObject(*obj);
+    return true;
+}
+
+bool StudioDocument::removeModifier(ObjectId objId, ModifierId modId) {
+    auto* obj = findObject(objId);
+    if (!obj) return false;
+    const auto found = std::find_if(obj->modifierStack.begin(), obj->modifierStack.end(),
+                                    [modId](const Modifier& modifier) { return modifier.id == modId; });
+    if (found == obj->modifierStack.end()) return false;
+    const std::size_t index = static_cast<std::size_t>(std::distance(obj->modifierStack.begin(), found));
+    checkpoint();
+    obj = findObject(objId);
+    obj->modifierStack.erase(obj->modifierStack.begin() + static_cast<std::ptrdiff_t>(index));
+    evaluateObject(*obj);
+    return true;
+}
+
+bool StudioDocument::removeObject(ObjectId objId) {
+    const auto found = std::find_if(objects_.begin(), objects_.end(),
+                                    [objId](const StudioObject& object) { return object.id == objId; });
+    if (found == objects_.end()) return false;
+    const std::size_t index = static_cast<std::size_t>(std::distance(objects_.begin(), found));
+    checkpoint();
+    objects_.erase(objects_.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
+bool StudioDocument::setPrimitiveParameter(ObjectId objId, std::string parameter, double value) {
+    if (parameter.empty() || !finitePositive(value)) return false;
+    auto* obj = findObject(objId);
+    if (!obj || !obj->primitiveParams.contains(parameter)) return false;
+    if ((parameter == "sides" && (value < 3.0 || std::floor(value) != value)) ||
+        (parameter == "segments" && (value < 4.0 || std::floor(value) != value))) {
+        return false;
+    }
+    checkpoint();
+    obj = findObject(objId);
+    obj->primitiveParams[std::move(parameter)] = value;
+    evaluateObject(*obj);
+    return true;
 }
 
 MeshGeometry StudioDocument::generateBaseMesh(PrimitiveKind prim,
@@ -244,16 +374,18 @@ MeshGeometry StudioDocument::generateBaseMesh(PrimitiveKind prim,
         mesh.vertices.push_back({0.0, 0.0, 0.0});
         mesh.vertices.push_back({0.0, 0.0, h});
 
-        for (int i = 0; i < sides; ++i) {
-            const double theta = (2.0 * kPi * i) / sides;
+        const std::size_t sideCount = static_cast<std::size_t>(sides);
+        for (std::size_t i = 0; i < sideCount; ++i) {
+            const double theta = (2.0 * kPi * static_cast<double>(i)) /
+                                 static_cast<double>(sideCount);
             const double x = r * std::cos(theta);
             const double y = r * std::sin(theta);
             mesh.vertices.push_back({x, y, 0.0}); // bottom rim (2 + 2*i)
             mesh.vertices.push_back({x, y, h});   // top rim (3 + 2*i)
         }
 
-        for (int i = 0; i < sides; ++i) {
-            const std::size_t nextI = (i + 1) % sides;
+        for (std::size_t i = 0; i < sideCount; ++i) {
+            const std::size_t nextI = (i + 1) % sideCount;
             const std::size_t bCur = 2 + 2 * i;
             const std::size_t tCur = 3 + 2 * i;
             const std::size_t bNext = 2 + 2 * nextI;
@@ -272,13 +404,16 @@ MeshGeometry StudioDocument::generateBaseMesh(PrimitiveKind prim,
         const int segs = std::max(4, static_cast<int>(params.at("segments")));
 
         // Simple latitude-longitude sphere mesh
-        for (int lat = 0; lat <= segs; ++lat) {
-            const double theta = (kPi * lat) / segs;
+        const std::size_t segmentCount = static_cast<std::size_t>(segs);
+        for (std::size_t lat = 0; lat <= segmentCount; ++lat) {
+            const double theta = (kPi * static_cast<double>(lat)) /
+                                 static_cast<double>(segmentCount);
             const double sinTheta = std::sin(theta);
             const double cosTheta = std::cos(theta);
 
-            for (int lon = 0; lon <= segs; ++lon) {
-                const double phi = (2.0 * kPi * lon) / segs;
+            for (std::size_t lon = 0; lon <= segmentCount; ++lon) {
+                const double phi = (2.0 * kPi * static_cast<double>(lon)) /
+                                   static_cast<double>(segmentCount);
                 mesh.vertices.push_back({
                     r * sinTheta * std::cos(phi),
                     r * sinTheta * std::sin(phi),
@@ -287,10 +422,10 @@ MeshGeometry StudioDocument::generateBaseMesh(PrimitiveKind prim,
             }
         }
 
-        for (int lat = 0; lat < segs; ++lat) {
-            for (int lon = 0; lon < segs; ++lon) {
-                const std::size_t first = lat * (segs + 1) + lon;
-                const std::size_t second = first + segs + 1;
+        for (std::size_t lat = 0; lat < segmentCount; ++lat) {
+            for (std::size_t lon = 0; lon < segmentCount; ++lon) {
+                const std::size_t first = lat * (segmentCount + 1) + lon;
+                const std::size_t second = first + segmentCount + 1;
                 mesh.triangles.push_back({first, second, first + 1});
                 mesh.triangles.push_back({second, second + 1, first + 1});
             }
@@ -342,28 +477,36 @@ void StudioDocument::applyModifier(MeshGeometry& mesh, const Modifier& mod) {
             v.y = newY;
         }
     } else if (mod.kind == ModifierKind::TurboSmooth) {
-        // 1-to-4 triangle midpoint subdivision
-        std::vector<Triangle> newTris;
-        newTris.reserve(mesh.triangles.size() * 4);
+        const int iterations = std::clamp(
+            static_cast<int>(mod.parameters.count("iterations") ?
+                             mod.parameters.at("iterations") : 1.0), 1, 4);
+        for (int iteration = 0; iteration < iterations; ++iteration) {
+            const std::vector<Triangle> originalTriangles = mesh.triangles;
+            std::vector<Triangle> newTris;
+            newTris.reserve(originalTriangles.size() * 4);
 
-        for (const auto& tri : mesh.triangles) {
-            const auto& v0 = mesh.vertices[tri.v0];
-            const auto& v1 = mesh.vertices[tri.v1];
-            const auto& v2 = mesh.vertices[tri.v2];
+            for (const Triangle& tri : originalTriangles) {
+                const Vec3 v0 = mesh.vertices[tri.v0];
+                const Vec3 v1 = mesh.vertices[tri.v1];
+                const Vec3 v2 = mesh.vertices[tri.v2];
 
-            const std::size_t m01 = mesh.vertices.size();
-            mesh.vertices.push_back({(v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5, (v0.z + v1.z) * 0.5});
-            const std::size_t m12 = mesh.vertices.size();
-            mesh.vertices.push_back({(v1.x + v2.x) * 0.5, (v1.y + v2.y) * 0.5, (v1.z + v2.z) * 0.5});
-            const std::size_t m20 = mesh.vertices.size();
-            mesh.vertices.push_back({(v2.x + v0.x) * 0.5, (v2.y + v0.y) * 0.5, (v2.z + v0.z) * 0.5});
+                const std::size_t m01 = mesh.vertices.size();
+                mesh.vertices.push_back({(v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5,
+                                         (v0.z + v1.z) * 0.5});
+                const std::size_t m12 = mesh.vertices.size();
+                mesh.vertices.push_back({(v1.x + v2.x) * 0.5, (v1.y + v2.y) * 0.5,
+                                         (v1.z + v2.z) * 0.5});
+                const std::size_t m20 = mesh.vertices.size();
+                mesh.vertices.push_back({(v2.x + v0.x) * 0.5, (v2.y + v0.y) * 0.5,
+                                         (v2.z + v0.z) * 0.5});
 
-            newTris.push_back({tri.v0, m01, m20});
-            newTris.push_back({m01, tri.v1, m12});
-            newTris.push_back({m20, m12, tri.v2});
-            newTris.push_back({m01, m12, m20});
+                newTris.push_back({tri.v0, m01, m20});
+                newTris.push_back({m01, tri.v1, m12});
+                newTris.push_back({m20, m12, tri.v2});
+                newTris.push_back({m01, m12, m20});
+            }
+            mesh.triangles = std::move(newTris);
         }
-        mesh.triangles = std::move(newTris);
     }
 }
 
@@ -384,6 +527,12 @@ void StudioDocument::evaluateAll() {
 }
 
 std::size_t StudioDocument::addMaterial(PbrMaterial mat) {
+    if (mat.name.empty() || !std::isfinite(mat.metallic) || !std::isfinite(mat.roughness) ||
+        mat.metallic < 0.0f || mat.metallic > 1.0f ||
+        mat.roughness < 0.0f || mat.roughness > 1.0f) {
+        throw std::invalid_argument("material name, metallic, and roughness values are invalid");
+    }
+    checkpoint();
     const std::size_t idx = materials_.size();
     materials_.push_back(std::move(mat));
     return idx;
@@ -407,143 +556,209 @@ std::string StudioDocument::exportObj(ObjectId objId) const {
 }
 
 std::string StudioDocument::serializeNative() const {
-    std::ostringstream ss;
-    ss << "{\n";
-    ss << "  \"format\": \"mydesk-studio\",\n";
-    ss << "  \"name\": \"" << escapeJson(name_) << "\",\n";
-    ss << "  \"objects\": [\n";
-    for (std::size_t i = 0; i < objects_.size(); ++i) {
-        const auto& obj = objects_[i];
-        ss << "    {\"id\": " << obj.id << ", \"name\": \"" << escapeJson(obj.name)
-           << "\", \"prim\": " << static_cast<int>(obj.primitive) << ", \"params\": {";
-        bool first = true;
-        for (const auto& [k, v] : obj.primitiveParams) {
-            if (!first) ss << ", ";
-            first = false;
-            ss << "\"" << escapeJson(k) << "\": " << v;
+    using nlohmann::json;
+    json root = {
+        {"format", "mydesk-studio"},
+        {"schema_version", 2},
+        {"name", name_},
+        {"next_object_id", nextObjId_},
+        {"next_modifier_id", nextModId_},
+        {"objects", json::array()},
+        {"materials", json::array()}
+    };
+    for (const StudioObject& object : objects_) {
+        json modifiers = json::array();
+        for (const Modifier& modifier : object.modifierStack) {
+            modifiers.push_back({
+                {"id", modifier.id},
+                {"kind", static_cast<int>(modifier.kind)},
+                {"name", modifier.name},
+                {"enabled", modifier.enabled},
+                {"parameters", modifier.parameters}
+            });
         }
-        ss << "}, \"modifiers\": [";
-        for (std::size_t m = 0; m < obj.modifierStack.size(); ++m) {
-            const auto& mod = obj.modifierStack[m];
-            ss << "{\"id\": " << mod.id << ", \"kind\": " << static_cast<int>(mod.kind)
-               << ", \"name\": \"" << escapeJson(mod.name) << "\", \"enabled\": "
-               << (mod.enabled ? "true" : "false") << ", \"params\": {";
-            bool pFirst = true;
-            for (const auto& [pk, pv] : mod.parameters) {
-                if (!pFirst) ss << ", ";
-                pFirst = false;
-                ss << "\"" << escapeJson(pk) << "\": " << pv;
-            }
-            ss << "}}";
-            if (m + 1 < obj.modifierStack.size()) ss << ", ";
-        }
-        ss << "]}";
-        if (i + 1 < objects_.size()) ss << ",";
-        ss << "\n";
+        root["objects"].push_back({
+            {"id", object.id},
+            {"name", object.name},
+            {"primitive", static_cast<int>(object.primitive)},
+            {"parameters", object.primitiveParams},
+            {"modifiers", std::move(modifiers)}
+        });
     }
-    ss << "  ]\n}\n";
-    return ss.str();
+    for (const PbrMaterial& material : materials_) {
+        root["materials"].push_back({
+            {"name", material.name},
+            {"base_color", {material.baseColor[0], material.baseColor[1], material.baseColor[2]}},
+            {"metallic", material.metallic},
+            {"roughness", material.roughness},
+            {"emissive", {material.emissive[0], material.emissive[1], material.emissive[2]}}
+        });
+    }
+    return root.dump(2) + "\n";
 }
 
-StudioDocument StudioDocument::deserializeNative(std::string_view json, std::string* error) {
+StudioDocument StudioDocument::deserializeNative(std::string_view text, std::string* error) {
     StudioDocument doc;
-    std::string format;
-    if (!extractString(json, "format", format) || format != "mydesk-studio") {
-        if (error) *error = "not a mydesk-studio document";
-        return doc;
-    }
-    extractString(json, "name", doc.name_);
-
-    std::size_t search = json.find("\"objects\"");
-    while (search != std::string_view::npos) {
-        const auto idPos = json.find("\"id\":", search);
-        if (idPos == std::string_view::npos) break;
-        StudioObject obj;
-        double id = 0, prim = 0;
-        extractNumber(json.substr(idPos, 30), "id", id);
-        obj.id = static_cast<ObjectId>(id);
-        extractString(json.substr(idPos, 120), "name", obj.name);
-        const auto primPos = json.find("\"prim\":", idPos);
-        if (primPos != std::string_view::npos) {
-            extractNumber(json.substr(primPos, 30), "prim", prim);
-            obj.primitive = static_cast<PrimitiveKind>(prim);
+    if (error) error->clear();
+    try {
+        using nlohmann::json;
+        const json root = json::parse(text.begin(), text.end());
+        if (!root.is_object() || root.value("format", std::string{}) != "mydesk-studio") {
+            throw std::invalid_argument("not a mydesk-studio document");
         }
+        const int schema = root.value("schema_version", 1);
+        if (schema < 1 || schema > 2) throw std::invalid_argument("unsupported schema version");
+        doc.name_ = root.at("name").get<std::string>();
+        if (doc.name_.empty()) throw std::invalid_argument("scene name cannot be empty");
 
-        const auto paramsPos = json.find("\"params\":", idPos);
-        if (paramsPos != std::string_view::npos) {
-            const auto lb = json.find('{', paramsPos);
-            const auto rb = json.find('}', lb);
-            if (lb != std::string_view::npos && rb != std::string_view::npos) {
-                std::string body(json.substr(lb + 1, rb - lb - 1));
-                std::stringstream ss(body);
-                std::string token;
-                while (std::getline(ss, token, ',')) {
-                    const auto q1 = token.find('"');
-                    const auto q2 = token.find('"', q1 + 1);
-                    const auto colon = token.find(':');
-                    if (q1 != std::string_view::npos && q2 != std::string_view::npos && colon != std::string_view::npos) {
-                        const std::string key = token.substr(q1 + 1, q2 - q1 - 1);
-                        const double val = std::stod(token.substr(colon + 1));
-                        obj.primitiveParams[key] = val;
-                    }
+        const json& objects = root.at("objects");
+        if (!objects.is_array()) throw std::invalid_argument("objects must be an array");
+        ObjectId maximumObjectId = 0;
+        ModifierId maximumModifierId = 0;
+        for (const json& storedObject : objects) {
+            StudioObject object;
+            object.id = storedObject.at("id").get<ObjectId>();
+            object.name = storedObject.at("name").get<std::string>();
+            const int primitive = storedObject.contains("primitive") ?
+                                  storedObject.at("primitive").get<int>() :
+                                  storedObject.at("prim").get<int>();
+            if (object.id == 0 || object.name.empty() || !validPrimitive(primitive) ||
+                doc.findObject(object.id)) {
+                throw std::invalid_argument("invalid or duplicate object identity");
+            }
+            object.primitive = static_cast<PrimitiveKind>(primitive);
+            const char* parameterKey = storedObject.contains("parameters") ? "parameters" : "params";
+            object.primitiveParams = storedObject.at(parameterKey)
+                                         .get<std::unordered_map<std::string, double>>();
+            for (const auto& [key, value] : object.primitiveParams) {
+                if (key.empty() || !finitePositive(value)) {
+                    throw std::invalid_argument("invalid primitive parameter");
                 }
             }
-        }
-
-        // Parse modifiers array if present
-        const auto modPos = json.find("\"modifiers\":", idPos);
-        const auto objEnd = json.find("]}", idPos);
-        if (modPos != std::string_view::npos && objEnd != std::string_view::npos && modPos < objEnd) {
-            std::size_t mSearch = modPos;
-            while (true) {
-                const auto mIdPos = json.find("\"id\":", mSearch);
-                if (mIdPos == std::string_view::npos || mIdPos >= objEnd) break;
-                Modifier mod;
-                double mId = 0, mKind = 0;
-                extractNumber(json.substr(mIdPos, 30), "id", mId);
-                mod.id = static_cast<ModifierId>(mId);
-                const auto mKindPos = json.find("\"kind\":", mIdPos);
-                if (mKindPos != std::string_view::npos && mKindPos < objEnd) {
-                    extractNumber(json.substr(mKindPos, 30), "kind", mKind);
-                    mod.kind = static_cast<ModifierKind>(mKind);
-                }
-                extractString(json.substr(mIdPos, 120), "name", mod.name);
-                const auto mParamPos = json.find("\"params\":", mIdPos);
-                if (mParamPos != std::string_view::npos && mParamPos < objEnd) {
-                    const auto mlb = json.find('{', mParamPos);
-                    const auto mrb = json.find('}', mlb);
-                    if (mlb != std::string_view::npos && mrb != std::string_view::npos && mrb < objEnd) {
-                        std::string mBody(json.substr(mlb + 1, mrb - mlb - 1));
-                        std::stringstream mss(mBody);
-                        std::string mToken;
-                        while (std::getline(mss, mToken, ',')) {
-                            const auto mq1 = mToken.find('"');
-                            const auto mq2 = mToken.find('"', mq1 + 1);
-                            const auto mcol = mToken.find(':');
-                            if (mq1 != std::string_view::npos && mq2 != std::string_view::npos && mcol != std::string_view::npos) {
-                                const std::string mkey = mToken.substr(mq1 + 1, mq2 - mq1 - 1);
-                                const double mval = std::stod(mToken.substr(mcol + 1));
-                                mod.parameters[mkey] = mval;
-                            }
+            if (storedObject.contains("modifiers")) {
+                for (const json& storedModifier : storedObject.at("modifiers")) {
+                    Modifier modifier;
+                    modifier.id = storedModifier.at("id").get<ModifierId>();
+                    const int kind = storedModifier.at("kind").get<int>();
+                    if (modifier.id == 0 || !validModifier(kind)) {
+                        throw std::invalid_argument("invalid modifier identity or kind");
+                    }
+                    const auto duplicate = std::find_if(object.modifierStack.begin(),
+                        object.modifierStack.end(), [&modifier](const Modifier& candidate) {
+                            return candidate.id == modifier.id;
+                        });
+                    if (duplicate != object.modifierStack.end()) {
+                        throw std::invalid_argument("duplicate modifier identity");
+                    }
+                    modifier.kind = static_cast<ModifierKind>(kind);
+                    modifier.name = storedModifier.at("name").get<std::string>();
+                    modifier.enabled = storedModifier.value("enabled", true);
+                    parameterKey = storedModifier.contains("parameters") ? "parameters" : "params";
+                    modifier.parameters = storedModifier.at(parameterKey)
+                                              .get<std::unordered_map<std::string, double>>();
+                    for (const auto& [key, value] : modifier.parameters) {
+                        if (key.empty() || !std::isfinite(value)) {
+                            throw std::invalid_argument("invalid modifier parameter");
                         }
                     }
+                    maximumModifierId = std::max(maximumModifierId, modifier.id);
+                    object.modifierStack.push_back(std::move(modifier));
                 }
-                obj.modifierStack.push_back(mod);
-                mSearch = mIdPos + 10;
+            }
+            doc.evaluateObject(object);
+            maximumObjectId = std::max(maximumObjectId, object.id);
+            doc.objects_.push_back(std::move(object));
+        }
+
+        if (schema >= 2 && root.contains("materials")) {
+            for (const json& storedMaterial : root.at("materials")) {
+                PbrMaterial material;
+                material.name = storedMaterial.at("name").get<std::string>();
+                const auto base = storedMaterial.at("base_color").get<std::array<float, 3>>();
+                const auto emissive = storedMaterial.at("emissive").get<std::array<float, 3>>();
+                std::copy(base.begin(), base.end(), material.baseColor);
+                std::copy(emissive.begin(), emissive.end(), material.emissive);
+                material.metallic = storedMaterial.at("metallic").get<float>();
+                material.roughness = storedMaterial.at("roughness").get<float>();
+                if (material.name.empty() || !std::isfinite(material.metallic) ||
+                    !std::isfinite(material.roughness) || material.metallic < 0.0f ||
+                    material.metallic > 1.0f || material.roughness < 0.0f ||
+                    material.roughness > 1.0f) {
+                    throw std::invalid_argument("invalid material");
+                }
+                doc.materials_.push_back(std::move(material));
             }
         }
-
-        doc.evaluateObject(obj);
-        doc.objects_.push_back(std::move(obj));
-
-        if (objEnd != std::string_view::npos) {
-            search = objEnd + 2;
-        } else {
-            search = idPos + 10;
+        doc.nextObjId_ = root.value("next_object_id", maximumObjectId + 1);
+        doc.nextModId_ = root.value("next_modifier_id", maximumModifierId + 1);
+        if (doc.nextObjId_ <= maximumObjectId || doc.nextModId_ <= maximumModifierId) {
+            throw std::invalid_argument("stored next identity is not monotonic");
         }
+    } catch (const std::exception& exception) {
+        doc = StudioDocument{};
+        if (error) *error = exception.what();
     }
-
     return doc;
+}
+
+bool StudioDocument::saveNativeFile(const std::filesystem::path& path, std::string* error) const {
+    if (error) error->clear();
+    if (path.empty()) {
+        if (error) *error = "save path is empty";
+        return false;
+    }
+    const std::filesystem::path temporary = path.string() + ".tmp";
+    const std::filesystem::path backup = path.string() + ".bak";
+    try {
+        {
+            std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+            if (!output) throw std::runtime_error("cannot open temporary save file");
+            output << serializeNative();
+            output.flush();
+            if (!output) throw std::runtime_error("cannot write temporary save file");
+        }
+        std::string validationError;
+        (void)loadNativeFile(temporary, &validationError);
+        if (!validationError.empty()) {
+            throw std::runtime_error("temporary save validation failed: " + validationError);
+        }
+        std::error_code ec;
+        if (std::filesystem::exists(path)) {
+            std::filesystem::copy_file(path, backup,
+                std::filesystem::copy_options::overwrite_existing, ec);
+            if (ec) throw std::runtime_error("cannot create save backup: " + ec.message());
+        }
+        std::filesystem::rename(temporary, path, ec);
+        if (ec) {
+            std::filesystem::remove(path, ec);
+            ec.clear();
+            std::filesystem::rename(temporary, path, ec);
+        }
+        if (ec) throw std::runtime_error("cannot replace project file: " + ec.message());
+        return true;
+    } catch (const std::exception& exception) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
+        if (error) *error = exception.what();
+        return false;
+    }
+}
+
+StudioDocument StudioDocument::loadNativeFile(const std::filesystem::path& path,
+                                               std::string* error) {
+    if (error) error->clear();
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        if (error) *error = "cannot open project file";
+        return {};
+    }
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    if (!input.good() && !input.eof()) {
+        if (error) *error = "cannot read project file";
+        return {};
+    }
+    return deserializeNative(contents.str(), error);
 }
 
 } // namespace mydesk::studio
