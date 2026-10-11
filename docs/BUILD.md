@@ -2,9 +2,9 @@
 
 Default product is Draft (`MYDESK_PRODUCT=draft`). Each other preset selects
 and builds one independent product; see `CMakePresets.json` for the complete
-list. Draft, Mechanical, Buildings, Coordinate, Animate, and Studio require Qt
-6 for their desktop applications. Mechanical and Fusion additionally require
-Open CASCADE.
+list. Draft, Mechanical, Buildings, Coordinate, Animate, Studio, Surface, Mill,
+and Vault require Qt 6 for their desktop applications. Mechanical and Fusion
+additionally require Open CASCADE.
 
 ## macOS
 
