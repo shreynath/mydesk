@@ -55,6 +55,45 @@ foreach(_installed_file IN LISTS _installed_files)
   endif()
 endforeach()
 
+# Products that advertise a deployed macOS runtime must not accidentally keep
+# dependencies on a developer's Homebrew, MacPorts, or home-directory paths.
+# Draft is intentionally excluded until it gains its own deployment rule.
+if(MYDESK_IS_APPLE AND MYDESK_REQUIRE_RELOCATABLE_BUNDLE)
+  set(_frameworks_root
+    "${MYDESK_VERIFY_ROOT}/${MYDESK_EXPECTED_BINARY}.app/Contents/Frameworks")
+  if(NOT EXISTS "${_frameworks_root}/QtCore.framework")
+    message(FATAL_ERROR
+      "${MYDESK_PRODUCT_ID} claims a deployed runtime but QtCore.framework is absent")
+  endif()
+
+  find_program(_mydesk_otool otool REQUIRED)
+  foreach(_installed_file IN LISTS _installed_files)
+    execute_process(
+      COMMAND "${_mydesk_otool}" -l "${_installed_file}"
+      RESULT_VARIABLE _otool_result
+      OUTPUT_VARIABLE _otool_output
+      ERROR_QUIET)
+    if(_otool_result EQUAL 0)
+      string(REPLACE "\n" ";" _otool_lines "${_otool_output}")
+      set(_expect_load_name FALSE)
+      foreach(_otool_line IN LISTS _otool_lines)
+        if(_otool_line MATCHES
+            "^[ \t]*cmd LC_(LOAD|LOAD_WEAK|LAZY_LOAD|LOAD_UPWARD|REEXPORT)_DYLIB")
+          set(_expect_load_name TRUE)
+        elseif(_expect_load_name AND _otool_line MATCHES "^[ \t]*name ([^ ]+)")
+          set(_load_path "${CMAKE_MATCH_1}")
+          set(_expect_load_name FALSE)
+          if(_load_path MATCHES "^/(opt/homebrew|opt/local|usr/local|Users)/")
+            message(FATAL_ERROR
+              "${MYDESK_PRODUCT_ID} installed Mach-O retains a host dependency:\n"
+              "${_installed_file}\n${_load_path}")
+          endif()
+        endif()
+      endforeach()
+    endif()
+  endforeach()
+endif()
+
 set(_metadata_root "${MYDESK_VERIFY_ROOT}/share/mydesk-${MYDESK_PRODUCT_ID}")
 foreach(_metadata README.txt VERSION LICENSE NOTICE ATTRIBUTION.md THIRD_PARTY.md)
   if(NOT EXISTS "${_metadata_root}/${_metadata}")

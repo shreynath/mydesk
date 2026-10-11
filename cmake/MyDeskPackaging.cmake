@@ -76,6 +76,13 @@ if(EXISTS "${_mydesk_product_dir}/docs")
 endif()
 
 if(MYDESK_BUILD_TESTS AND MYDESK_BUILD_DESKTOP)
+  set(_mydesk_relocatable_bundle_products
+    mechanical buildings coordinate animate studio)
+  if(MYDESK_PRODUCT IN_LIST _mydesk_relocatable_bundle_products)
+    set(_mydesk_require_relocatable_bundle TRUE)
+  else()
+    set(_mydesk_require_relocatable_bundle FALSE)
+  endif()
   add_test(NAME packaging.install-contract
     COMMAND "${CMAKE_COMMAND}"
       "-DMYDESK_BUILD_DIR=${PROJECT_BINARY_DIR}"
@@ -84,6 +91,7 @@ if(MYDESK_BUILD_TESTS AND MYDESK_BUILD_DESKTOP)
       "-DMYDESK_EXPECTED_BINARY=${MYDESK_PACKAGE_BINARY}"
       "-DMYDESK_EXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
       "-DMYDESK_IS_APPLE=${APPLE}"
+      "-DMYDESK_REQUIRE_RELOCATABLE_BUNDLE=${_mydesk_require_relocatable_bundle}"
       -P "${PROJECT_SOURCE_DIR}/packaging/verify-install.cmake")
   set_tests_properties(packaging.install-contract PROPERTIES
     LABELS "packaging")
