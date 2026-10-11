@@ -5,7 +5,7 @@
   "binary": "MyDeskStudio",
   "target_application": "3ds Max",
   "target_version": "2025",
-  "note": "Tested clean-room procedural-mesh and modifier-stack subsets. FUNCTIONAL entries are not claims of complete 3ds Max parity, professional GUI coverage, animation, or rendering.",
+  "note": "Tested clean-room procedural-mesh, transform, modifier-stack, and Qt desktop-workflow subsets. FUNCTIONAL entries are not claims of complete 3ds Max parity, animation, rendering, or production-scene interoperability.",
   "capabilities": [
     {
       "id": "MAX-PROCEDURAL-BOX",
@@ -152,12 +152,12 @@
       "expected_output": "Full round-trip document recovery",
       "formats": [".mystudio"],
       "implementation": "products/studio/engine/src/studio_document.cpp",
-      "tests": ["test_studio_native_roundtrip", "test_schema_v2_materials_and_atomic_file_roundtrip", "test_native_rejects_malformed_and_unknown_schema"],
+      "tests": ["test_studio_native_roundtrip", "test_schema_v3_materials_and_atomic_file_roundtrip", "test_object_transform_undo_and_persistence", "test_native_rejects_malformed_and_unknown_schema"],
       "manual_tests": [],
       "performance": "Fast atomic JSON persistence",
       "status": "FUNCTIONAL",
       "evidence": "products/studio/tests/test_studio.cpp",
-      "differences": "Schema-v2 structural JSON preserves supported objects, stack order and state, parameters, materials, and stable ID allocation; validates temporary saves and retains backups. Schema-v1 migration is supported. Unknown future schemas are rejected. Scene transforms, hierarchy, animation, textures, plugins, and unknown extension data are not yet supported."
+      "differences": "Schema-v3 structural JSON preserves supported objects, object transforms, stack order and state, parameters, materials, and stable ID allocation; validates temporary saves and retains backups. Schema-v1 and schema-v2 migration are supported. Unknown future schemas are rejected. Hierarchy, animation, textures, plugins, and unknown extension data are not yet supported."
     },
     {
       "id": "MAX-MODIFIER-STACK-TRANSACTIONS",
@@ -171,12 +171,50 @@
       "expected_output": "Order and parameter changes regenerate the mesh; undo/redo restores stack state and evaluated geometry",
       "formats": [".mystudio"],
       "implementation": "products/studio/engine/src/studio_document.cpp",
-      "tests": ["test_modifier_stack_transactions", "test_schema_v2_materials_and_atomic_file_roundtrip"],
+      "tests": ["test_modifier_stack_transactions", "test_schema_v3_materials_and_atomic_file_roundtrip"],
       "manual_tests": [],
       "performance": "Full selected-object regeneration after each edit",
       "status": "FUNCTIONAL",
       "evidence": "products/studio/tests/test_studio.cpp",
-      "differences": "Tested for Bend, Taper, Twist, and midpoint subdivision stacks. Instancing, stack collapse, sub-object selections, world-space modifiers, dependency graphs, and GUI command-panel interaction remain unsupported."
+      "differences": "Tested for Bend, Taper, Twist, and midpoint subdivision stacks, including Qt command-panel creation and undo/redo in the separate UI regression test. Instancing, stack collapse, sub-object selections, world-space modifiers, and dependency graphs remain unsupported."
+    },
+    {
+      "id": "MAX-OBJECT-TRANSFORMS",
+      "target_application": "3ds Max",
+      "target_version": "2025",
+      "category": "editing",
+      "name": "Editable object transforms",
+      "command": "MOVE / ROTATE / SCALE",
+      "reference_behavior": "Apply persistent translation, XYZ rotation, and non-zero per-axis scaling to evaluated scene objects.",
+      "expected_input": "Finite translation and rotation values with non-zero scale components",
+      "expected_output": "Transformed evaluated mesh restored by undo/redo and native file round-trip",
+      "formats": [".mystudio", ".obj"],
+      "implementation": "products/studio/engine/src/studio_document.cpp",
+      "tests": ["test_object_transform_undo_and_persistence"],
+      "manual_tests": [],
+      "performance": "Full selected-object regeneration after each committed transform",
+      "status": "FUNCTIONAL",
+      "evidence": "products/studio/tests/test_studio.cpp",
+      "differences": "Numerical transform evaluation and persistence are tested. Interactive gizmos, transform coordinate systems, pivot editing, constraints, snapping, and transform animation remain unsupported."
+    },
+    {
+      "id": "MAX-DESKTOP-WORKSPACE",
+      "target_application": "3ds Max",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent Qt modeling workspace",
+      "command": "SCENE EXPLORER / CREATE / MODIFY / MODIFIER STACK / SAVE / OPEN / EXPORT",
+      "reference_behavior": "Provide an interactive desktop scene editor connected to the editable model, evaluated viewport, hierarchy browser, property controls, modifier stack, file persistence, and undo/redo.",
+      "expected_input": "Mouse and keyboard modeling operations in the standalone Qt application",
+      "expected_output": "Document mutations reflected in the scene explorer, modifier stack, properties, and shaded mesh viewport",
+      "formats": [".mystudio", ".obj"],
+      "implementation": ["products/studio/app/main_window.cpp", "products/studio/app/studio_viewport.cpp"],
+      "tests": ["test_studio_ui_workflow"],
+      "manual_tests": [],
+      "performance": "Immediate redraw for the tested procedural scenes",
+      "status": "FUNCTIONAL",
+      "evidence": "products/studio/app/tests/test_studio_ui.cpp",
+      "differences": "The offscreen test verifies primitive creation, transform editing, modifier insertion, scene-tree synchronization, and undo/redo. The viewport uses a CPU orthographic orbit projection and does not yet provide GPU rendering, transform gizmos, sub-object editing, hierarchy tools, animation, materials, or production rendering."
     }
   ]
 }

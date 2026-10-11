@@ -22,6 +22,10 @@ bool finitePositive(double value) noexcept {
     return std::isfinite(value) && value > 0.0;
 }
 
+bool finiteVec(const Vec3& value) noexcept {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
 bool validPrimitive(int value) noexcept {
     return value >= static_cast<int>(PrimitiveKind::Box) &&
            value <= static_cast<int>(PrimitiveKind::Sphere);
@@ -337,6 +341,21 @@ bool StudioDocument::setPrimitiveParameter(ObjectId objId, std::string parameter
     return true;
 }
 
+bool StudioDocument::setObjectTransform(ObjectId objId, const ObjectTransform& transform) {
+    if (!finiteVec(transform.translation) || !finiteVec(transform.rotation_deg) ||
+        !finiteVec(transform.scale) || std::abs(transform.scale.x) <= 1e-9 ||
+        std::abs(transform.scale.y) <= 1e-9 || std::abs(transform.scale.z) <= 1e-9) {
+        return false;
+    }
+    StudioObject* object = findObject(objId);
+    if (!object) return false;
+    checkpoint();
+    object = findObject(objId);
+    object->transform = transform;
+    evaluateObject(*object);
+    return true;
+}
+
 MeshGeometry StudioDocument::generateBaseMesh(PrimitiveKind prim,
                                               const std::unordered_map<std::string, double>& params) {
     MeshGeometry mesh;
@@ -517,6 +536,28 @@ void StudioDocument::evaluateObject(StudioObject& obj) {
             applyModifier(geom, mod);
         }
     }
+    const double rx = obj.transform.rotation_deg.x * (kPi / 180.0);
+    const double ry = obj.transform.rotation_deg.y * (kPi / 180.0);
+    const double rz = obj.transform.rotation_deg.z * (kPi / 180.0);
+    const double cx = std::cos(rx), sx = std::sin(rx);
+    const double cy = std::cos(ry), sy = std::sin(ry);
+    const double cz = std::cos(rz), sz = std::sin(rz);
+    for (Vec3& vertex : geom.vertices) {
+        double x = vertex.x * obj.transform.scale.x;
+        double y = vertex.y * obj.transform.scale.y;
+        double z = vertex.z * obj.transform.scale.z;
+        const double yx = y * cx - z * sx;
+        const double zx = y * sx + z * cx;
+        y = yx; z = zx;
+        const double xy = x * cy + z * sy;
+        const double zy = -x * sy + z * cy;
+        x = xy; z = zy;
+        const double xz = x * cz - y * sz;
+        const double yz = x * sz + y * cz;
+        vertex = {xz + obj.transform.translation.x,
+                  yz + obj.transform.translation.y,
+                  z + obj.transform.translation.z};
+    }
     obj.evaluatedMesh = std::move(geom);
 }
 
@@ -559,7 +600,7 @@ std::string StudioDocument::serializeNative() const {
     using nlohmann::json;
     json root = {
         {"format", "mydesk-studio"},
-        {"schema_version", 2},
+        {"schema_version", 3},
         {"name", name_},
         {"next_object_id", nextObjId_},
         {"next_modifier_id", nextModId_},
@@ -582,6 +623,14 @@ std::string StudioDocument::serializeNative() const {
             {"name", object.name},
             {"primitive", static_cast<int>(object.primitive)},
             {"parameters", object.primitiveParams},
+            {"transform", {
+                {"translation", {object.transform.translation.x, object.transform.translation.y,
+                                   object.transform.translation.z}},
+                {"rotation_deg", {object.transform.rotation_deg.x, object.transform.rotation_deg.y,
+                                    object.transform.rotation_deg.z}},
+                {"scale", {object.transform.scale.x, object.transform.scale.y,
+                             object.transform.scale.z}}
+            }},
             {"modifiers", std::move(modifiers)}
         });
     }
@@ -607,7 +656,7 @@ StudioDocument StudioDocument::deserializeNative(std::string_view text, std::str
             throw std::invalid_argument("not a mydesk-studio document");
         }
         const int schema = root.value("schema_version", 1);
-        if (schema < 1 || schema > 2) throw std::invalid_argument("unsupported schema version");
+        if (schema < 1 || schema > 3) throw std::invalid_argument("unsupported schema version");
         doc.name_ = root.at("name").get<std::string>();
         if (doc.name_.empty()) throw std::invalid_argument("scene name cannot be empty");
 
@@ -633,6 +682,20 @@ StudioDocument StudioDocument::deserializeNative(std::string_view text, std::str
             for (const auto& [key, value] : object.primitiveParams) {
                 if (key.empty() || !finitePositive(value)) {
                     throw std::invalid_argument("invalid primitive parameter");
+                }
+            }
+            if (schema >= 3 && storedObject.contains("transform")) {
+                const json& transform = storedObject.at("transform");
+                const auto translation = transform.at("translation").get<std::array<double, 3>>();
+                const auto rotation = transform.at("rotation_deg").get<std::array<double, 3>>();
+                const auto scale = transform.at("scale").get<std::array<double, 3>>();
+                object.transform.translation = {translation[0], translation[1], translation[2]};
+                object.transform.rotation_deg = {rotation[0], rotation[1], rotation[2]};
+                object.transform.scale = {scale[0], scale[1], scale[2]};
+                if (!finiteVec(object.transform.translation) || !finiteVec(object.transform.rotation_deg) ||
+                    !finiteVec(object.transform.scale) || std::abs(object.transform.scale.x) <= 1e-9 ||
+                    std::abs(object.transform.scale.y) <= 1e-9 || std::abs(object.transform.scale.z) <= 1e-9) {
+                    throw std::invalid_argument("invalid object transform");
                 }
             }
             if (storedObject.contains("modifiers")) {

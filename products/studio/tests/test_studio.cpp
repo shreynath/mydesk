@@ -142,7 +142,7 @@ static void test_modifier_stack_transactions() {
     CHECK_NEAR(doc.findObject(id)->primitiveParams.at("height"), 20.0, 1e-9);
 }
 
-static void test_schema_v2_materials_and_atomic_file_roundtrip() {
+static void test_schema_v3_materials_and_atomic_file_roundtrip() {
     StudioDocument doc;
     doc.setName("Scene \\\"A\\\"");
     const ObjectId box = doc.addBox("Box \\\"one\\\"", 2.0, 3.0, 4.0);
@@ -159,7 +159,7 @@ static void test_schema_v2_materials_and_atomic_file_roundtrip() {
     doc.addMaterial(material);
 
     const std::string native = doc.serializeNative();
-    CHECK(native.find("\"schema_version\": 2") != std::string::npos);
+    CHECK(native.find("\"schema_version\": 3") != std::string::npos);
     std::string error;
     StudioDocument loaded = StudioDocument::deserializeNative(native, &error);
     CHECK(error.empty());
@@ -189,6 +189,39 @@ static void test_schema_v2_materials_and_atomic_file_roundtrip() {
     std::filesystem::remove(path.string() + ".bak", ignored);
 }
 
+static void test_object_transform_undo_and_persistence() {
+    StudioDocument doc;
+    const ObjectId box = doc.addBox("PlacedBox", 2.0, 4.0, 6.0);
+    const auto original = doc.findObject(box)->evaluatedMesh.computeBoundingBox();
+    ObjectTransform transform;
+    transform.translation = {12.0, -3.0, 7.5};
+    transform.rotation_deg = {0.0, 0.0, 90.0};
+    transform.scale = {2.0, 0.5, 1.5};
+    CHECK(doc.setObjectTransform(box, transform));
+    const auto placed = doc.findObject(box)->evaluatedMesh.computeBoundingBox();
+    CHECK_NEAR(placed[0], 11.0, 1e-9);
+    CHECK_NEAR(placed[3], 13.0, 1e-9);
+    CHECK_NEAR(placed[2], 7.5, 1e-9);
+    CHECK_NEAR(placed[5], 16.5, 1e-9);
+    CHECK(doc.undo());
+    CHECK_NEAR(doc.findObject(box)->evaluatedMesh.computeBoundingBox()[0], original[0], 1e-9);
+    CHECK(doc.redo());
+    CHECK_NEAR(doc.findObject(box)->transform.translation.x, 12.0, 1e-9);
+
+    std::string error;
+    StudioDocument loaded = StudioDocument::deserializeNative(doc.serializeNative(), &error);
+    CHECK(error.empty());
+    CHECK_NEAR(loaded.findObject(box)->transform.translation.y, -3.0, 1e-9);
+    CHECK_NEAR(loaded.findObject(box)->transform.rotation_deg.z, 90.0, 1e-9);
+    CHECK_NEAR(loaded.findObject(box)->transform.scale.x, 2.0, 1e-9);
+
+    StudioDocument v2 = StudioDocument::deserializeNative(
+        R"({"format":"mydesk-studio","schema_version":2,"name":"v2","objects":[{"id":1,"name":"OldBox","prim":0,"params":{"length":2,"width":2,"height":2},"modifiers":[]}],"materials":[]})",
+        &error);
+    CHECK(error.empty());
+    CHECK_NEAR(v2.findObject(1)->transform.scale.x, 1.0, 1e-9);
+}
+
 static void test_native_rejects_malformed_and_unknown_schema() {
     std::string error;
     (void)StudioDocument::deserializeNative("{not-json", &error);
@@ -208,6 +241,8 @@ static void test_native_rejects_malformed_and_unknown_schema() {
 
 int main() {
     // Registered capability test identifiers:
+    // The Qt CTest target "test_studio_ui_workflow" is implemented in
+    // products/studio/app/tests/test_studio_ui.cpp.
     // "test_studio_box_primitive"
     test_studio_box_primitive();
     // "test_studio_cylinder_primitive"
@@ -226,8 +261,10 @@ int main() {
     test_studio_native_roundtrip();
     // "test_modifier_stack_transactions"
     test_modifier_stack_transactions();
-    // "test_schema_v2_materials_and_atomic_file_roundtrip"
-    test_schema_v2_materials_and_atomic_file_roundtrip();
+    // "test_schema_v3_materials_and_atomic_file_roundtrip"
+    test_schema_v3_materials_and_atomic_file_roundtrip();
+    // "test_object_transform_undo_and_persistence"
+    test_object_transform_undo_and_persistence();
     // "test_native_rejects_malformed_and_unknown_schema"
     test_native_rejects_malformed_and_unknown_schema();
 

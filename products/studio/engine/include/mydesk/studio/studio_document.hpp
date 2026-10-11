@@ -36,6 +36,12 @@ struct MeshGeometry {
     [[nodiscard]] std::array<double, 6> computeBoundingBox() const; // minX, minY, minZ, maxX, maxY, maxZ
 };
 
+struct ObjectTransform {
+    Vec3 translation{};
+    Vec3 rotation_deg{};
+    Vec3 scale{1.0, 1.0, 1.0};
+};
+
 enum class PrimitiveKind {
     Box,
     Cylinder,
@@ -63,6 +69,7 @@ struct StudioObject {
     PrimitiveKind primitive{PrimitiveKind::Box};
     std::unordered_map<std::string, double> primitiveParams;
     std::vector<Modifier> modifierStack;
+    ObjectTransform transform;
     MeshGeometry evaluatedMesh;
 };
 
@@ -101,6 +108,7 @@ public:
     bool removeModifier(ObjectId objId, ModifierId modId);
     bool removeObject(ObjectId objId);
     bool setPrimitiveParameter(ObjectId objId, std::string parameter, double value);
+    bool setObjectTransform(ObjectId objId, const ObjectTransform& transform);
 
     // Evaluation
     void evaluateObject(StudioObject& obj);
