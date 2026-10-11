@@ -9,7 +9,7 @@ Inventory for MyDesk v0.1. Update when adding packages.
 | Ninja | Build | Apache-2.0 | Dev only |
 | Apple clang / MSVC / GCC | Toolchain | Vendor | Dev only |
 | Open CASCADE Technology | Mechanical and Fusion B-rep modeling and STEP/IGES support | LGPL-2.1 with additional exception | Dynamically linked from the system package |
-| JSON for Modern C++ 3.12.0 | Infra, Simulation, Studio, and Vault native-format structural parsing and validation | MIT | Pinned release archive, SHA-256 verified by CMake |
+| JSON for Modern C++ 3.12.0 | Animate, Infra, Simulation, Studio, and Vault native-format structural parsing and validation | MIT | Pinned release archive, SHA-256 verified by CMake |
 
 ## Planned (not yet linked)
 

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -54,9 +55,9 @@ inline Mat4 Mat4::from_quat(const Quat& q) noexcept {
 
 inline Mat4 Mat4::operator*(const Mat4& o) const noexcept {
     Mat4 r;
-    for (int row = 0; row < 4; ++row)
-        for (int col = 0; col < 4; ++col)
-            for (int k = 0; k < 4; ++k)
+    for (std::size_t row = 0; row < 4; ++row)
+        for (std::size_t col = 0; col < 4; ++col)
+            for (std::size_t k = 0; k < 4; ++k)
                 r.m[col*4+row] += m[k*4+row] * o.m[col*4+k];
     return r;
 }
@@ -80,6 +81,7 @@ public:
     double evaluate(double t) const noexcept;
     std::size_t key_count() const noexcept { return keys_.size(); }
     const Keyframe& key_at(std::size_t i) const { return keys_.at(i); }
+    void clear() noexcept { keys_.clear(); }
 
 private:
     static double bezier_solve(double t,
@@ -191,9 +193,29 @@ public:
     const SceneNode& node(NodeId id) const;
     std::size_t      node_count() const noexcept { return nodes_.size(); }
     std::vector<NodeId> root_nodes() const;
+    std::vector<NodeId> node_ids() const;
+
+    void begin_edit();
+    bool can_undo() const noexcept { return !undo_stack_.empty(); }
+    bool can_redo() const noexcept { return !redo_stack_.empty(); }
+    bool undo();
+    bool redo();
+
+    void rename_node(NodeId id, const std::string& name);
+    void set_transform(NodeId id, Vec3 translate, Quat rotate, Vec3 scale);
+    void reparent_node(NodeId id, NodeId new_parent);
+    void remove_node(NodeId id);
+    void set_keyframe(NodeId id, const std::string& channel,
+                      double frame, double value);
+
+    NodeId create_box(const std::string& name, NodeId parent = kInvalidNode);
+    NodeId create_sphere(const std::string& name, int latitude_segments = 12,
+                         int longitude_segments = 18,
+                         NodeId parent = kInvalidNode);
 
     std::size_t add_mesh(Mesh mesh);
     Mesh&       mesh(std::size_t i) { return meshes_.at(i); }
+    const Mesh& mesh(std::size_t i) const { return meshes_.at(i); }
     std::size_t mesh_count() const noexcept { return meshes_.size(); }
 
     void set_skeleton(Skeleton skel) { skeleton_ = std::move(skel); }
@@ -210,6 +232,11 @@ public:
     std::vector<Vec3> skinned_positions(std::size_t mesh_idx,
                                         double time_seconds) const;
 
+    std::string serialize_native() const;
+    static AnimateDocument deserialize_native(const std::string& text);
+    void save_native(const std::filesystem::path& path) const;
+    static AnimateDocument load_native(const std::filesystem::path& path);
+
     std::string export_usda() const;
     std::vector<std::uint8_t> export_alembic_minimal() const;
 
@@ -221,9 +248,12 @@ private:
     std::vector<Camera> cameras_;
     std::vector<Light>  lights_;
     Timeline timeline_;
+    std::vector<std::string> undo_stack_;
+    std::vector<std::string> redo_stack_;
 
     Mat4 compute_world(NodeId id, double t,
                        std::unordered_map<NodeId, Mat4>& cache) const;
+    void restore_snapshot(const std::string& snapshot);
 };
 
 } // namespace mydesk::animate

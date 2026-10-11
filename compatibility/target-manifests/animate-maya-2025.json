@@ -5,7 +5,7 @@
   "binary": "MyDeskAnimate",
   "target_application": "Maya",
   "target_version": "2025",
-  "note": "MyDesk Animate provides 3D DCC animation, dependency graph evaluation, keyframe Bezier curves, linear blend skinning, and USD/Alembic interchange targeting Autodesk Maya.",
+  "note": "Tested clean-room scene-graph, keyframe, skinning, limited USDA, native-persistence, and Qt desktop subsets. FUNCTIONAL does not mean complete Maya parity; production dependency-graph, rendering, dynamics, scripting, and broad interoperability remain absent.",
   "capabilities": [
     {
       "id": "MAYA-ANIM-CURVE",
@@ -17,7 +17,7 @@
       "reference_behavior": "Evaluate animation channels using cubic Hermite/Bezier curves with custom in/out tangents and clamping.",
       "expected_input": "Keyframe time, value, and tangent vectors",
       "expected_output": "Interpolated scalar value at time t",
-      "formats": [".usda"],
+      "formats": [".myanimate", ".usda"],
       "implementation": "products/animate/engine/src/animate_document.cpp",
       "tests": ["test_anim_curve_constant", "test_anim_curve_extrapolation"],
       "manual_tests": [],
@@ -43,7 +43,7 @@
       "performance": "Matrix cache traversal",
       "status": "FUNCTIONAL",
       "evidence": "products/animate/tests/test_animate.cpp",
-      "differences": "DAG world matrix concatenation verified."
+      "differences": "Tree hierarchy world-matrix concatenation, cycle-safe reparenting, recursive deletion, and native round-trip are tested. Instancing and a general dependency graph are not implemented."
     },
     {
       "id": "MAYA-LBS-SKINNING",
@@ -71,7 +71,7 @@
       "category": "exchange",
       "name": "Universal Scene Description (USD USDA) interchange",
       "command": "FILE / EXPORT_USD",
-      "reference_behavior": "Export hierarchical transform nodes, polygonal meshes, and camera definitions to ASCII USDA.",
+      "reference_behavior": "Export transform nodes, polygonal meshes, and camera definitions to ASCII USDA.",
       "expected_input": "AnimateDocument scene",
       "expected_output": "Standard USDA formatted scene file",
       "formats": [".usda"],
@@ -81,7 +81,7 @@
       "performance": "Fast scene serialization",
       "status": "FUNCTIONAL",
       "evidence": "products/animate/tests/test_animate.cpp",
-      "differences": "USDA 1.0 transform and mesh export verified."
+      "differences": "A limited USDA text subset is verified for headers and triangle mesh arrays. Full hierarchy, materials, animation samples, skeletons, references, variants, and composition are not exported."
     },
     {
       "id": "MAYA-TIMELINE",
@@ -95,12 +95,50 @@
       "expected_output": "Exact frame / second conversion matching project FPS",
       "formats": [],
       "implementation": "products/animate/engine/src/animate_document.cpp",
-      "tests": ["test_timeline"],
+      "tests": ["test_timeline", "test_animate_qt_scene_timeline_workflow"],
       "manual_tests": [],
       "performance": "Constant time conversion",
       "status": "FUNCTIONAL",
       "evidence": "products/animate/tests/test_animate.cpp",
-      "differences": "Timeline playback conversions verified."
+      "differences": "Frame conversion plus Qt scrubbing, playback stepping, key authoring, and dope-sheet listing are implemented. Audio, ranges/bookmarks, nonlinear animation, curve tangent editing, and cache playback are absent."
+    },
+    {
+      "id": "MAYA-NATIVE-SCENE-PERSISTENCE",
+      "target_application": "Maya",
+      "target_version": "2025",
+      "category": "persistence",
+      "name": "Editable native scene persistence and undo/redo",
+      "command": "FILE / SAVE / OPEN / UNDO / REDO",
+      "reference_behavior": "Save, reopen, and transactionally edit the supported scene hierarchy, meshes, animation, rig, cameras, lights, and timeline.",
+      "expected_input": "Animated transformed mesh scene",
+      "expected_output": "Validated lossless round-trip of the supported schema and restorable edit snapshots",
+      "formats": [".myanimate"],
+      "implementation": "products/animate/engine/src/animate_document.cpp",
+      "tests": ["test_scene_editing_undo_and_native_roundtrip", "test_scene_parenting_validation_and_recursive_delete"],
+      "manual_tests": [],
+      "performance": "Whole-scene JSON snapshots; bounded to 100 undo states",
+      "status": "FUNCTIONAL",
+      "evidence": "products/animate/tests/test_animate.cpp",
+      "differences": "Supported schema data round-trips and malformed graph references are rejected. Unknown extension preservation, references, namespaces, external caches, incremental saves, crash recovery, and production-scale scene storage are absent."
+    },
+    {
+      "id": "MAYA-DESKTOP-DCC-WORKSPACE",
+      "target_application": "Maya",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent scene, Channel Box, viewport, and timeline workspace",
+      "command": "MyDeskAnimate",
+      "reference_behavior": "Provide an interactive standalone scene editor with hierarchy, editable channels, evaluated 3D viewport, time controls, key authoring, persistence, export, and undo/redo.",
+      "expected_input": "Create a mesh, edit translation, scrub to a frame, set a channel key, and undo",
+      "expected_output": "Outliner, viewport, Channel Box, and key list remain synchronized with the evaluated document",
+      "formats": [".myanimate", ".usda"],
+      "implementation": ["products/animate/app/main_window.cpp", "products/animate/app/animate_viewport.cpp"],
+      "tests": ["test_animate_qt_scene_timeline_workflow"],
+      "manual_tests": [],
+      "performance": "Immediate CPU redraw for tested primitive scenes",
+      "status": "FUNCTIONAL",
+      "evidence": "products/animate/tests/test_animate_ui.cpp",
+      "differences": "The tested workspace covers scene creation, numerical channels, key creation, scrubbing/playback, selection, and undo. It lacks transform gizmos, component modeling, GPU drawing, graph-editor tangent manipulation, rigging UI, materials, rendering, dynamics, scripting, and plug-ins."
     }
   ]
 }

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -228,9 +229,60 @@ static void test_timeline() {
     CHECK_NEAR(doc.timeline().time_to_frame(1.0), 30.0, 1e-9);
 }
 
+static void test_scene_editing_undo_and_native_roundtrip() {
+    AnimateDocument doc;
+    doc.begin_edit();
+    const NodeId box = doc.create_box("AnimatedBox");
+    CHECK(doc.node_count() == 1);
+    CHECK(doc.mesh_count() == 1);
+    CHECK(doc.mesh(0).triangles.size() == 12);
+
+    doc.begin_edit();
+    doc.set_transform(box, {2.0, 3.0, 4.0}, {0.0, 0.0, 0.0, 1.0}, {2.0, 1.0, 0.5});
+    doc.begin_edit();
+    doc.set_keyframe(box, "tx", 24.0, 12.0);
+    CHECK(doc.node(box).anim.has_value());
+    CHECK(doc.node(box).anim->tx.key_count() == 2);
+    CHECK(doc.undo());
+    CHECK(!doc.node(box).anim.has_value());
+    CHECK(doc.redo());
+    CHECK(doc.node(box).anim->tx.key_count() == 2);
+
+    const std::string native = doc.serialize_native();
+    CHECK(native.find("\"format\": \"mydesk-animate\"") != std::string::npos);
+    AnimateDocument loaded = AnimateDocument::deserialize_native(native);
+    CHECK(loaded.node_count() == 1);
+    CHECK(loaded.mesh_count() == 1);
+    CHECK_NEAR(loaded.node(box).translate.x, 2.0, 1e-9);
+    CHECK_NEAR(loaded.node(box).anim->tx.evaluate(1.0), 12.0, 1e-9);
+
+    const auto path = std::filesystem::temp_directory_path() / "mydesk-animate-test.myanimate";
+    doc.save_native(path);
+    AnimateDocument from_file = AnimateDocument::load_native(path);
+    CHECK(from_file.node(box).name == "AnimatedBox");
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(path.string() + ".bak", ignored);
+}
+
+static void test_scene_parenting_validation_and_recursive_delete() {
+    AnimateDocument doc;
+    const NodeId parent = doc.create_box("Parent");
+    const NodeId child = doc.create_sphere("Child", 6, 8, parent);
+    CHECK(doc.node(parent).children.size() == 1);
+    bool rejected = false;
+    try { doc.reparent_node(parent, child); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+    doc.remove_node(parent);
+    CHECK(doc.node_count() == 0);
+    CHECK(doc.mesh_count() == 0);
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main() {
+    // Separate offscreen Qt test: "test_animate_qt_scene_timeline_workflow"
     // "test_anim_curve_constant"
     test_anim_curve_constant();
     // "test_anim_curve_linear_approx"
@@ -263,6 +315,10 @@ int main() {
 
     // "test_timeline"
     test_timeline();
+    // "test_scene_editing_undo_and_native_roundtrip"
+    test_scene_editing_undo_and_native_roundtrip();
+    // "test_scene_parenting_validation_and_recursive_delete"
+    test_scene_parenting_validation_and_recursive_delete();
 
     if (g_failed == 0) {
         std::printf("All Animate tests passed.\n");
