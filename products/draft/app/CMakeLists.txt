@@ -47,3 +47,13 @@ set_target_properties(mydesk_draft_app PROPERTIES
 )
 
 install(TARGETS mydesk_draft_app BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+
+if(COMMAND qt_generate_deploy_app_script)
+  qt_generate_deploy_app_script(
+    TARGET mydesk_draft_app
+    OUTPUT_SCRIPT draft_deploy_script
+    INCLUDE_PLUGIN_TYPES platforms styles
+    NO_TRANSLATIONS
+    NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${draft_deploy_script})
+endif()

@@ -57,7 +57,6 @@ endforeach()
 
 # Products that advertise a deployed macOS runtime must not accidentally keep
 # dependencies on a developer's Homebrew, MacPorts, or home-directory paths.
-# Draft is intentionally excluded until it gains its own deployment rule.
 if(MYDESK_IS_APPLE AND MYDESK_REQUIRE_RELOCATABLE_BUNDLE)
   set(_frameworks_root
     "${MYDESK_VERIFY_ROOT}/${MYDESK_EXPECTED_BINARY}.app/Contents/Frameworks")

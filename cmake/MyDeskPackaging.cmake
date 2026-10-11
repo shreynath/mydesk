@@ -77,7 +77,7 @@ endif()
 
 if(MYDESK_BUILD_TESTS AND MYDESK_BUILD_DESKTOP)
   set(_mydesk_relocatable_bundle_products
-    mechanical buildings coordinate animate studio)
+    draft mechanical buildings coordinate animate studio)
   if(MYDESK_PRODUCT IN_LIST _mydesk_relocatable_bundle_products)
     set(_mydesk_require_relocatable_bundle TRUE)
   else()

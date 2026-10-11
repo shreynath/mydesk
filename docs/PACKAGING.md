@@ -29,15 +29,15 @@ product version, operating system, and processor.
 
 ## Current release boundary
 
-These artifacts are unsigned development packages. Mechanical, Buildings,
-Coordinate, Animate, and Studio now run Qt's deployment step during install;
+These artifacts are unsigned development packages. Draft, Mechanical,
+Buildings, Coordinate, Animate, and Studio now run Qt's deployment step during install;
 on the local macOS configuration this places their linked Qt frameworks and
 platform plugins inside each independent application bundle. Mechanical's
 local bundle also contains the linked Open CASCADE libraries with relocated
 loader paths. This is runtime-bundling evidence for that configuration, not a
-clean-machine, signing, or cross-platform certification. Draft and products
-without a deployment step can still require system runtimes. CI evidence for
-one operating system is not evidence for another.
+clean-machine, signing, or cross-platform certification. Products without a
+deployment step can still require system runtimes. CI evidence for one
+operating system is not evidence for another.
 
 A platform package may be called a redistributable installer only after all of
 these product-specific gates pass on that platform:
