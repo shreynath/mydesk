@@ -1,4 +1,22 @@
-# MyDesk Simulation app — FEA CLI driver
-add_executable(MyDeskSimulation main.cpp)
-target_link_libraries(MyDeskSimulation PRIVATE mydesk::simulation_engine)
-install(TARGETS MyDeskSimulation RUNTIME DESTINATION bin)
+set(CMAKE_AUTOMOC ON)
+qt_add_library(mydesk_simulation_desktop STATIC main_window.cpp main_window.hpp simulation_viewport.cpp simulation_viewport.hpp)
+target_include_directories(mydesk_simulation_desktop PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mydesk_simulation_desktop PUBLIC mydesk::simulation_engine Qt6::Widgets Qt6::Gui)
+
+qt_add_executable(MyDeskSimulation main.cpp)
+target_link_libraries(MyDeskSimulation PRIVATE mydesk_simulation_desktop)
+set_target_properties(MyDeskSimulation PROPERTIES OUTPUT_NAME MyDeskSimulation MACOSX_BUNDLE TRUE WIN32_EXECUTABLE TRUE MACOSX_BUNDLE_BUNDLE_NAME "MyDesk Simulation" MACOSX_BUNDLE_GUI_IDENTIFIER app.mydesk.simulation)
+install(TARGETS MyDeskSimulation BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+
+if(MYDESK_BUILD_TESTS)
+  find_package(Qt6 COMPONENTS Test REQUIRED)
+  qt_add_executable(mydesk_simulation_ui_tests tests/test_simulation_ui.cpp)
+  target_link_libraries(mydesk_simulation_ui_tests PRIVATE mydesk_simulation_desktop Qt6::Test)
+  add_test(NAME mydesk_simulation_ui_tests COMMAND mydesk_simulation_ui_tests)
+  set_tests_properties(mydesk_simulation_ui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(COMMAND qt_generate_deploy_app_script)
+  qt_generate_deploy_app_script(TARGET MyDeskSimulation OUTPUT_SCRIPT simulation_deploy_script INCLUDE_PLUGIN_TYPES platforms styles NO_TRANSLATIONS NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${simulation_deploy_script})
+endif()

@@ -33,7 +33,7 @@ product version, operating system, and processor.
 ## Current release boundary
 
 These artifacts are unsigned development packages. Draft, Mechanical,
-Buildings, Coordinate, Animate, Studio, Surface, Mill, and Vault now run Qt's
+Buildings, Coordinate, Animate, Studio, Surface, Mill, Simulation, and Vault now run Qt's
 deployment step during install;
 on the local macOS configuration this places their linked Qt frameworks and
 platform plugins inside each independent application bundle. Mechanical's
@@ -65,9 +65,9 @@ limitations above visible in release notes.
 The workflow defines independent configure, build, test, install-contract,
 package, checksum, and artifact-upload jobs for every catalog product on
 Ubuntu, macOS, and Windows. Qt is installed for Draft, Mechanical, Buildings,
-Coordinate, Animate, Studio, Surface, Mill, and Vault. Open CASCADE comes from
-distribution packages on Ubuntu, Homebrew on macOS, and vcpkg on Windows for
-Mechanical and Fusion.
+Coordinate, Animate, Studio, Surface, Mill, Simulation, and Vault. Open CASCADE
+comes from distribution packages on Ubuntu, Homebrew on macOS, and vcpkg on
+Windows for Mechanical and Fusion.
 Each real Qt product also has a non-Windows executable-location smoke step;
 its product-specific Qt UI regression remains the substantive interaction
 test.

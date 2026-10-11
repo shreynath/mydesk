@@ -19,12 +19,12 @@
       "expected_output": "Validated material definition in simulation project",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
-      "tests": ["test_material_add"],
+      "tests": ["test_material_add", "test_editable_material_and_node_geometry"],
       "manual_tests": [],
       "performance": "In-memory material storage",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Validated per-project isotropic properties are implemented; no searchable vendor library, temperature curves, orthotropy, or nonlinear constitutive data."
+      "differences": "Validated per-project isotropic properties and desktop editing are implemented; no searchable vendor library, temperature curves, orthotropy, or nonlinear constitutive data."
     },
     {
       "id": "SIM-FEA-MESHING",
@@ -38,12 +38,12 @@
       "expected_output": "Indexed node and triangle connectivity",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
-      "tests": ["test_mesh_construction", "test_input_validation"],
+      "tests": ["test_mesh_construction", "test_input_validation", "test_editable_material_and_node_geometry"],
       "manual_tests": [],
       "performance": "Linear mesh assembly",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Direct node/CST construction and element validation are tested; no automatic mesh generation, refinement, quality optimization, or 3D topology."
+      "differences": "Direct node/CST construction, validated nodal-coordinate editing, and element validation are tested; no automatic mesh generation, refinement, quality optimization, or 3D topology."
     },
     {
       "id": "SIM-STATIC-SOLVER",
@@ -76,12 +76,12 @@
       "expected_output": "Element strain, stress tensor, and Von Mises scalar",
       "formats": [],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
-      "tests": ["test_von_mises_computed"],
+      "tests": ["test_von_mises_computed", "test_simulation_desktop_workflow"],
       "manual_tests": [],
       "performance": "Analytical element stress recovery",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Plane-stress recovery and a positive Von Mises result are regression-tested; no nodal averaging, contour rendering, principal-stress UI, or 3D stress tensor."
+      "differences": "Plane-stress recovery and element Von Mises contour display are regression-tested; there is no nodal stress averaging, principal-stress UI, probe plotting, or 3D stress tensor."
     },
     {
       "id": "SIM-YIELD-SAFETY-FACTOR",
@@ -152,12 +152,31 @@
       "expected_output": "Validated schema-v2 project round-trip with reversible transactions",
       "formats": [".mdsim"],
       "implementation": "products/simulation/engine/src/simulation_document.cpp",
-      "tests": ["test_transaction_undo_redo", "test_native_persistence_roundtrip_and_validation"],
+      "tests": ["test_transaction_undo_redo", "test_native_persistence_roundtrip_and_validation", "test_simulation_desktop_workflow"],
       "manual_tests": [],
       "performance": "Whole-document snapshots and JSON files intended for small models",
       "status": "FUNCTIONAL",
       "evidence": "products/simulation/tests/test_simulation.cpp",
-      "differences": "Schema-v2 round-trip, malformed-version rejection, temporary-file validation, backup creation, undo, redo, and rollback are tested. Solver results and undo history are intentionally not persisted; no Nastran deck interoperability."
+      "differences": "Schema-v2 round-trip, malformed-version rejection, temporary-file validation, backup creation, desktop save/reopen, undo, redo, and rollback are tested. Solver results and undo history are intentionally not persisted; no Nastran deck interoperability."
+    },
+    {
+      "id": "SIM-DESKTOP-PREPOST-WORKFLOW",
+      "target_application": "Simulation Mechanical / Nastran",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent finite-element pre/post-processing workspace",
+      "command": "MODEL / CREATE; ANALYSIS / SOLVE; RESULTS / CONTOUR",
+      "reference_behavior": "Author a finite-element model, solve static and modal analyses, inspect deformed/contoured results, and persist the editable project through a desktop interface.",
+      "expected_input": "Materials, node coordinates, CST connectivity, constraints, loads, solve commands, project paths, and report paths",
+      "expected_output": "Engine-backed model hierarchy, editable inputs, converged result tables and viewport contours, reversible edits, native project, and static text report",
+      "formats": [".mdsim", ".txt"],
+      "implementation": ["products/simulation/app/main_window.cpp", "products/simulation/app/simulation_viewport.cpp", "products/simulation/engine/src/simulation_document.cpp"],
+      "tests": ["test_simulation_desktop_workflow", "test_editable_material_and_node_geometry"],
+      "manual_tests": ["Load the cantilever benchmark, solve static and modal cases, switch displacement/Von Mises/mode displays, select mesh entities, edit a node, undo, save, and reopen"],
+      "performance": "Interactive CPU rendering and dense solves for the small 2D models covered by current tests",
+      "status": "FUNCTIONAL",
+      "evidence": "products/simulation/app/tests/test_simulation_ui.cpp and products/simulation/tests/test_simulation.cpp",
+      "differences": "The Qt application is a substantive 2D CST workflow, not Nastran or Simulation Mechanical parity. It lacks CAD import, automatic meshing, 3D element families, sparse solvers, nonlinear/contact/transient analyses, production contour probing, plot animation/export, and Nastran deck interoperability."
     }
   ]
 }

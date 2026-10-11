@@ -16,6 +16,10 @@ Interactive model edits are transaction boundaries. Committed transactions captu
 
 The native `.mdsim` representation is JSON with format identity `mydesk-simulation` and schema version 2. It persists all model inputs with structural type and reference validation. Save writes and reopens a same-directory temporary file before replacement and preserves the previous destination as `.bak`; POSIX replacement is atomic, while the portable fallback may briefly remove the destination after its backup exists.
 
+## Desktop pre/post-processing
+
+The standalone Qt 6 application owns a simulation model browser, validated material and nodal-coordinate property editing, domain creation commands for materials, nodes, CST elements, constraints, and nodal loads, and product-local undo/redo. A CPU finite-element viewport draws the actual CST connectivity and supports node/element selection, pan, zoom, fit, deformed overlays, displacement contours, Von Mises contours, and modal shape visualization. Static and modal result tables are derived from the same solver results shown by the viewport. Native `.mdsim` projects and text reports use independent file workflows.
+
 ## Current limits
 
-This is a substantive solver slice, not Nastran parity. It supports small dense 2D CST models, linear isotropic plane stress, nodal loads, displacement constraints, linear static response, and undamped normal modes. It does not yet provide 3D solids or shells, sparse iterative solvers, contact, nonlinear or transient response, damping, frequency-response analysis, automatic meshing, result contour graphics, Nastran deck import/export, or professional desktop GUI workflows.
+This is a substantive solver slice, not Nastran parity. It supports small dense 2D CST models, linear isotropic plane stress, nodal loads, displacement constraints, linear static response, and undamped normal modes. It does not yet provide 3D solids or shells, sparse iterative solvers, contact, nonlinear or transient response, damping, frequency-response analysis, automatic meshing, nodal stress averaging, probe plots, animation export, or Nastran deck import/export. The CPU viewport is a diagnostic post-processor rather than a production GPU results system.

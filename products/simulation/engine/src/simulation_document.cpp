@@ -118,6 +118,18 @@ const Material& SimulationDocument::material(std::uint32_t id) const {
     return materials_.at(id);
 }
 
+void SimulationDocument::set_material(std::uint32_t id, Material material) {
+    if (!finite(material.youngs_modulus_pa) || material.youngs_modulus_pa <= 0.0 ||
+        !finite(material.poissons_ratio) || material.poissons_ratio <= -1.0 ||
+        material.poissons_ratio >= 0.5 || !finite(material.density_kg_m3) ||
+        material.density_kg_m3 <= 0.0 || !finite(material.yield_strength_pa) ||
+        material.yield_strength_pa <= 0.0 || !finite(material.ultimate_strength_pa) ||
+        material.ultimate_strength_pa <= 0.0 || material.name.empty()) {
+        throw std::invalid_argument("Material properties must be finite and physically valid");
+    }
+    materials_.at(id) = std::move(material);
+}
+
 std::uint32_t SimulationDocument::add_node(double x, double y) {
     if (!finite(x) || !finite(y)) throw std::invalid_argument("Node coordinates must be finite");
     auto id = static_cast<std::uint32_t>(nodes_.size());
@@ -146,6 +158,25 @@ const Node2D& SimulationDocument::node(std::uint32_t id) const {
 
 const Element2D& SimulationDocument::element(std::uint32_t id) const {
     return elements_.at(id);
+}
+
+void SimulationDocument::set_node_coordinates(std::uint32_t id, double x, double y) {
+    if (!finite(x) || !finite(y)) throw std::invalid_argument("Node coordinates must be finite");
+    Node2D& edited = nodes_.at(id);
+    const Node2D previous = edited;
+    edited.x = x;
+    edited.y = y;
+    for (const auto& element : elements_) {
+        if (std::find(element.node_ids.begin(), element.node_ids.end(), id) == element.node_ids.end()) continue;
+        const auto& a = nodes_.at(element.node_ids[0]);
+        const auto& b = nodes_.at(element.node_ids[1]);
+        const auto& c = nodes_.at(element.node_ids[2]);
+        const double twiceArea = (b.x-a.x)*(c.y-a.y) - (c.x-a.x)*(b.y-a.y);
+        if (std::abs(twiceArea) <= 1e-15) {
+            edited = previous;
+            throw std::invalid_argument("Node edit would collapse an attached CST element");
+        }
+    }
 }
 
 void SimulationDocument::add_bc(const BoundaryCondition& bc) {

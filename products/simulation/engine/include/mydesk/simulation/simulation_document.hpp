@@ -112,6 +112,7 @@ public:
     Material&     material(std::uint32_t id);
     const Material& material(std::uint32_t id) const;
     std::size_t   material_count() const noexcept { return materials_.size(); }
+    void set_material(std::uint32_t id, Material material);
 
     // Mesh
     std::uint32_t add_node(double x, double y);
@@ -122,12 +123,15 @@ public:
     std::size_t element_count() const noexcept { return elements_.size(); }
     const Node2D&    node(std::uint32_t id) const;
     const Element2D& element(std::uint32_t id) const;
+    void set_node_coordinates(std::uint32_t id, double x, double y);
 
     // Boundary conditions and loads
     void add_bc(const BoundaryCondition& bc);
     void add_load(const NodalLoad& load);
     std::size_t boundary_condition_count() const noexcept { return bcs_.size(); }
     std::size_t load_count() const noexcept { return loads_.size(); }
+    const BoundaryCondition& boundary_condition(std::size_t index) const { return bcs_.at(index); }
+    const NodalLoad& load(std::size_t index) const { return loads_.at(index); }
 
     // Solve (linear static, plane-stress, CST elements)
     SimulationResult solve() const;
@@ -148,6 +152,8 @@ public:
     void rollback_transaction();
     bool undo();
     bool redo();
+    bool can_undo() const noexcept { return !undo_stack_.empty(); }
+    bool can_redo() const noexcept { return !redo_stack_.empty(); }
     bool transaction_active() const noexcept { return transaction_active_; }
     const std::string& last_history_label() const noexcept { return last_history_label_; }
 

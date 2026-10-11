@@ -283,6 +283,30 @@ static void test_transaction_undo_redo() {
     CHECK(doc.node_count() == 1);
 }
 
+static void test_editable_material_and_node_geometry() {
+    SimulationDocument doc;
+    Material material;
+    material.name = "Steel";
+    const auto materialId = doc.add_material(material);
+    const auto n0 = doc.add_node(0.0, 0.0);
+    const auto n1 = doc.add_node(1.0, 0.0);
+    const auto n2 = doc.add_node(0.0, 1.0);
+    doc.add_element({n0, n1, n2}, materialId, 0.01);
+    doc.begin_transaction("edit input properties");
+    material.youngs_modulus_pa = 195e9;
+    doc.set_material(materialId, material);
+    doc.set_node_coordinates(n1, 1.25, 0.0);
+    doc.commit_transaction();
+    CHECK_NEAR(doc.material(materialId).youngs_modulus_pa, 195e9, 1.0);
+    CHECK_NEAR(doc.node(n1).x, 1.25, 1e-12);
+    CHECK(doc.undo());
+    CHECK_NEAR(doc.node(n1).x, 1.0, 1e-12);
+    bool rejected = false;
+    try { doc.set_node_coordinates(n1, 0.0, 0.0); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+}
+
 static void test_native_persistence_roundtrip_and_validation() {
     SimulationDocument doc;
     Material mat;
@@ -352,6 +376,8 @@ int main() {
     test_modal_cst_analytical_frequencies();
     // "test_transaction_undo_redo"
     test_transaction_undo_redo();
+    // "test_editable_material_and_node_geometry"
+    test_editable_material_and_node_geometry();
     // "test_native_persistence_roundtrip_and_validation"
     test_native_persistence_roundtrip_and_validation();
 
