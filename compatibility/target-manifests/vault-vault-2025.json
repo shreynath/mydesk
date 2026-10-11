@@ -5,7 +5,7 @@
   "binary": "MyDeskVault",
   "target_application": "Vault",
   "target_version": "2025",
-  "note": "MyDesk Vault provides engineering product data management, content-addressed versioning, check-in/check-out concurrency locking, CAD dependencies, and BOM generation targeting Autodesk Vault.",
+  "note": "MyDesk Vault provides tested clean-room subsets of engineering product data management, content-addressed versioning, check-in/check-out locking, CAD relationships, and BOM generation. FUNCTIONAL entries do not imply complete Autodesk Vault parity or multi-user server capability.",
   "capabilities": [
     {
       "id": "VAULT-CONTENT-HASHING",
@@ -95,12 +95,12 @@
       "expected_output": "Complete list of parent assembly file IDs",
       "formats": [".myvault"],
       "implementation": "products/vault/engine/src/vault_document.cpp",
-      "tests": ["test_vault_assembly_dependencies_where_used"],
+      "tests": ["test_vault_assembly_dependencies_where_used", "test_vault_metadata_and_transitive_relationships"],
       "manual_tests": [],
-      "performance": "Fast graph index lookup",
+      "performance": "In-memory graph traversal for the tested repository sizes",
       "status": "FUNCTIONAL",
       "evidence": "products/vault/tests/test_vault.cpp",
-      "differences": "Bi-directional relationship traversal verified."
+      "differences": "Direct relationship editing, cycle rejection, and transitive where-used traversal are verified. Persistent graph indexing, CAD-reference extraction, suppression states, and server-scale query planning are not implemented."
     },
     {
       "id": "VAULT-BOM-EXTRACTION",
@@ -114,12 +114,12 @@
       "expected_output": "Structured BOM item list with revisions and quantities",
       "formats": [".myvault"],
       "implementation": "products/vault/engine/src/vault_document.cpp",
-      "tests": ["test_vault_bom_generation"],
+      "tests": ["test_vault_bom_generation", "test_vault_metadata_and_transitive_relationships"],
       "manual_tests": [],
-      "performance": "Instant BOM generation",
+      "performance": "In-memory recursive traversal for the tested repository sizes",
       "status": "FUNCTIONAL",
       "evidence": "products/vault/tests/test_vault.cpp",
-      "differences": "Assembly BOM generation verified."
+      "differences": "Recursive BOM traversal and repeated-component quantity aggregation are verified. Item masters, effectivity, units, phantom assemblies, variants, and released manufacturing BOM workflows are not implemented."
     },
     {
       "id": "VAULT-NATIVE-PERSISTENCE",
@@ -133,12 +133,31 @@
       "expected_output": "Full round-trip restoration of repository structure",
       "formats": [".myvault"],
       "implementation": "products/vault/engine/src/vault_document.cpp",
-      "tests": ["test_vault_native_roundtrip", "test_vault_native_malformed_input", "test_vault_native_v1_migration", "test_vault_atomic_file_save_and_backup"],
+      "tests": ["test_vault_native_roundtrip", "test_vault_native_malformed_input", "test_vault_native_v1_migration", "test_vault_atomic_file_save_and_backup", "test_vault_desktop_workflow"],
       "manual_tests": [],
       "performance": "Structural JSON parsing with validation and same-directory atomic replacement",
       "status": "FUNCTIONAL",
       "evidence": "products/vault/tests/test_vault.cpp",
-      "differences": "Schema-v2 structural parsing, binary content, histories, locks, dependencies, audit logs, v1 migration, hash validation, validated same-directory replacement, and backup retention are verified; fsync durability and unknown-field preservation remain incomplete."
+      "differences": "Schema-v2 structural parsing, binary content, histories, locks, dependencies, audit logs, v1 migration, hash validation, validated same-directory replacement, backup retention, and desktop save/reopen are verified; fsync durability and unknown-field preservation remain incomplete."
+    },
+    {
+      "id": "VAULT-DESKTOP-PDM-WORKFLOW",
+      "target_application": "Vault",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent engineering repository workspace",
+      "command": "FILE / ADD / CHECKOUT / CHECKIN / LIFECYCLE / BOM / WHERE_USED",
+      "reference_behavior": "Manage engineering files, versions, locks, lifecycle, relationships, BOMs, and audit history through a persistent desktop repository interface.",
+      "expected_input": "Local engineering file content, vault paths, users, lifecycle commands, dependency edits, repository paths, and export paths",
+      "expected_output": "Engine-backed versioned repository mutations, editable file metadata, recursive relationship views, reversible UI commands, saved repository, BOM CSV, and retrieved version content",
+      "formats": [".myvault", ".csv", "arbitrary version payloads"],
+      "implementation": ["products/vault/app/main_window.cpp", "products/vault/engine/src/vault_document.cpp"],
+      "tests": ["test_vault_desktop_workflow", "test_vault_metadata_and_transitive_relationships"],
+      "manual_tests": ["Add two engineering files, create a component relationship, check out and check in a revision, change lifecycle state, inspect BOM/where-used/audit, save, close, and reopen"],
+      "performance": "Interactive local in-memory repository operations for the tested project sizes",
+      "status": "FUNCTIONAL",
+      "evidence": "products/vault/tests/test_vault_ui.cpp and products/vault/tests/test_vault.cpp",
+      "differences": "The Qt workflow is a substantive local single-user PDM client, not Autodesk Vault parity. Authentication, authorization, database/server transactions, multi-user synchronization, CAD add-ins, job processing, conflict resolution, replication, thumbnails, and Autodesk Vault interoperability are not implemented."
     }
   ]
 }

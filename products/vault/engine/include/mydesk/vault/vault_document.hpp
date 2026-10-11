@@ -88,6 +88,8 @@ public:
     [[nodiscard]] VaultFile*       findFileMut(FileId id);
     [[nodiscard]] const VaultFile* findFileByPath(std::string_view path) const;
     [[nodiscard]] const std::vector<VaultFile>& files() const { return files_; }
+    bool updateFileProperties(FileId id, std::string filename, std::string vaultPath,
+                              std::string_view username, std::string* error = nullptr);
 
     // ── Check-in / check-out ─────────────────────────────────────────────────
     bool checkOut(FileId id, std::string_view username, std::string* error = nullptr);
@@ -109,6 +111,7 @@ public:
 
     // ── Dependencies & BOM ───────────────────────────────────────────────────
     bool addDependency(FileId parentAssemblyId, FileId childComponentId);
+    bool removeDependency(FileId parentAssemblyId, FileId childComponentId);
     [[nodiscard]] std::vector<FileId> whereUsed(FileId childComponentId) const;
     [[nodiscard]] std::vector<BomItem> generateBom(FileId assemblyId) const;
 

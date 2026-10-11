@@ -302,6 +302,29 @@ const VaultFile* VaultRepository::findFileByPath(std::string_view path) const {
     return nullptr;
 }
 
+bool VaultRepository::updateFileProperties(FileId id, std::string filename,
+                                           std::string vaultPath,
+                                           std::string_view username,
+                                           std::string* error) {
+    if (error) error->clear();
+    auto* file = findFileMut(id);
+    if (!file) { if (error) *error = "file not found"; return false; }
+    if (filename.empty() || vaultPath.empty()) {
+        if (error) *error = "file name and vault path must not be empty";
+        return false;
+    }
+    if (const auto* existing = findFileByPath(vaultPath); existing && existing->id != id) {
+        if (error) *error = "another file already uses that vault path";
+        return false;
+    }
+    const auto oldPath = file->vaultPath;
+    file->filename = std::move(filename);
+    file->vaultPath = std::move(vaultPath);
+    logAudit(std::string(username), "UPDATE_PROPERTIES",
+             oldPath + " → " + file->vaultPath);
+    return true;
+}
+
 bool VaultRepository::checkOut(FileId id, std::string_view username, std::string* error) {
     auto* f = findFileMut(id);
     if (!f) { if (error) *error = "file not found"; return false; }
@@ -420,21 +443,56 @@ bool VaultRepository::rollback(FileId id, std::size_t targetVersionNumber,
 
 bool VaultRepository::addDependency(FileId parentId, FileId childId) {
     auto* f = findFileMut(parentId);
-    if (!f) return false;
+    if (!f || !findFile(childId) || parentId == childId) return false;
     if (std::find(f->childrenDependencies.begin(), f->childrenDependencies.end(), childId)
-        == f->childrenDependencies.end()) {
-        f->childrenDependencies.push_back(childId);
-        return true;
+        != f->childrenDependencies.end()) return false;
+
+    // Reject dependency cycles. A cyclic assembly graph cannot produce a
+    // deterministic BOM and is invalid in the native repository schema.
+    std::vector<FileId> pending{childId};
+    std::unordered_set<FileId> visited;
+    while (!pending.empty()) {
+        const auto current = pending.back();
+        pending.pop_back();
+        if (current == parentId) return false;
+        if (!visited.insert(current).second) continue;
+        if (const auto* candidate = findFile(current)) {
+            pending.insert(pending.end(), candidate->childrenDependencies.begin(),
+                           candidate->childrenDependencies.end());
+        }
     }
-    return false;
+    f->childrenDependencies.push_back(childId);
+    logAudit("system", "ADD_DEPENDENCY",
+             std::to_string(parentId) + " → " + std::to_string(childId));
+    return true;
+}
+
+bool VaultRepository::removeDependency(FileId parentId, FileId childId) {
+    auto* file = findFileMut(parentId);
+    if (!file) return false;
+    const auto found = std::find(file->childrenDependencies.begin(),
+                                 file->childrenDependencies.end(), childId);
+    if (found == file->childrenDependencies.end()) return false;
+    file->childrenDependencies.erase(found);
+    logAudit("system", "REMOVE_DEPENDENCY",
+             std::to_string(parentId) + " → " + std::to_string(childId));
+    return true;
 }
 
 std::vector<FileId> VaultRepository::whereUsed(FileId childId) const {
     std::vector<FileId> parents;
-    for (const auto& f : files_)
-        if (std::find(f.childrenDependencies.begin(), f.childrenDependencies.end(), childId)
-            != f.childrenDependencies.end())
-            parents.push_back(f.id);
+    std::vector<FileId> pending{childId};
+    std::unordered_set<FileId> visited{childId};
+    while (!pending.empty()) {
+        const auto dependency = pending.back();
+        pending.pop_back();
+        for (const auto& file : files_) {
+            if (std::find(file.childrenDependencies.begin(), file.childrenDependencies.end(), dependency)
+                    == file.childrenDependencies.end() || !visited.insert(file.id).second) continue;
+            parents.push_back(file.id);
+            pending.push_back(file.id);
+        }
+    }
     return parents;
 }
 
@@ -442,16 +500,28 @@ std::vector<BomItem> VaultRepository::generateBom(FileId assemblyId) const {
     std::vector<BomItem> bom;
     const auto* parent = findFile(assemblyId);
     if (!parent) return bom;
-    for (const auto childId : parent->childrenDependencies) {
+    std::vector<FileId> pending(parent->childrenDependencies.rbegin(),
+                                parent->childrenDependencies.rend());
+    while (!pending.empty()) {
+        const auto childId = pending.back();
+        pending.pop_back();
         const auto* child = findFile(childId);
-        if (child) {
+        if (!child) continue;
+        const auto existing = std::find_if(bom.begin(), bom.end(), [childId](const BomItem& item) {
+            return item.fileId == childId;
+        });
+        if (existing == bom.end()) {
             BomItem item;
-            item.fileId   = child->id;
+            item.fileId = child->id;
             item.filename = child->filename;
             item.revision = child->versions.empty() ? "A" : child->versions.back().revision;
             item.quantity = 1;
-            bom.push_back(item);
+            bom.push_back(std::move(item));
+        } else {
+            ++existing->quantity;
         }
+        pending.insert(pending.end(), child->childrenDependencies.rbegin(),
+                       child->childrenDependencies.rend());
     }
     return bom;
 }

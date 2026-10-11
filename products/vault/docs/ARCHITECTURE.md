@@ -23,12 +23,23 @@ MyDesk Vault is a dedicated Engineering Product Data Management (PDM) and revisi
     - Base64-safe binary payload persistence with SHA-256 verification on load.
     - Complete version, lock, dependency, and audit-trail round trips plus schema-v1 migration.
     - Validated same-directory temporary writes with atomic rename and prior-version `.bak` recovery files.
+- **Desktop application**:
+  - Persistent Qt 6 repository workspace with a vault hierarchy, searchable engineering-file grid,
+    version history, editable metadata and lifecycle controls, recursive BOM and where-used panes, and
+    a complete audit trail.
+  - Add, check-out/check-in, undo check-out, rollback, dependency editing, lifecycle transitions,
+    native repository persistence, BOM CSV export, and version retrieval call the same
+    `VaultRepository` used by the engine tests.
+  - Product-local UI history snapshots make successful repository mutations undoable and redoable;
+    unsuccessful lock, lifecycle, and graph operations do not enter history.
 - **Binary**: `MyDeskVault`.
 - **Identity**: Bundle `app.mydesk.vault`.
 
 ## Current limitations
 
-- The application target is currently an interactive command-line PDM client, not the required graphical repository browser.
 - Authentication, users, roles, authorization, approval workflows, database transactions, multi-user networking, and synchronization are not implemented.
 - Native saves use validated same-directory replacement and backups, but do not yet issue platform-specific `fsync` calls or preserve unknown schema fields.
 - Content currently lives in the repository document rather than an external deduplicated content-addressed blob store.
+- The current desktop is a single-user local repository client. It does not provide server-backed
+  optimistic transactions, offline replication, conflict resolution, job processing, CAD add-ins,
+  thumbnail generation, or commercial Vault file-format interoperability.

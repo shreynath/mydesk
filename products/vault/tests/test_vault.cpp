@@ -186,6 +186,35 @@ static void test_vault_bom_generation() {
     CHECK(bom[1].filename == "ConnRod.ipt");
 }
 
+static void test_vault_metadata_and_transitive_relationships() {
+    VaultRepository repo;
+    const auto top = repo.addFile("Top.iam", "$/Assemblies/Top.iam", "TOP", "alice");
+    const auto left = repo.addFile("Left.iam", "$/Assemblies/Left.iam", "LEFT", "alice");
+    const auto right = repo.addFile("Right.iam", "$/Assemblies/Right.iam", "RIGHT", "alice");
+    const auto bolt = repo.addFile("Bolt.ipt", "$/Parts/Bolt.ipt", "BOLT", "alice");
+    CHECK(repo.addDependency(top, left));
+    CHECK(repo.addDependency(top, right));
+    CHECK(repo.addDependency(left, bolt));
+    CHECK(repo.addDependency(right, bolt));
+    CHECK(!repo.addDependency(bolt, top));
+
+    const auto bom = repo.generateBom(top);
+    const auto boltItem = std::find_if(bom.begin(), bom.end(), [bolt](const BomItem& item) {
+        return item.fileId == bolt;
+    });
+    CHECK(boltItem != bom.end());
+    if (boltItem != bom.end()) CHECK(boltItem->quantity == 2);
+    const auto parents = repo.whereUsed(bolt);
+    CHECK(parents.size() == 3);
+
+    std::string error;
+    CHECK(repo.updateFileProperties(bolt, "Bolt-M6.ipt", "$/Standard/Bolt-M6.ipt", "alice", &error));
+    CHECK(repo.findFile(bolt)->filename == "Bolt-M6.ipt");
+    CHECK(!repo.updateFileProperties(bolt, "", "$/Bad.ipt", "alice", &error));
+    CHECK(repo.removeDependency(left, bolt));
+    CHECK(!repo.removeDependency(left, bolt));
+}
+
 // ─── Search ──────────────────────────────────────────────────────────────────
 
 static void test_vault_search() {
@@ -391,6 +420,7 @@ int main() {
     // "test_vault_lifecycle_transition"
     // "test_vault_assembly_dependencies_where_used"
     // "test_vault_bom_generation"
+    // "test_vault_metadata_and_transitive_relationships"
     // "test_vault_native_roundtrip"
     // "test_vault_native_malformed_input"
     // "test_vault_native_v1_migration"
@@ -404,6 +434,7 @@ int main() {
     test_vault_lifecycle_transition();
     test_vault_assembly_dependencies_where_used();
     test_vault_bom_generation();
+    test_vault_metadata_and_transitive_relationships();
     test_vault_search();
     test_vault_statistics();
     test_vault_native_roundtrip();
