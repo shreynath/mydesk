@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 
 using namespace mydesk::mill;
@@ -155,12 +156,15 @@ static void test_drilling() {
     p.tool_index  = 0;
     p.z_bottom_mm = -20.0;
     p.safe_z_mm   = 5.0;
+    p.drill_points = {{10.0, 15.0}, {35.0, 30.0}};
 
     doc.generate(p);
-    bool has_dwell = false;
+    std::size_t dwells = 0;
     for (const auto& mv : doc.toolpath(0).moves)
-        if (mv.kind == MoveKind::Dwell) has_dwell = true;
-    CHECK(has_dwell);
+        if (mv.kind == MoveKind::Dwell) ++dwells;
+    CHECK(dwells == 2);
+    CHECK_NEAR(doc.toolpath(0).moves.front().pos.x, 10.0, 1e-9);
+    CHECK_NEAR(doc.toolpath(0).moves[4].pos.x, 35.0, 1e-9);
 }
 
 // ─── Profile strategy ────────────────────────────────────────────────────────
@@ -217,11 +221,68 @@ static void test_gcode_export_spindle() {
     OperationParams p;
     p.strategy = Strategy::Drilling; p.tool_index = 0;
     p.z_bottom_mm = -2; p.safe_z_mm = 5;
+    p.drill_points = {{25.0, 25.0}};
     doc.generate(p);
 
     std::string gcode = doc.export_gcode();
     CHECK(gcode.find("M03") != std::string::npos);  // spindle on
     CHECK(gcode.find("M30") != std::string::npos);
+}
+
+static void test_selected_boundary_depths_and_validation() {
+    MillDocument doc;
+    Tool tool;
+    tool.name = "D4";
+    tool.diameter_mm = 4.0;
+    tool.flutes = 2.0;
+    tool.cutting_length_mm = 12.0;
+    tool.surface_speed_m_min = 100.0;
+    tool.feed_per_tooth_mm = 0.04;
+    doc.add_tool(tool);
+    doc.set_stock({{0.0, 0.0, -8.0}, {60.0, 60.0, 0.0}});
+    const std::size_t boundary = doc.add_boundary(
+        {"Selected pocket", {{10.0, 10.0}, {50.0, 12.0}, {44.0, 48.0}, {14.0, 45.0}}});
+
+    OperationParams params;
+    params.strategy = Strategy::Profile;
+    params.tool_index = 0;
+    params.boundary_index = boundary;
+    params.stepdown_mm = 3.0;
+    params.z_top_mm = 0.0;
+    params.z_bottom_mm = -8.0;
+    params.safe_z_mm = 6.0;
+    const std::size_t path_index = doc.generate(params);
+
+    bool cut_at_top = false;
+    bool cut_at_first_depth = false;
+    bool cut_at_bottom = false;
+    for (const ToolMove& move : doc.toolpath(path_index).moves) {
+        if (move.kind != MoveKind::Linear && move.kind != MoveKind::PlungeEntry) continue;
+        cut_at_top = cut_at_top || std::abs(move.pos.z) < 1e-9;
+        cut_at_first_depth = cut_at_first_depth || std::abs(move.pos.z + 3.0) < 1e-9;
+        cut_at_bottom = cut_at_bottom || std::abs(move.pos.z + 8.0) < 1e-9;
+        CHECK(move.pos.x >= 10.0 && move.pos.x <= 50.0);
+        CHECK(move.pos.y >= 10.0 && move.pos.y <= 48.0);
+    }
+    CHECK(!cut_at_top);
+    CHECK(cut_at_first_depth);
+    CHECK(cut_at_bottom);
+    CHECK(doc.validate_toolpath(path_index).collision_free);
+
+    OperationParams invalid = params;
+    invalid.z_bottom_mm = -13.0;
+    bool rejected = false;
+    try { (void)doc.generate(invalid); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+
+    invalid = params;
+    invalid.strategy = Strategy::Drilling;
+    invalid.drill_points.clear();
+    rejected = false;
+    try { (void)doc.generate(invalid); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -247,6 +308,8 @@ int main() {
     test_gcode_export_header();
     // "test_gcode_export_spindle"
     test_gcode_export_spindle();
+    // "test_selected_boundary_depths_and_validation"
+    test_selected_boundary_depths_and_validation();
 
     if (g_failed == 0) {
         std::printf("All Mill tests passed.\n");

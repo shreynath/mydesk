@@ -5,7 +5,7 @@
   "binary": "MyDeskInfra",
   "target_application": "InfraWorks",
   "target_version": "2025",
-  "note": "MyDesk Infra provides conceptual infrastructure planning, DEM terrain interpolation, component roads, bridges, and city model generation targeting Autodesk InfraWorks.",
+  "note": "MyDesk Infra provides conceptual infrastructure planning, DEM terrain interpolation, component roads, corridor earthworks, bridges, and city model generation targeting Autodesk InfraWorks. Capabilities remain scoped FUNCTIONAL subsets, not complete product parity.",
   "capabilities": [
     {
       "id": "INFRA-DEM-TERRAIN",
@@ -114,12 +114,31 @@
       "expected_output": "Complete lossless document restoration",
       "formats": [".myinfra"],
       "implementation": "products/infra/engine/src/infra_document.cpp",
-      "tests": ["test_infra_native_roundtrip"],
+      "tests": ["test_infra_native_roundtrip", "test_infra_native_validation_and_file_io"],
       "manual_tests": [],
-      "performance": "Fast atomic JSON persistence",
+      "performance": "Atomic temporary-file replacement with a 256 MiB guarded reader",
       "status": "FUNCTIONAL",
       "evidence": "products/infra/tests/test_infra.cpp",
-      "differences": "Full round-trip verified."
+      "differences": "Versioned schema and complete DEM, road, bridge, and building round trips are verified; unknown-field preservation and recovery journaling remain incomplete."
+    },
+    {
+      "id": "INFRA-CORRIDOR-EARTHWORKS",
+      "target_application": "InfraWorks",
+      "target_version": "2025",
+      "category": "corridor",
+      "name": "Terrain-aware road corridor cut and fill analysis",
+      "command": "EARTHWORKS / ANALYZE_ROAD",
+      "reference_behavior": "Sample a component road by station, compare its formation surface with terrain, and report profile grades plus cut and fill quantities.",
+      "expected_input": "Persisted road alignment, DEM terrain, shoulder width, and longitudinal/transverse sampling intervals",
+      "expected_output": "Station samples, terrain and design elevations, grades, cross-section areas, and cut/fill volumes",
+      "formats": [".myinfra"],
+      "implementation": "products/infra/engine/src/infra_document.cpp",
+      "tests": ["test_infra_corridor_earthworks", "test_infra_road_edit_undo_redo"],
+      "manual_tests": [],
+      "performance": "Linear in station count multiplied by transverse samples",
+      "status": "FUNCTIONAL",
+      "evidence": "products/infra/tests/test_infra.cpp",
+      "differences": "Constant-width level formation and DEM terrain are supported; superelevation, daylight side slopes, strata, and haul balancing remain incomplete."
     }
   ]
 }

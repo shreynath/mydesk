@@ -302,9 +302,9 @@
       ],
       "manual_tests": [],
       "performance": "Interactive constraint solving and compound shape generation.",
-      "status": "VERIFIED_PARITY",
+      "status": "PARTIAL_PARITY",
       "evidence": "Implemented in products/mechanical/engine/src/assembly_document.cpp; tested by test_assembly_constraints_and_bom",
-      "differences": "Verified against reference behavior."
+      "differences": "Occurrence placement, simple coordinate constraints, BOM rollup, native restoration, and compound STEP export are tested. General face-reference constraint solving, degrees-of-freedom diagnostics, and hierarchical subassemblies are not implemented."
     },
     {
       "id": "INV-JOINTS",
@@ -312,18 +312,18 @@
       "target_version": "2025",
       "category": "assembly",
       "name": "Joints and motion",
-      "command": "Joint",
-      "reference_behavior": "Joints and motion",
-      "expected_input": "Professional workflow input",
-      "expected_output": "Professional workflow output",
-      "formats": [],
-      "implementation": "",
-      "tests": [],
+      "command": "addJoint / setJointPosition / solve",
+      "reference_behavior": "Rigid, revolute, and slider joints constrain occurrence motion along a normalized axis, enforce travel limits, update component transforms, and preserve driven positions in the assembly document.",
+      "expected_input": "Grounded base plus arm and carriage occurrences; a -90..90 degree revolute joint and 0..15 mm slider joint",
+      "expected_output": "Bounded transforms applied to the actual OCCT occurrence B-reps, undo/redo of joint drive edits, and complete native round-trip",
+      "formats": [".mydesk-assy"],
+      "implementation": "products/mechanical/engine/src/assembly_document.cpp",
+      "tests": ["test_mechanical_joint_motion_undo_persistence"],
       "manual_tests": [],
-      "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "performance": "Linear pass over joints and occurrences for the tested single-level assembly subset.",
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/assembly_document.cpp; tested by test_mechanical_joint_motion_undo_persistence",
+      "differences": "Single-level global-axis rigid/revolute/slider kinematics are implemented. Hierarchical local-coordinate composition, inferred joints, contact sets, dynamics, and motion studies are not implemented."
     },
     {
       "id": "INV-DRAWING",

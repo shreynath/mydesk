@@ -8,12 +8,13 @@ Inventory for MyDesk v0.1. Update when adding packages.
 | CMake | Build | BSD-3 | Dev only |
 | Ninja | Build | Apache-2.0 | Dev only |
 | Apple clang / MSVC / GCC | Toolchain | Vendor | Dev only |
+| Open CASCADE Technology | Mechanical and Fusion B-rep modeling and STEP/IGES support | LGPL-2.1 with additional exception | Dynamically linked from the system package |
+| JSON for Modern C++ 3.12.0 | Infra and Vault native-format structural parsing and validation | MIT | Pinned release archive, SHA-256 verified by CMake |
 
 ## Planned (not yet linked)
 
 | Dependency | Candidate use | License to verify |
 |---|---|---|
-| Open CASCADE Technology | B-rep, STEP/IGES | LGPL 2.1 |
 | SolveSpace solver pieces | Constraints | GPL — **compatibility review required before link** |
 
 ## Assets

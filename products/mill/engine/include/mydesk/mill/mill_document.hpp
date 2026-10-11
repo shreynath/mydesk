@@ -50,6 +50,14 @@ struct StockBox {
     Vec3 max_corner{};  ///< upper-right-top in mm
 };
 
+// A user-selected planar machining boundary. Current 2.5D strategies accept
+// finite, strictly convex polygons; this permits exact inward cutter offsets
+// without silently approximating unsupported concave selections.
+struct MachiningBoundary {
+    std::string name;
+    std::vector<Vec2> polygon;
+};
+
 // ────────────────────────────────────────────────────────────────────────────
 // Toolpath move types
 // ────────────────────────────────────────────────────────────────────────────
@@ -94,6 +102,8 @@ struct OperationParams {
     double tolerance_mm{0.01};  ///< chordal tolerance for arcs/curves
     bool   climb_cut{true};     ///< climb (up-cut) vs conventional
     double ramp_angle_deg{3.0}; ///< entry ramp angle
+    std::optional<std::size_t> boundary_index; ///< selected model boundary; stock outline when omitted
+    std::vector<Vec2> drill_points; ///< explicit selected hole centres for Drilling
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -106,6 +116,11 @@ struct Toolpath {
 
     double total_cut_length_mm() const noexcept;
     double estimated_time_min()  const noexcept;
+};
+
+struct ToolpathValidation {
+    bool collision_free{true};
+    std::vector<std::string> errors;
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -132,24 +147,31 @@ public:
     std::size_t tool_count() const noexcept { return tools_.size(); }
 
     // Stock
-    void       set_stock(StockBox s) { stock_ = s; }
+    void       set_stock(StockBox s);
     StockBox&  stock() noexcept { return stock_; }
+
+    // Selected model geometry
+    std::size_t add_boundary(MachiningBoundary boundary);
+    const MachiningBoundary& boundary(std::size_t i) const { return boundaries_.at(i); }
+    std::size_t boundary_count() const noexcept { return boundaries_.size(); }
 
     // Toolpath generation
     std::size_t generate(const OperationParams& params);
     const Toolpath& toolpath(std::size_t i) const { return toolpaths_.at(i); }
     std::size_t toolpath_count() const noexcept { return toolpaths_.size(); }
+    ToolpathValidation validate_toolpath(std::size_t i) const;
 
     // Feed/speed calculator
     // Returns recommended spindle RPM and feed-rate (mm/min) for a tool
     struct FeedSpeed { double rpm; double feed_mm_min; };
-    FeedSpeed calc_feed_speed(std::size_t tool_idx) const noexcept;
+    FeedSpeed calc_feed_speed(std::size_t tool_idx) const;
 
     // G-code export — all toolpaths
     std::string export_gcode(const GCodeOptions& opts = {}) const;
 
 private:
     std::vector<Tool>       tools_;
+    std::vector<MachiningBoundary> boundaries_;
     std::vector<Toolpath>   toolpaths_;
     StockBox                stock_;
 
@@ -158,6 +180,8 @@ private:
     Toolpath generate_pencil(const OperationParams& p) const;
     Toolpath generate_drilling(const OperationParams& p) const;
     Toolpath generate_profile(const OperationParams& p) const;
+    void validate_operation(const OperationParams& p) const;
+    std::vector<Vec2> selected_boundary(const OperationParams& p, double cutter_offset_mm) const;
 };
 
 } // namespace mydesk::mill

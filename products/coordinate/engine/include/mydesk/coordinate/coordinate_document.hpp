@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -41,12 +42,36 @@ struct BoundingBox3D {
     [[nodiscard]] std::tuple<double, double, double> center() const;
 };
 
+struct Vector3D {
+    double x{0.0};
+    double y{0.0};
+    double z{0.0};
+};
+
+// A rigid oriented box. Axes are an orthonormal local basis and halfExtents are
+// measured along those axes. This is the narrow-phase primitive used for
+// rotated IFC/NWC-style components; bounds remains its broad-phase AABB.
+struct OrientedBox3D {
+    Vector3D center;
+    Vector3D halfExtents;
+    std::array<Vector3D, 3> axes{{{1.0, 0.0, 0.0},
+                                  {0.0, 1.0, 0.0},
+                                  {0.0, 0.0, 1.0}}};
+
+    [[nodiscard]] static OrientedBox3D fromEuler(Vector3D center, Vector3D halfExtents,
+                                                  double yawRadians, double pitchRadians = 0.0,
+                                                  double rollRadians = 0.0);
+    [[nodiscard]] BoundingBox3D axisAlignedBounds() const;
+    [[nodiscard]] bool valid() const;
+};
+
 struct CoordinationElement {
     ElementId id{0};
     ModelId modelId{0};
     std::string name;
     std::string category;
     BoundingBox3D bounds;
+    std::optional<OrientedBox3D> orientedBounds;
 };
 
 struct AggregatedModel {
@@ -80,6 +105,11 @@ struct ClashTest {
     std::vector<ModelId> selectionSetA;
     std::vector<ModelId> selectionSetB;
     std::vector<ClashResult> results;
+    struct RunStatistics {
+        std::size_t rawPairCount{0};
+        std::size_t broadPhaseCandidates{0};
+        std::size_t narrowPhaseChecks{0};
+    } lastRun;
 };
 
 class CoordinateDocument {
@@ -92,6 +122,8 @@ public:
     ModelId addModel(std::string name, std::string sourcePath, std::string discipline);
     ElementId addElementToModel(ModelId modelId, std::string name, std::string category,
                                 const BoundingBox3D& bounds);
+    ElementId addOrientedElementToModel(ModelId modelId, std::string name, std::string category,
+                                        const OrientedBox3D& bounds);
     [[nodiscard]] const AggregatedModel* findModel(ModelId id) const;
     [[nodiscard]] const CoordinationElement* findElement(ElementId id) const;
     [[nodiscard]] const std::vector<AggregatedModel>& models() const { return models_; }
@@ -100,6 +132,12 @@ public:
                                 double clearance = 0.05);
     bool setClashTestSets(ClashTestId testId, std::vector<ModelId> setA, std::vector<ModelId> setB);
     std::size_t runClashTest(ClashTestId testId);
+    bool setClashResultReview(ClashTestId testId, ClashResultId resultId, ClashStatus status,
+                              std::string comments);
+    bool undo();
+    bool redo();
+    [[nodiscard]] bool canUndo() const { return !undoHistory_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redoHistory_.empty(); }
     [[nodiscard]] const ClashTest* findClashTest(ClashTestId testId) const;
 
     [[nodiscard]] std::string exportBcfXml() const;
@@ -114,6 +152,17 @@ private:
     ElementId nextElementId_{1};
     ClashTestId nextTestId_{1};
     ClashResultId nextResultId_{1};
+
+    struct ReviewChange {
+        ClashTestId testId{0};
+        ClashResultId resultId{0};
+        ClashStatus beforeStatus{ClashStatus::New};
+        ClashStatus afterStatus{ClashStatus::New};
+        std::string beforeComments;
+        std::string afterComments;
+    };
+    std::vector<ReviewChange> undoHistory_;
+    std::vector<ReviewChange> redoHistory_;
 };
 
 } // namespace mydesk::coordinate

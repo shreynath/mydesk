@@ -10,17 +10,19 @@ int main() {
     const auto wt = project.addWallType("Generic - 200mm", 0.2, 3.0);
     const auto dt = project.addDoorType("Single 900", 0.9, 2.1);
     const auto w1 = project.addWall(wt, l1, 0, 0, 10, 0);
+    project.setWallTopConstraint(w1, l2);
     project.addWall(wt, l1, 10, 0, 10, 8);
     project.addWall(wt, l2, 0, 0, 10, 0);
     project.addDoor(dt, w1, 0.3);
 
     const auto schedule = project.wallScheduleByType();
-    std::cout << "MyDesk Buildings\nProject: " << project.name << '\n';
+    std::cout << "MyDesk Buildings v0.2.0\nProject: " << project.name << '\n';
     std::cout << "Levels: " << project.levels.size() << " Walls: " << project.walls.size()
               << " Doors: " << project.doors.size() << '\n';
     for (const auto& row : schedule) {
         std::cout << "Schedule " << row.key << " count=" << row.count
                   << " length=" << row.totalLength << " area=" << row.totalArea << '\n';
     }
+    std::cout << "Constrained wall height: " << project.wallHeight(*project.findWall(w1)) << '\n';
     return 0;
 }

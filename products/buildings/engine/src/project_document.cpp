@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <unordered_map>
 
@@ -261,6 +262,10 @@ ElementId ProjectDocument::addWall(TypeId typeId, LevelId levelId, double x0, do
 }
 
 ElementId ProjectDocument::addDoor(TypeId typeId, ElementId hostWallId, double offsetAlongWall) {
+    if (!findWall(hostWallId) || !findDoorType(typeId) || !std::isfinite(offsetAlongWall) ||
+        offsetAlongWall < 0.0 || offsetAlongWall > 1.0) {
+        return 0;
+    }
     Door door;
     door.id = nextElementId_++;
     door.typeId = typeId;
@@ -271,6 +276,10 @@ ElementId ProjectDocument::addDoor(TypeId typeId, ElementId hostWallId, double o
 }
 
 ElementId ProjectDocument::addWindow(TypeId typeId, ElementId hostWallId, double offsetAlongWall) {
+    if (!findWall(hostWallId) || !findWindowType(typeId) || !std::isfinite(offsetAlongWall) ||
+        offsetAlongWall < 0.0 || offsetAlongWall > 1.0) {
+        return 0;
+    }
     Window win;
     win.id = nextElementId_++;
     win.typeId = typeId;
@@ -692,6 +701,28 @@ ElementId ProjectDocument::addDimension(ElementId elemAId, ElementId elemBId, st
     return d.id;
 }
 
+ElementId ProjectDocument::addAssociativeDimension(ElementId elemAId, ElementId elemBId,
+                                                   std::string dimType,
+                                                   std::string textOverride) {
+    const auto first = elementPosition(elemAId);
+    const auto second = elementPosition(elemBId);
+    if (!first || !second || elemAId == elemBId) {
+        return 0;
+    }
+    Dimension dimension;
+    dimension.id = nextElementId_++;
+    dimension.elemAId = elemAId;
+    dimension.elemBId = elemBId;
+    dimension.dimType = std::move(dimType);
+    dimension.textOverride = std::move(textOverride);
+    dimension.associative = true;
+    dimension.measuredValue = dimension.dimType == "Vertical"
+                                  ? std::abs(second->z - first->z)
+                                  : std::hypot(second->x - first->x, second->y - first->y);
+    dimensions.push_back(dimension);
+    return dimension.id;
+}
+
 ElementId ProjectDocument::addDetailComponent(ElementId viewId, std::string familyName, double x,
                                               double y, double rotationDeg) {
     DetailComponent dc;
@@ -713,13 +744,176 @@ void ProjectDocument::addKeynote(std::string key, std::string text) {
 // Lookups
 // -----------------------------------------------------------------------------
 bool ProjectDocument::setLevelElevation(LevelId id, double elevation) {
+    if (!std::isfinite(elevation) || !levelEditKeepsConstraintsValid(id, elevation)) {
+        return false;
+    }
     for (auto& level : levels) {
         if (level.id == id) {
+            if (level.elevation == elevation) {
+                return true;
+            }
+            undoHistory_.push_back(
+                {EditKind::LevelElevation, id, {level.elevation, 0.0, 0.0, 0.0},
+                 {elevation, 0.0, 0.0, 0.0}});
+            redoHistory_.clear();
             level.elevation = elevation;
             return true;
         }
     }
     return false;
+}
+
+bool ProjectDocument::setWallTopConstraint(ElementId wallId, LevelId topLevelId,
+                                           double topOffset) {
+    if (!std::isfinite(topOffset)) {
+        return false;
+    }
+    const auto* topLevel = findLevel(topLevelId);
+    for (auto& wall : walls) {
+        if (wall.id != wallId) {
+            continue;
+        }
+        if (!topLevel || topLevel->elevation + topOffset <= wallBaseElevation(wall) + 1.0e-9) {
+            return false;
+        }
+        if (wall.topConstraintLevelId == topLevelId && wall.topOffset == topOffset) {
+            return true;
+        }
+        undoHistory_.push_back({EditKind::WallTopConstraint, wallId,
+                                {wall.topOffset, 0.0, 0.0, 0.0},
+                                {topOffset, 0.0, 0.0, 0.0}, wall.topConstraintLevelId,
+                                topLevelId});
+        redoHistory_.clear();
+        wall.topConstraintLevelId = topLevelId;
+        wall.topOffset = topOffset;
+        return true;
+    }
+    return false;
+}
+
+bool ProjectDocument::removeWallTopConstraint(ElementId wallId) {
+    for (auto& wall : walls) {
+        if (wall.id != wallId) {
+            continue;
+        }
+        if (wall.topConstraintLevelId == 0) {
+            return true;
+        }
+        undoHistory_.push_back({EditKind::WallTopConstraint, wallId,
+                                {wall.topOffset, 0.0, 0.0, 0.0}, {},
+                                wall.topConstraintLevelId, 0});
+        redoHistory_.clear();
+        wall.topConstraintLevelId = 0;
+        wall.topOffset = 0.0;
+        return true;
+    }
+    return false;
+}
+
+bool ProjectDocument::moveWall(ElementId wallId, double x0, double y0, double x1, double y1) {
+    if (!std::isfinite(x0) || !std::isfinite(y0) || !std::isfinite(x1) || !std::isfinite(y1) ||
+        std::hypot(x1 - x0, y1 - y0) <= 1.0e-9) {
+        return false;
+    }
+    for (auto& wall : walls) {
+        if (wall.id != wallId) {
+            continue;
+        }
+        const std::array<double, 4> before{wall.x0, wall.y0, wall.x1, wall.y1};
+        const std::array<double, 4> after{x0, y0, x1, y1};
+        if (before == after) {
+            return true;
+        }
+        undoHistory_.push_back({EditKind::WallGeometry, wallId, before, after});
+        redoHistory_.clear();
+        wall.x0 = x0;
+        wall.y0 = y0;
+        wall.x1 = x1;
+        wall.y1 = y1;
+        return true;
+    }
+    return false;
+}
+
+bool ProjectDocument::applyEdit(const EditRecord& edit, bool forward) {
+    const auto& values = forward ? edit.afterValues : edit.beforeValues;
+    const LevelId levelId = forward ? edit.afterLevelId : edit.beforeLevelId;
+    if (edit.kind == EditKind::LevelElevation) {
+        for (auto& level : levels) {
+            if (level.id == edit.targetId) {
+                level.elevation = values[0];
+                return true;
+            }
+        }
+    } else {
+        for (auto& wall : walls) {
+            if (wall.id != edit.targetId) {
+                continue;
+            }
+            if (edit.kind == EditKind::WallGeometry) {
+                wall.x0 = values[0];
+                wall.y0 = values[1];
+                wall.x1 = values[2];
+                wall.y1 = values[3];
+            } else {
+                wall.topConstraintLevelId = levelId;
+                wall.topOffset = values[0];
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ProjectDocument::undo() {
+    if (undoHistory_.empty()) {
+        return false;
+    }
+    const auto edit = undoHistory_.back();
+    undoHistory_.pop_back();
+    if (!applyEdit(edit, false)) {
+        return false;
+    }
+    redoHistory_.push_back(edit);
+    return true;
+}
+
+bool ProjectDocument::redo() {
+    if (redoHistory_.empty()) {
+        return false;
+    }
+    const auto edit = redoHistory_.back();
+    redoHistory_.pop_back();
+    if (!applyEdit(edit, true)) {
+        return false;
+    }
+    undoHistory_.push_back(edit);
+    return true;
+}
+
+bool ProjectDocument::levelEditKeepsConstraintsValid(LevelId levelId, double elevation) const {
+    if (!findLevel(levelId)) {
+        return false;
+    }
+    for (const auto& wall : walls) {
+        if (wall.topConstraintLevelId == 0 ||
+            (wall.baseLevelId != levelId && wall.topConstraintLevelId != levelId)) {
+            continue;
+        }
+        const auto* base = findLevel(wall.baseLevelId);
+        const auto* top = findLevel(wall.topConstraintLevelId);
+        if (!base || !top) {
+            return false;
+        }
+        const double baseElevation =
+            (wall.baseLevelId == levelId ? elevation : base->elevation) + wall.baseOffset;
+        const double topElevation =
+            (wall.topConstraintLevelId == levelId ? elevation : top->elevation) + wall.topOffset;
+        if (topElevation <= baseElevation + 1.0e-9) {
+            return false;
+        }
+    }
+    return true;
 }
 
 const Level* ProjectDocument::findLevel(LevelId id) const {
@@ -771,6 +965,13 @@ const Material* ProjectDocument::findMaterial(TypeId id) const {
     return nullptr;
 }
 
+const Dimension* ProjectDocument::findDimension(ElementId id) const {
+    for (const auto& dimension : dimensions) {
+        if (dimension.id == id) return &dimension;
+    }
+    return nullptr;
+}
+
 // -----------------------------------------------------------------------------
 // Computations & Analysis
 // -----------------------------------------------------------------------------
@@ -779,6 +980,11 @@ double ProjectDocument::wallLength(const Wall& wall) const {
 }
 
 double ProjectDocument::wallHeight(const Wall& wall) const {
+    if (wall.topConstraintLevelId != 0) {
+        const auto* topLevel = findLevel(wall.topConstraintLevelId);
+        if (!topLevel) return 0.0;
+        return std::max(0.0, topLevel->elevation + wall.topOffset - wallBaseElevation(wall));
+    }
     if (wall.heightOverride > 0.0) return wall.heightOverride;
     const auto* type = findWallType(wall.typeId);
     return type ? type->defaultHeight : 0.0;
@@ -813,6 +1019,58 @@ double ProjectDocument::wallBaseElevation(const Wall& wall) const {
 
 double ProjectDocument::wallTopElevation(const Wall& wall) const {
     return wallBaseElevation(wall) + wallHeight(wall);
+}
+
+std::optional<ElementPosition3D> ProjectDocument::elementPosition(ElementId id) const {
+    if (const auto* wall = findWall(id)) {
+        return ElementPosition3D{(wall->x0 + wall->x1) * 0.5,
+                                 (wall->y0 + wall->y1) * 0.5,
+                                 wallBaseElevation(*wall)};
+    }
+    for (const auto& door : doors) {
+        if (door.id != id) continue;
+        const auto* wall = findWall(door.hostWallId);
+        if (!wall) return std::nullopt;
+        return ElementPosition3D{wall->x0 + (wall->x1 - wall->x0) * door.offsetAlongWall,
+                                 wall->y0 + (wall->y1 - wall->y0) * door.offsetAlongWall,
+                                 wallBaseElevation(*wall)};
+    }
+    for (const auto& window : windows) {
+        if (window.id != id) continue;
+        const auto* wall = findWall(window.hostWallId);
+        const auto* type = findWindowType(window.typeId);
+        if (!wall || !type) return std::nullopt;
+        return ElementPosition3D{wall->x0 + (wall->x1 - wall->x0) * window.offsetAlongWall,
+                                 wall->y0 + (wall->y1 - wall->y0) * window.offsetAlongWall,
+                                 wallBaseElevation(*wall) + type->sillHeight};
+    }
+    for (const auto& element : structuralElements) {
+        if (element.id == id) {
+            return ElementPosition3D{(element.x0 + element.x1) * 0.5,
+                                     (element.y0 + element.y1) * 0.5,
+                                     (element.z0 + element.z1) * 0.5};
+        }
+    }
+    return std::nullopt;
+}
+
+double ProjectDocument::dimensionValue(const Dimension& dimension) const {
+    if (!dimension.associative) {
+        return dimension.measuredValue;
+    }
+    const auto first = elementPosition(dimension.elemAId);
+    const auto second = elementPosition(dimension.elemBId);
+    if (!first || !second) {
+        return dimension.measuredValue;
+    }
+    if (dimension.dimType == "Vertical") {
+        return std::abs(second->z - first->z);
+    }
+    if (dimension.dimType == "3D") {
+        return std::hypot(std::hypot(second->x - first->x, second->y - first->y),
+                          second->z - first->z);
+    }
+    return std::hypot(second->x - first->x, second->y - first->y);
 }
 
 double ProjectDocument::floorArea(const Floor& floor) const {
@@ -1247,7 +1505,8 @@ bool ProjectDocument::executeDynamoGraph(const DynamoGraph& graph) {
 // -----------------------------------------------------------------------------
 std::string ProjectDocument::serializeNative() const {
     std::ostringstream oss;
-    oss << "{\"format\":\"mydesk-buildings\",\"schemaVersion\":\"1\",\"name\":\"" << name << "\",";
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
+    oss << "{\"format\":\"mydesk-buildings\",\"schemaVersion\":\"2\",\"name\":\"" << name << "\",";
     oss << "\"levels\":[";
     for (std::size_t i = 0; i < levels.size(); ++i) {
         const auto& l = levels[i];
@@ -1267,8 +1526,17 @@ std::string ProjectDocument::serializeNative() const {
         const auto& w = walls[i];
         oss << "{\"id\":" << w.id << ",\"typeId\":" << w.typeId << ",\"baseLevelId\":"
             << w.baseLevelId << ",\"x0\":" << w.x0 << ",\"y0\":" << w.y0 << ",\"x1\":" << w.x1
-            << ",\"y1\":" << w.y1 << "}";
+            << ",\"y1\":" << w.y1 << ",\"heightOverride\":" << w.heightOverride
+            << ",\"baseOffset\":" << w.baseOffset << ",\"topConstraintLevelId\":"
+            << w.topConstraintLevelId << ",\"topOffset\":" << w.topOffset << "}";
         if (i + 1 < walls.size()) oss << ",";
+    }
+    oss << "],\"doorTypes\":[";
+    for (std::size_t i = 0; i < doorTypes.size(); ++i) {
+        const auto& type = doorTypes[i];
+        oss << "{\"id\":" << type.id << ",\"name\":\"" << type.name << "\",\"width\":"
+            << type.width << ",\"height\":" << type.height << "}";
+        if (i + 1 < doorTypes.size()) oss << ",";
     }
     oss << "],\"doors\":[";
     for (std::size_t i = 0; i < doors.size(); ++i) {
@@ -1302,6 +1570,16 @@ std::string ProjectDocument::serializeNative() const {
         }
         oss << "]}";
         if (i + 1 < rooms.size()) oss << ",";
+    }
+    oss << "],\"dimensions\":[";
+    for (std::size_t i = 0; i < dimensions.size(); ++i) {
+        const auto& dimension = dimensions[i];
+        oss << "{\"id\":" << dimension.id << ",\"elemAId\":" << dimension.elemAId
+            << ",\"elemBId\":" << dimension.elemBId << ",\"dimType\":\""
+            << dimension.dimType << "\",\"measuredValue\":" << dimension.measuredValue
+            << ",\"textOverride\":\"" << dimension.textOverride << "\",\"associative\":"
+            << (dimension.associative ? 1 : 0) << "}";
+        if (i + 1 < dimensions.size()) oss << ",";
     }
     oss << "]}";
     return oss.str();
@@ -1368,10 +1646,14 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
     }
 
     cursor = wallsPos;
+    const auto doorTypesPos = json.find("\"doorTypes\"");
     const auto doorsPos = json.find("\"doors\"");
-    while (cursor != std::string_view::npos && cursor < doorsPos) {
+    const auto wallSectionEnd = doorTypesPos != std::string_view::npos ? doorTypesPos : doorsPos;
+    while (cursor != std::string_view::npos && cursor < wallSectionEnd) {
         const auto next = json.find("\"y1\"", cursor);
-        if (next == std::string_view::npos || next > doorsPos) break;
+        if (next == std::string_view::npos || next > wallSectionEnd) break;
+        const auto objectEnd = json.find('}', next);
+        if (objectEnd == std::string_view::npos || objectEnd > wallSectionEnd) break;
         Wall wall;
         double id = 0;
         findNumberAfter("\"id\"", cursor, id);
@@ -1385,9 +1667,37 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
         findNumberAfter("\"y0\"", cursor, wall.y0);
         findNumberAfter("\"x1\"", cursor, wall.x1);
         findNumberAfter("\"y1\"", cursor, wall.y1);
+        auto findOptionalWallNumber = [&](std::string_view key, double& value) {
+            const auto position = json.find(key, cursor);
+            if (position != std::string_view::npos && position < objectEnd) {
+                findNumberAfter(key, cursor, value);
+            }
+        };
+        double topConstraint = 0.0;
+        findOptionalWallNumber("\"heightOverride\"", wall.heightOverride);
+        findOptionalWallNumber("\"baseOffset\"", wall.baseOffset);
+        findOptionalWallNumber("\"topConstraintLevelId\"", topConstraint);
+        findOptionalWallNumber("\"topOffset\"", wall.topOffset);
+        wall.topConstraintLevelId = static_cast<LevelId>(topConstraint);
         doc.walls.push_back(wall);
         doc.nextElementId_ = std::max(doc.nextElementId_, wall.id + 1);
-        cursor = next + 4;
+        cursor = objectEnd + 1;
+    }
+
+    cursor = doorTypesPos;
+    while (cursor != std::string_view::npos && cursor < doorsPos) {
+        const auto next = json.find("\"height\"", cursor);
+        if (next == std::string_view::npos || next > doorsPos) break;
+        DoorType type;
+        double id = 0.0;
+        findNumberAfter("\"id\"", cursor, id);
+        type.id = static_cast<TypeId>(id);
+        findStringAfter("\"name\"", cursor, type.name);
+        findNumberAfter("\"width\"", cursor, type.width);
+        findNumberAfter("\"height\"", cursor, type.height);
+        doc.doorTypes.push_back(type);
+        doc.nextTypeId_ = std::max(doc.nextTypeId_, type.id + 1);
+        cursor = next + 8;
     }
 
     cursor = doorsPos;
@@ -1447,9 +1757,12 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
     }
 
     cursor = roomsPos;
-    while (cursor != std::string_view::npos) {
+    const auto dimensionsPos = json.find("\"dimensions\"");
+    while (cursor != std::string_view::npos &&
+           (dimensionsPos == std::string_view::npos || cursor < dimensionsPos)) {
         const auto namePos = json.find("\"name\":", cursor);
-        if (namePos == std::string_view::npos) break;
+        if (namePos == std::string_view::npos ||
+            (dimensionsPos != std::string_view::npos && namePos > dimensionsPos)) break;
         Room rm;
         double id = 0, levelId = 0;
         findNumberAfter("\"id\"", cursor, id);
@@ -1481,6 +1794,39 @@ ProjectDocument ProjectDocument::deserializeNative(std::string_view json, std::s
         const auto nextRm = json.find("{\"id\":", namePos);
         cursor = nextRm;
     }
+    cursor = dimensionsPos;
+    while (cursor != std::string_view::npos) {
+        const auto associativePosition = json.find("\"associative\"", cursor);
+        if (associativePosition == std::string_view::npos) break;
+        const auto objectEnd = json.find('}', associativePosition);
+        if (objectEnd == std::string_view::npos) break;
+        Dimension dimension;
+        double id = 0.0;
+        double elementA = 0.0;
+        double elementB = 0.0;
+        double associative = 0.0;
+        findNumberAfter("\"id\"", cursor, id);
+        findNumberAfter("\"elemAId\"", cursor, elementA);
+        findNumberAfter("\"elemBId\"", cursor, elementB);
+        findStringAfter("\"dimType\"", cursor, dimension.dimType);
+        findNumberAfter("\"measuredValue\"", cursor, dimension.measuredValue);
+        findStringAfter("\"textOverride\"", cursor, dimension.textOverride);
+        findNumberAfter("\"associative\"", cursor, associative);
+        dimension.id = static_cast<ElementId>(id);
+        dimension.elemAId = static_cast<ElementId>(elementA);
+        dimension.elemBId = static_cast<ElementId>(elementB);
+        dimension.associative = associative != 0.0;
+        doc.dimensions.push_back(std::move(dimension));
+        doc.nextElementId_ = std::max(doc.nextElementId_, static_cast<ElementId>(id) + 1);
+        cursor = objectEnd + 1;
+    }
+    for (const auto& wall : doc.walls) {
+        if (wall.topConstraintLevelId != 0 && doc.wallHeight(wall) <= 1.0e-9) {
+            if (error) *error = "wall top constraint does not produce a positive height";
+            return {};
+        }
+    }
+    if (error) error->clear();
     return doc;
 }
 

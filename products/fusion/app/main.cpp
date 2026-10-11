@@ -11,8 +11,8 @@ int main(int argc, char** argv) {
 
     const auto sk1 = doc.addSketchRectangle("BaseSketch", 80.0, 40.0);
     const auto ex1 = doc.addExtrude("MainExtrude", sk1, 15.0);
-    doc.addDirectPushPull("FaceOffset", ex1, 5.0);
-    doc.addCAMPocket("RoughPocket", 6.0, 10.0, 2.5);
+    const auto pushed = doc.addDirectPushPull("FaceOffset", ex1, 5.0);
+    doc.addCAMPocket("RoughPocket", pushed, 6.0, 10.0, 2.5, 3.0);
     doc.addECADBoard("MountingPCB", 70.0, 35.0, 1.6);
 
     std::cout << "Timeline features: " << doc.timeline().size() << "\n";

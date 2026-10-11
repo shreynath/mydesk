@@ -3,7 +3,7 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
-    std::cout << "MyDesk Coordinate v0.1.0 — Navisworks Class Professional Model Coordination\n";
+    std::cout << "MyDesk Coordinate v0.2.0 — Navisworks Class Professional Model Coordination\n";
     mydesk::coordinate::CoordinateDocument doc;
     doc.setName("HospitalCoordination");
 
@@ -19,6 +19,11 @@ int main(int argc, char** argv) {
     const auto clashCount = doc.runClashTest(testId);
 
     std::cout << "Clash test executed: found " << clashCount << " clash(es).\n";
+    if (const auto* test = doc.findClashTest(testId)) {
+        std::cout << "Broad phase: " << test->lastRun.broadPhaseCandidates << " / "
+                  << test->lastRun.rawPairCount << " candidate pair(s); narrow phase: "
+                  << test->lastRun.narrowPhaseChecks << " check(s).\n";
+    }
 
     (void)argc;
     (void)argv;

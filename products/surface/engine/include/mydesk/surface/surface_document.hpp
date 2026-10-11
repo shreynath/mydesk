@@ -59,6 +59,15 @@ struct NurbsSurface {
     std::vector<WeightedPoint> controlGrid; // size numU * numV (row-major)
 
     [[nodiscard]] Vec3 evaluate(double u, double v) const;
+    struct Derivatives {
+        Vec3 point;
+        Vec3 du;
+        Vec3 dv;
+        Vec3 duu;
+        Vec3 duv;
+        Vec3 dvv;
+    };
+    [[nodiscard]] Derivatives derivativesAt(double u, double v) const;
     [[nodiscard]] Vec3 normalAt(double u, double v) const;
     [[nodiscard]] double gaussianCurvatureAt(double u, double v) const;
     [[nodiscard]] double meanCurvatureAt(double u, double v) const;
@@ -100,6 +109,13 @@ public:
     // Continuity Analysis
     [[nodiscard]] ContinuityReport checkSeamContinuity(SurfacePatchId patchA, SurfacePatchId patchB,
                                                        int samples = 10) const;
+    bool alignSeam(SurfacePatchId patchA, SurfacePatchId patchB, ContinuityOrder order);
+
+    // Editing history
+    [[nodiscard]] bool canUndo() const { return !undoStack_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redoStack_.empty(); }
+    bool undo();
+    bool redo();
 
     // Zebra Stripe Reflection Simulation
     [[nodiscard]] std::vector<double> evaluateZebraStripes(SurfacePatchId patchId, int uRes, int vRes,
@@ -113,11 +129,21 @@ public:
     static SurfaceDocument deserializeNative(std::string_view json, std::string* error = nullptr);
 
 private:
+    struct SurfaceEdit {
+        SurfacePatchId patchId{0};
+        std::vector<WeightedPoint> before;
+        std::vector<WeightedPoint> after;
+    };
+
+    [[nodiscard]] NurbsSurface* findSurfaceMutable(SurfacePatchId id);
+
     std::string name_{"Untitled_Surface"};
     std::vector<NurbsCurve> curves_;
     std::vector<NurbsSurface> surfaces_;
     CurveId nextCurveId_{1};
     SurfacePatchId nextSurfId_{1};
+    std::vector<SurfaceEdit> undoStack_;
+    std::vector<SurfaceEdit> redoStack_;
 };
 
 } // namespace mydesk::surface

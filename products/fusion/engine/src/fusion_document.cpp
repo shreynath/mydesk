@@ -4,7 +4,20 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <sstream>
+#include <unordered_map>
+
+#include <BRepBndLib.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepGProp.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <Bnd_Box.hxx>
+#include <GProp_GProps.hxx>
+#include <Standard_Failure.hxx>
+#include <TopAbs_ShapeEnum.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 
 namespace mydesk::fusion {
 
@@ -46,6 +59,67 @@ bool extractNumber(std::string_view json, std::string_view key, double& out) {
     } catch (...) {
         return false;
     }
+}
+
+std::size_t countUnique(const TopoDS_Shape& shape, TopAbs_ShapeEnum kind) {
+    TopTools_IndexedMapOfShape items;
+    TopExp::MapShapes(shape, kind, items);
+    return static_cast<std::size_t>(items.Extent());
+}
+
+SolidBody makeBody(FeatureId featureId, std::string name, const TopoDS_Shape& shape) {
+    SolidBody body;
+    body.featureId = featureId;
+    body.name = std::move(name);
+    body.shape = shape;
+    body.isValid = !shape.IsNull() && BRepCheck_Analyzer(shape).IsValid();
+    body.solidCount = countUnique(shape, TopAbs_SOLID);
+    body.shellCount = countUnique(shape, TopAbs_SHELL);
+    body.faceCount = countUnique(shape, TopAbs_FACE);
+    body.edgeCount = countUnique(shape, TopAbs_EDGE);
+    body.vertexCount = countUnique(shape, TopAbs_VERTEX);
+
+    GProp_GProps volumeProperties;
+    BRepGProp::VolumeProperties(shape, volumeProperties);
+    body.volumeMm3 = volumeProperties.Mass();
+    GProp_GProps surfaceProperties;
+    BRepGProp::SurfaceProperties(shape, surfaceProperties);
+    body.surfaceAreaMm2 = surfaceProperties.Mass();
+
+    Bnd_Box bounds;
+    BRepBndLib::AddOptimal(shape, bounds, false, false);
+    bounds.Get(body.bboxMin[0], body.bboxMin[1], body.bboxMin[2],
+               body.bboxMax[0], body.bboxMax[1], body.bboxMax[2]);
+    return body;
+}
+
+std::string coordinateWord(char axis, double value) {
+    std::ostringstream out;
+    out << axis << std::fixed << std::setprecision(3) << value;
+    return out.str();
+}
+
+void appendLinearMove(CAMSetup& setup, double x, double y, double z,
+                      std::string_view feedSuffix = {}) {
+    setup.toolpath.push_back({x, y, z, false});
+    std::string line = "G01 " + coordinateWord('X', x) + " " +
+                       coordinateWord('Y', y) + " " + coordinateWord('Z', z);
+    if (!feedSuffix.empty()) {
+        line += " ";
+        line += feedSuffix;
+    }
+    setup.gcodeLines.push_back(std::move(line));
+}
+
+std::vector<double> passCoordinates(double minimum, double maximum, double spacing) {
+    std::vector<double> values{minimum};
+    while (values.back() + spacing < maximum - 1e-9) {
+        values.push_back(values.back() + spacing);
+    }
+    if (maximum > minimum + 1e-9) {
+        values.push_back(maximum);
+    }
+    return values;
 }
 
 } // namespace
@@ -91,14 +165,17 @@ FeatureId FusionDocument::addDirectPushPull(std::string name, FeatureId solidId,
     return timeline_.back().id;
 }
 
-FeatureId FusionDocument::addCAMPocket(std::string name, double toolDia, double depth, double stepover) {
+FeatureId FusionDocument::addCAMPocket(std::string name, FeatureId solidId, double toolDia,
+                                       double depth, double stepover, double stepdown) {
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::CAMOperation;
     e.name = std::move(name);
+    e.parameters["targetSolidId"] = static_cast<double>(solidId);
     e.parameters["toolDiameter"] = toolDia;
     e.parameters["depth"] = depth;
     e.parameters["stepover"] = stepover;
+    e.parameters["stepdown"] = stepdown;
     timeline_.push_back(std::move(e));
     timelineCursor_ = timeline_.size();
     regenerate();
@@ -138,74 +215,172 @@ bool FusionDocument::regenerate() {
     bodies_.clear();
     camSetups_.clear();
     ecadBoard_.reset();
+    lastError_.clear();
 
     std::unordered_map<FeatureId, const TimelineEntry*> entryMap;
-    for (std::size_t i = 0; i < timelineCursor_; ++i) {
-        const auto& entry = timeline_[i];
-        if (entry.suppressed) continue;
-        entryMap[entry.id] = &entry;
+    std::unordered_map<FeatureId, std::size_t> bodyIndexByFeature;
+    try {
+        for (std::size_t i = 0; i < timelineCursor_; ++i) {
+            const auto& entry = timeline_[i];
+            if (entry.suppressed) continue;
+            entryMap[entry.id] = &entry;
 
-        if (entry.kind == TimelineKind::Extrude) {
-            auto skIt = entryMap.find(static_cast<FeatureId>(entry.parameters.at("sketchId")));
-            if (skIt != entryMap.end()) {
-                const double w = skIt->second->parameters.at("width");
-                const double h = skIt->second->parameters.at("height");
-                const double d = entry.parameters.at("depth");
+            if (entry.kind == TimelineKind::Sketch) {
+                if (!(entry.parameters.at("width") > 0.0) ||
+                    !(entry.parameters.at("height") > 0.0)) {
+                    lastError_ = "sketch dimensions must be positive";
+                    return false;
+                }
+            } else if (entry.kind == TimelineKind::Extrude) {
+                const auto sketchId = static_cast<FeatureId>(entry.parameters.at("sketchId"));
+                const auto skIt = entryMap.find(sketchId);
+                if (skIt == entryMap.end() || skIt->second->kind != TimelineKind::Sketch) {
+                    lastError_ = "extrude references an unavailable rectangle sketch";
+                    return false;
+                }
+                const double width = skIt->second->parameters.at("width");
+                const double height = skIt->second->parameters.at("height");
+                const double depth = entry.parameters.at("depth");
+                if (!(depth > 0.0)) {
+                    lastError_ = "extrude depth must be positive";
+                    return false;
+                }
 
-                SolidBody body;
-                body.name = entry.name + "_Body";
-                body.volumeMm3 = w * h * d;
-                body.surfaceAreaMm2 = 2.0 * (w * h + w * d + h * d);
-                body.bboxMin[0] = 0.0; body.bboxMin[1] = 0.0; body.bboxMin[2] = 0.0;
-                body.bboxMax[0] = w; body.bboxMax[1] = h; body.bboxMax[2] = d;
-                bodies_.push_back(body);
+                const TopoDS_Shape shape = BRepPrimAPI_MakeBox(width, height, depth).Shape();
+                SolidBody body = makeBody(entry.id, entry.name + "_Body", shape);
+                if (!body.isValid || body.solidCount != 1) {
+                    lastError_ = "OCCT produced an invalid extrude solid";
+                    return false;
+                }
+                bodyIndexByFeature[entry.id] = bodies_.size();
+                bodies_.push_back(std::move(body));
+            } else if (entry.kind == TimelineKind::DirectPushPull) {
+                const auto targetId = static_cast<FeatureId>(entry.parameters.at("targetSolidId"));
+                const auto target = bodyIndexByFeature.find(targetId);
+                if (target == bodyIndexByFeature.end()) {
+                    lastError_ = "push/pull references an unavailable solid";
+                    return false;
+                }
+                const std::size_t bodyIndex = target->second;
+                auto& body = bodies_[bodyIndex];
+                const double width = body.bboxMax[0] - body.bboxMin[0];
+                const double height = body.bboxMax[1] - body.bboxMin[1];
+                const double newDepth = body.bboxMax[2] - body.bboxMin[2] +
+                                        entry.parameters.at("offset");
+                if (!(newDepth > 0.0)) {
+                    lastError_ = "push/pull offset collapses or inverts the solid";
+                    return false;
+                }
+                const TopoDS_Shape shape = BRepPrimAPI_MakeBox(width, height, newDepth).Shape();
+                body = makeBody(entry.id, entry.name + "_Body", shape);
+                if (!body.isValid) {
+                    lastError_ = "OCCT produced an invalid push/pull solid";
+                    return false;
+                }
+                // The direct feature supersedes its source body, while either persistent
+                // feature reference continues to resolve to the regenerated result.
+                bodyIndexByFeature[targetId] = bodyIndex;
+                bodyIndexByFeature[entry.id] = bodyIndex;
+            } else if (entry.kind == TimelineKind::CAMOperation) {
+                const auto targetId = static_cast<FeatureId>(entry.parameters.at("targetSolidId"));
+                const auto target = bodyIndexByFeature.find(targetId);
+                if (target == bodyIndexByFeature.end()) {
+                    lastError_ = "CAM pocket references an unavailable solid";
+                    return false;
+                }
+                const SolidBody& body = bodies_[target->second];
+                const double toolDiameter = entry.parameters.at("toolDiameter");
+                const double depth = entry.parameters.at("depth");
+                const double stepover = entry.parameters.at("stepover");
+                const double stepdown = entry.parameters.at("stepdown");
+                const double bodyDepth = body.bboxMax[2] - body.bboxMin[2];
+                if (!(toolDiameter > 0.0) || !(depth > 0.0) ||
+                    !(stepover > 0.0) || stepover > toolDiameter ||
+                    !(stepdown > 0.0) || depth > bodyDepth + 1e-9) {
+                    lastError_ = "invalid pocket tool, depth, stepover, or stepdown";
+                    return false;
+                }
+
+                const double radius = toolDiameter * 0.5;
+                const double minX = body.bboxMin[0] + radius;
+                const double maxX = body.bboxMax[0] - radius;
+                const double minY = body.bboxMin[1] + radius;
+                const double maxY = body.bboxMax[1] - radius;
+                if (maxX < minX || maxY < minY) {
+                    lastError_ = "pocket boundary is smaller than the selected cutter";
+                    return false;
+                }
+
+                CAMSetup setup;
+                setup.operationName = entry.name;
+                setup.targetBodyFeatureId = targetId;
+                setup.toolDiameterMm = toolDiameter;
+                setup.pocketDepthMm = depth;
+                setup.stepoverMm = stepover;
+                setup.stepdownMm = stepdown;
+                setup.spindleRpm = 10000.0;
+                setup.feedRateMmMin = 1200.0;
+                setup.boundaryMin[0] = minX;
+                setup.boundaryMin[1] = minY;
+                setup.boundaryMax[0] = maxX;
+                setup.boundaryMax[1] = maxY;
+
+                const double safeZ = body.bboxMax[2] + 5.0;
+                setup.gcodeLines.push_back("G90 G21 (Absolute metric)");
+                setup.gcodeLines.push_back("S10000 M03 (Spindle CW 10k RPM)");
+                setup.gcodeLines.push_back("G00 " + coordinateWord('Z', safeZ));
+                setup.gcodeLines.push_back("G00 " + coordinateWord('X', minX) + " " +
+                                           coordinateWord('Y', minY));
+                setup.toolpath.push_back({minX, minY, safeZ, true});
+
+                const auto rows = passCoordinates(minY, maxY, stepover);
+                double removedDepth = 0.0;
+                while (removedDepth < depth - 1e-9) {
+                    removedDepth = std::min(depth, removedDepth + stepdown);
+                    const double z = body.bboxMax[2] - removedDepth;
+                    appendLinearMove(setup, minX, minY, z, "F300");
+
+                    double currentX = minX;
+                    double currentY = minY;
+                    for (std::size_t row = 0; row < rows.size(); ++row) {
+                        const double targetX = (row % 2 == 0) ? maxX : minX;
+                        setup.totalPathLengthMm += std::abs(targetX - currentX);
+                        appendLinearMove(setup, targetX, rows[row], z,
+                                         row == 0 ? "F1200" : std::string_view{});
+                        currentX = targetX;
+                        currentY = rows[row];
+                        if (row + 1 < rows.size()) {
+                            setup.totalPathLengthMm += rows[row + 1] - currentY;
+                            appendLinearMove(setup, currentX, rows[row + 1], z);
+                            currentY = rows[row + 1];
+                        }
+                    }
+                    setup.gcodeLines.push_back("G00 " + coordinateWord('Z', safeZ));
+                    setup.gcodeLines.push_back("G00 " + coordinateWord('X', minX) + " " +
+                                               coordinateWord('Y', minY));
+                    setup.toolpath.push_back({minX, minY, safeZ, true});
+                }
+                setup.gcodeLines.push_back("M05 M30");
+                camSetups_.push_back(std::move(setup));
+            } else if (entry.kind == TimelineKind::ECADBoard) {
+                ECADBoard board;
+                board.widthMm = entry.parameters.at("width");
+                board.heightMm = entry.parameters.at("height");
+                board.thicknessMm = entry.parameters.at("thickness");
+                if (!(board.widthMm > 0.0) || !(board.heightMm > 0.0) ||
+                    !(board.thicknessMm > 0.0)) {
+                    lastError_ = "ECAD board dimensions must be positive";
+                    return false;
+                }
+                ecadBoard_ = board;
             }
-        } else if (entry.kind == TimelineKind::DirectPushPull) {
-            if (!bodies_.empty()) {
-                const double offset = entry.parameters.at("offset");
-                auto& body = bodies_.back();
-                body.bboxMax[2] += offset;
-                const double w = body.bboxMax[0] - body.bboxMin[0];
-                const double h = body.bboxMax[1] - body.bboxMin[1];
-                const double d = body.bboxMax[2] - body.bboxMin[2];
-                body.volumeMm3 = w * h * d;
-                body.surfaceAreaMm2 = 2.0 * (w * h + w * d + h * d);
-            }
-        } else if (entry.kind == TimelineKind::CAMOperation) {
-            const double toolDia = entry.parameters.at("toolDiameter");
-            const double depth = entry.parameters.at("depth");
-            const double stepover = entry.parameters.at("stepover");
-
-            CAMSetup setup;
-            setup.operationName = entry.name;
-            setup.toolDiameterMm = toolDia;
-            setup.spindleRpm = 10000.0;
-            setup.feedRateMmMin = 1200.0;
-
-            setup.gcodeLines.push_back("G90 G21 (Absolute metric)");
-            setup.gcodeLines.push_back("S10000 M03 (Spindle CW 10k RPM)");
-            setup.gcodeLines.push_back("G00 Z5.000");
-
-            double cutLen = 0.0;
-            for (double z = -stepover; z >= -depth - 1e-6; z -= stepover) {
-                setup.gcodeLines.push_back("G01 Z" + std::to_string(z) + " F300");
-                setup.gcodeLines.push_back("G01 X50.000 F1200");
-                setup.gcodeLines.push_back("G01 Y50.000");
-                setup.gcodeLines.push_back("G01 X0.000");
-                setup.gcodeLines.push_back("G01 Y0.000");
-                cutLen += 200.0;
-            }
-            setup.gcodeLines.push_back("G00 Z10.000");
-            setup.gcodeLines.push_back("M05 M30");
-            setup.totalPathLengthMm = cutLen;
-            camSetups_.push_back(setup);
-        } else if (entry.kind == TimelineKind::ECADBoard) {
-            ECADBoard board;
-            board.widthMm = entry.parameters.at("width");
-            board.heightMm = entry.parameters.at("height");
-            board.thicknessMm = entry.parameters.at("thickness");
-            ecadBoard_ = board;
         }
+    } catch (const Standard_Failure& failure) {
+        lastError_ = std::string("OCCT regeneration failed: ") + failure.GetMessageString();
+        return false;
+    } catch (const std::exception& exception) {
+        lastError_ = std::string("timeline regeneration failed: ") + exception.what();
+        return false;
     }
     return true;
 }

@@ -5,7 +5,7 @@
   "binary": "MyDeskFusion",
   "target_application": "Fusion",
   "target_version": "current",
-  "note": "MyDesk Fusion is an integrated parametric design, direct modeling, CAM, and electronics integration system targeting Autodesk Fusion.",
+  "note": "MyDesk Fusion is a partial integrated parametric design, direct modeling, CAM, and electronics implementation targeting Autodesk Fusion. FUNCTIONAL entries describe only their explicitly tested subsets and are not complete parity.",
   "capabilities": [
     {
       "id": "FUSION-PARAMETRIC-TIMELINE",
@@ -24,7 +24,7 @@
       "performance": "Instantaneous evaluation for standard part features",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Timeline engine verified for sketch extrusions and history ordering."
+      "differences": "Rectangle sketch extrusions regenerate as valid OCCT B-rep solids with kernel-derived topology, bounds, volume, and area. General sketches, constraints, topology naming, and most Fusion features remain incomplete."
     },
     {
       "id": "FUSION-DIRECT-MODELING",
@@ -43,7 +43,7 @@
       "performance": "Interactive direct manipulation",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Planar face offsets implemented."
+      "differences": "Planar end-face push/pull for the supported rectangular prism regenerates a valid OCCT B-rep; arbitrary face selection and general offsets remain incomplete."
     },
     {
       "id": "FUSION-TIMELINE-ROLLBACK",
@@ -76,12 +76,12 @@
       "expected_output": "Verified CNC G-code program with spindle and linear feed commands",
       "formats": [".nc", ".gcode"],
       "implementation": "products/fusion/engine/src/fusion_document.cpp",
-      "tests": ["test_fusion_cam_pocketing_gcode"],
+      "tests": ["test_fusion_cam_pocketing_gcode", "test_fusion_cam_rejects_invalid_geometry_or_cut_parameters"],
       "manual_tests": [],
       "performance": "Rapid postprocessing",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Standard RS-274 post-processor implemented."
+      "differences": "Selected-body rectangular raster paths use B-rep bounds, cutter radius, independent XY stepover and Z stepdown, and reject invalid engagement. Stock, holders, islands, collision checking, machine kinematics, and machine-ready verification remain incomplete."
     },
     {
       "id": "FUSION-ECAD-INTEGRATION",
@@ -116,10 +116,10 @@
       "implementation": "products/fusion/engine/src/fusion_document.cpp",
       "tests": ["test_fusion_native_roundtrip"],
       "manual_tests": [],
-      "performance": "Fast atomic JSON serialization",
+      "performance": "In-memory JSON serialization",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Verified full round-trip."
+      "differences": "Editable timeline inputs, selected CAM body, and stepdown round-trip and regenerate OCCT geometry; schema versioning, structural parsing, atomic file writes, and complete project state remain incomplete."
     }
   ]
 }

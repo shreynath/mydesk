@@ -101,9 +101,82 @@ static void test_surface_g0_g1_continuity() {
 
     const auto rep = doc.checkSeamContinuity(pA, pB, 5);
     CHECK(rep.passesTolerance);
-    CHECK(rep.achieved == ContinuityOrder::G1);
+    CHECK(rep.achieved >= ContinuityOrder::G1);
     CHECK_NEAR(rep.maxPositionalGap, 0.0, 1e-6);
     CHECK_NEAR(rep.maxAngularDeviationDeg, 0.0, 1e-4);
+}
+
+static std::vector<Vec3> makeCubicStrip(double xOffset, const double zByRow[4]) {
+    std::vector<Vec3> grid;
+    grid.reserve(16);
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            grid.push_back({xOffset + 10.0 * i, 10.0 * j, zByRow[i]});
+        }
+    }
+    return grid;
+}
+
+static void test_surface_analytic_derivatives() {
+    SurfaceDocument doc;
+    std::vector<Vec3> grid;
+    grid.reserve(16);
+    const double elevatedQuadratic[4] = {0.0, 0.0, 1.0 / 3.0, 1.0};
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            grid.push_back({10.0 * i / 3.0, 10.0 * j / 3.0,
+                            6.0 * elevatedQuadratic[i]});
+        }
+    }
+    const auto id = doc.addBicubicPatch("ParabolicStrip", grid);
+    const auto* surface = doc.findSurface(id);
+    CHECK(surface != nullptr);
+    const auto d = surface->derivativesAt(0.5, 0.4);
+    CHECK_NEAR(d.point.x, 5.0, 1e-10);
+    CHECK_NEAR(d.point.y, 4.0, 1e-10);
+    CHECK_NEAR(d.point.z, 1.5, 1e-10);
+    CHECK_NEAR(d.du.x, 10.0, 1e-10);
+    CHECK_NEAR(d.du.z, 6.0, 1e-10);
+    CHECK_NEAR(d.dv.y, 10.0, 1e-10);
+    CHECK_NEAR(d.duu.z, 12.0, 1e-9);
+    CHECK_NEAR(d.duv.length(), 0.0, 1e-10);
+    CHECK_NEAR(d.dvv.length(), 0.0, 1e-10);
+    CHECK_NEAR(surface->gaussianCurvatureAt(0.5, 0.4), 0.0, 1e-10);
+}
+
+static void test_surface_g2_align_undo_persistence() {
+    SurfaceDocument doc;
+    const double sourceZ[4] = {0.0, 0.0, 1.0, 3.0};
+    const double targetZ[4] = {4.0, 8.0, 9.0, 9.0};
+    const auto patchA = doc.addBicubicPatch("ClassA_Left", makeCubicStrip(0.0, sourceZ));
+    const auto patchB = doc.addBicubicPatch("ClassA_Right", makeCubicStrip(31.0, targetZ));
+
+    const auto before = doc.checkSeamContinuity(patchA, patchB, 9);
+    CHECK(!before.passesTolerance);
+    CHECK(before.maxPositionalGap > 1.0);
+
+    CHECK(doc.alignSeam(patchA, patchB, ContinuityOrder::G2));
+    CHECK(doc.canUndo());
+    const auto aligned = doc.checkSeamContinuity(patchA, patchB, 9);
+    CHECK(aligned.passesTolerance);
+    CHECK(aligned.achieved == ContinuityOrder::G2);
+    CHECK_NEAR(aligned.maxPositionalGap, 0.0, 1e-10);
+    CHECK_NEAR(aligned.maxAngularDeviationDeg, 0.0, 1e-8);
+    CHECK_NEAR(aligned.maxCurvatureDeviation, 0.0, 1e-10);
+
+    CHECK(doc.undo());
+    CHECK(doc.canRedo());
+    CHECK(!doc.checkSeamContinuity(patchA, patchB, 9).passesTolerance);
+    CHECK(doc.redo());
+    CHECK(doc.checkSeamContinuity(patchA, patchB, 9).achieved == ContinuityOrder::G2);
+
+    std::string error;
+    const auto loaded = SurfaceDocument::deserializeNative(doc.serializeNative(), &error);
+    CHECK(error.empty());
+    CHECK(loaded.surfaces().size() == 2);
+    const auto persisted = loaded.checkSeamContinuity(patchA, patchB, 9);
+    CHECK(persisted.achieved == ContinuityOrder::G2);
+    CHECK_NEAR(persisted.maxCurvatureDeviation, 0.0, 1e-10);
 }
 
 static void test_surface_zebra_stripes() {
@@ -134,6 +207,13 @@ static void test_surface_native_roundtrip() {
     CHECK(loaded.name() == "ClassAHood");
     CHECK(loaded.curves().size() == 1);
     CHECK(loaded.curves().front().name == "Profile");
+    CHECK(loaded.curves().front().controlPoints.size() == 4);
+    CHECK_NEAR(loaded.curves().front().evaluate(0.5).x, 15.0, 1e-10);
+    CHECK(loaded.surfaces().size() == 1);
+    CHECK(loaded.surfaces().front().controlGrid.size() == 4);
+    const auto center = loaded.surfaces().front().evaluate(0.5, 0.5);
+    CHECK_NEAR(center.x, 5.0, 1e-10);
+    CHECK_NEAR(center.y, 5.0, 1e-10);
 }
 
 int main() {
@@ -148,6 +228,10 @@ int main() {
     test_surface_gaussian_mean_curvature();
     // "test_surface_g0_g1_continuity"
     test_surface_g0_g1_continuity();
+    // "test_surface_analytic_derivatives"
+    test_surface_analytic_derivatives();
+    // "test_surface_g2_align_undo_persistence"
+    test_surface_g2_align_undo_persistence();
     // "test_surface_zebra_stripes"
     test_surface_zebra_stripes();
     // "test_surface_native_roundtrip"

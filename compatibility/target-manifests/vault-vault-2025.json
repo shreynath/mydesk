@@ -24,7 +24,7 @@
       "performance": "Fast streaming content hash",
       "status": "FUNCTIONAL",
       "evidence": "products/vault/tests/test_vault.cpp",
-      "differences": "FNV-1a 64-bit content addressing verified."
+      "differences": "SHA-256 content addressing is verified against FIPS 180-4 vectors; external blob stores and streaming multi-gigabyte hashing remain incomplete."
     },
     {
       "id": "VAULT-CHECKOUT-CHECKIN-LOCK",
@@ -133,12 +133,12 @@
       "expected_output": "Full round-trip restoration of repository structure",
       "formats": [".myvault"],
       "implementation": "products/vault/engine/src/vault_document.cpp",
-      "tests": ["test_vault_native_roundtrip"],
+      "tests": ["test_vault_native_roundtrip", "test_vault_native_malformed_input", "test_vault_native_v1_migration", "test_vault_atomic_file_save_and_backup"],
       "manual_tests": [],
-      "performance": "Fast atomic JSON persistence",
+      "performance": "Structural JSON parsing with validation and same-directory atomic replacement",
       "status": "FUNCTIONAL",
       "evidence": "products/vault/tests/test_vault.cpp",
-      "differences": "Repository catalog serialization verified."
+      "differences": "Schema-v2 structural parsing, binary content, histories, locks, dependencies, audit logs, v1 migration, hash validation, validated same-directory replacement, and backup retention are verified; fsync durability and unknown-field preservation remain incomplete."
     }
   ]
 }

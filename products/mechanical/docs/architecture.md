@@ -13,15 +13,18 @@ Target: Autodesk Inventor-class parametric mechanical CAD.
 
 Sketches and features store parameter ids, not baked geometry. Editing `Sketch1.Width` and calling `regenerate()` rebuilds the B-rep.
 
+`AssemblyDocument` owns independent part occurrences, placement constraints, rigid/revolute/slider joints, and BOM data. A joint records normalized motion axis, child origin offset, travel limits, and current drive position. Solving updates the occurrence transform; assembly shape generation applies both rotation and translation to the underlying OCCT B-rep.
+
 ## Computational engine
 
-Open CASCADE Technology (OCCT) provides B-rep topology. The first vertical slice builds a rectangular profile extrusion as an OCCT solid (`BRepPrimAPI_MakeBox` as the prism of a rectangular sketch). Volume and solid checks use `BRepGProp`.
+Open CASCADE Technology (OCCT) provides B-rep topology for extrude, revolve, sweep, loft, fillet, chamfer, shell, pattern, mirror, hole, rib, and emboss feature evaluation. Volume and surface checks use `BRepGProp`.
 
-Future features (fillet, hole, boolean, revolve) must append to the same feature graph and emit/consume `TopoDS_Shape` bodies.
+Assembly motion currently covers single-level global-axis rigid, revolute, and slider joints. Joint drive edits have bounded positions and an undo/redo history. General hierarchical transform composition, face/edge reference selection, degrees-of-freedom analysis, contact, adaptive parts, and dynamic simulation remain future work.
 
 ## Persistence and interchange
 
-- Native: `.mydesk-mech` JSON storing parameters + feature history (not a mesh dump)
+- Native part: `.mydesk-mech` JSON storing parameters + feature history (not a mesh dump)
+- Native assembly: schema-v2 `.mydesk-assy` JSON storing complete occurrence part documents, transforms, constraints, joints, limits, and drive positions
 - STEP: `STEPControl_Writer` from the regenerated solid
 
 ## UI
@@ -30,4 +33,4 @@ Future features (fillet, hole, boolean, revolve) must append to the same feature
 
 ## Tests
 
-`mydesk_mechanical_tests` verifies solid topology/volume, parameter-driven regeneration, native history reload, and non-empty STEP output.
+`mydesk_mechanical_tests` verifies solid topology/volume, parameter-driven regeneration, native history reload, constraint restoration, bounded joint motion, undo/redo, transformed OCCT assembly bounds, and non-empty STEP output.

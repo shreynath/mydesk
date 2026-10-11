@@ -5,7 +5,7 @@
   "binary": "MyDeskBuildings",
   "target_application": "Revit",
   "target_version": "2025",
-  "note": "Full target inventory. Substantive domain model, MEP/structural engineering, analytical properties, and IFC4 physical exchange.",
+  "note": "Target inventory with tested clean-room subsets. FUNCTIONAL and PARTIAL_PARITY entries are not claims of complete Revit compatibility.",
   "capabilities": [
     {
       "id": "RVT-SEMANTIC-WALLS-LEVELS",
@@ -23,13 +23,14 @@
       ],
       "implementation": "products/buildings/engine/src/project_document.cpp",
       "tests": [
-        "test_multistory_schedule_ifc_roundtrip"
+        "test_multistory_schedule_ifc_roundtrip",
+        "test_parametric_wall_host_dependency_chain"
       ],
       "manual_tests": [],
       "performance": "Interactive for hundreds of walls in this slice.",
-      "status": "VERIFIED_PARITY",
+      "status": "PARTIAL_PARITY",
       "evidence": "products/buildings/tests/test_buildings.cpp",
-      "differences": "Complex profile sweeps and compound layer cutouts are represented through element thickness and parameters."
+      "differences": "Tested for linear walls, level/top constraints, hosted openings, schedules, native roundtrip, undo/redo, and a limited IFC4 export. Compound wall layers, arbitrary profiles, stable face references, full constraints, and complete IFC geometry are not implemented."
     },
     {
       "id": "RVT-GRIDS",
@@ -208,13 +209,14 @@
       ],
       "implementation": "products/buildings/engine/src/project_document.cpp",
       "tests": [
-        "test_windows_rooms_and_net_area"
+        "test_windows_rooms_and_net_area",
+        "test_parametric_wall_host_dependency_chain"
       ],
       "manual_tests": [],
       "performance": "Interactive computation for wall schedules and net areas.",
-      "status": "VERIFIED_PARITY",
+      "status": "FUNCTIONAL",
       "evidence": "products/buildings/tests/test_buildings.cpp",
-      "differences": "Windows defined by parametric type dimensions (width, height, sill)."
+      "differences": "Tested for parametric width/height/sill, host-relative world position updates, wall net-area deduction, native roundtrip, and limited IFC export. Face-based families, nested families, and arbitrary wall geometry remain unsupported."
     },
     {
       "id": "RVT-ROOMS",
@@ -236,9 +238,9 @@
       ],
       "manual_tests": [],
       "performance": "Interactive polygon area and volume evaluation.",
-      "status": "VERIFIED_PARITY",
+      "status": "FUNCTIONAL",
       "evidence": "products/buildings/tests/test_buildings.cpp",
-      "differences": "Boundaries supplied as polygon vertices."
+      "differences": "Tested for user-supplied planar polygon area/volume, schedule rollup, and limited IFC space export. Automatic room boundary discovery, separation lines, phases, and design options remain unsupported."
     },
     {
       "id": "RVT-SPACES",
@@ -460,13 +462,14 @@
       ],
       "implementation": "products/buildings/engine/src/project_document.cpp",
       "tests": [
-        "test_dimensions_measurement"
+        "test_dimensions_measurement",
+        "test_parametric_wall_host_dependency_chain"
       ],
       "manual_tests": [],
       "performance": "Interactive dimensioning.",
       "status": "FUNCTIONAL",
       "evidence": "products/buildings/tests/test_buildings.cpp",
-      "differences": "Linear and aligned dimensions evaluated."
+      "differences": "Tested associative point references to linear walls, hosted openings, and structural endpoints, including propagation, undo/redo, and native roundtrip. Stable face/edge references, equality chains, locks, witness editing, and temporary dimensions remain unsupported."
     },
     {
       "id": "RVT-SCHEDULES-ADV",

@@ -17,9 +17,18 @@ MyDesk Vault is a dedicated Engineering Product Data Management (PDM) and revisi
     - Where-Used dependency queries (locate all assemblies containing a part).
     - Multi-level hierarchical Bill of Materials (BOM) extraction.
   - **Security & Audit Trails**:
-    - Role-based permissions (`Administrator`, `Engineer`, `Viewer`).
-    - Immutable audit log tracking check-ins, state transitions, and user modifications.
+    - Audit log tracking check-ins, state transitions, and user modifications.
   - **Persistence**:
-    - Native `.myvault` repository catalog and audit trail persistence.
+    - Versioned native `.myvault` schema parsed structurally with JSON for Modern C++.
+    - Base64-safe binary payload persistence with SHA-256 verification on load.
+    - Complete version, lock, dependency, and audit-trail round trips plus schema-v1 migration.
+    - Validated same-directory temporary writes with atomic rename and prior-version `.bak` recovery files.
 - **Binary**: `MyDeskVault`.
 - **Identity**: Bundle `app.mydesk.vault`.
+
+## Current limitations
+
+- The application target is currently an interactive command-line PDM client, not the required graphical repository browser.
+- Authentication, users, roles, authorization, approval workflows, database transactions, multi-user networking, and synchronization are not implemented.
+- Native saves use validated same-directory replacement and backups, but do not yet issue platform-specific `fsync` calls or preserve unknown schema fields.
+- Content currently lives in the repository document rather than an external deduplicated content-addressed blob store.

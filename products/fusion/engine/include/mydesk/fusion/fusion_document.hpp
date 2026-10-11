@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <TopoDS_Shape.hxx>
+
 namespace mydesk::fusion {
 
 using FeatureId = std::uint64_t;
@@ -32,19 +34,41 @@ struct TimelineEntry {
 };
 
 struct SolidBody {
+    FeatureId featureId{0};
     std::string name;
+    TopoDS_Shape shape;
+    bool isValid{false};
+    std::size_t solidCount{0};
+    std::size_t shellCount{0};
+    std::size_t faceCount{0};
+    std::size_t edgeCount{0};
+    std::size_t vertexCount{0};
     double volumeMm3{0.0};
     double surfaceAreaMm2{0.0};
     double bboxMin[3]{0, 0, 0};
     double bboxMax[3]{0, 0, 0};
 };
 
+struct ToolpathPoint {
+    double xMm{0.0};
+    double yMm{0.0};
+    double zMm{0.0};
+    bool rapid{false};
+};
+
 struct CAMSetup {
     std::string operationName;
+    FeatureId targetBodyFeatureId{0};
     double toolDiameterMm{6.0};
+    double pocketDepthMm{0.0};
+    double stepoverMm{0.0};
+    double stepdownMm{0.0};
     double spindleRpm{12000.0};
     double feedRateMmMin{1500.0};
     double totalPathLengthMm{0.0};
+    double boundaryMin[2]{0.0, 0.0};
+    double boundaryMax[2]{0.0, 0.0};
+    std::vector<ToolpathPoint> toolpath;
     std::vector<std::string> gcodeLines;
 };
 
@@ -74,7 +98,8 @@ public:
     FeatureId addSketchRectangle(std::string name, double width, double height);
     FeatureId addExtrude(std::string name, FeatureId sketchId, double depth);
     FeatureId addDirectPushPull(std::string name, FeatureId solidId, double offset);
-    FeatureId addCAMPocket(std::string name, double toolDia, double depth, double stepover);
+    FeatureId addCAMPocket(std::string name, FeatureId solidId, double toolDia,
+                           double depth, double stepover, double stepdown);
     FeatureId addECADBoard(std::string name, double width, double height, double thickness);
 
     [[nodiscard]] const std::vector<TimelineEntry>& timeline() const { return timeline_; }
@@ -84,6 +109,7 @@ public:
 
     // Regeneration
     bool regenerate();
+    [[nodiscard]] const std::string& lastError() const { return lastError_; }
     [[nodiscard]] const std::vector<SolidBody>& bodies() const { return bodies_; }
     [[nodiscard]] const std::vector<CAMSetup>& camSetups() const { return camSetups_; }
     [[nodiscard]] const std::optional<ECADBoard>& ecadBoard() const { return ecadBoard_; }
@@ -104,6 +130,7 @@ private:
     std::vector<SolidBody> bodies_;
     std::vector<CAMSetup> camSetups_;
     std::optional<ECADBoard> ecadBoard_;
+    std::string lastError_;
 };
 
 } // namespace mydesk::fusion

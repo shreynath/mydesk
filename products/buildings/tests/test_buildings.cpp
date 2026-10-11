@@ -325,6 +325,100 @@ void test_dimensions_measurement() {
     expect(std::abs(project.dimensions.front().measuredValue - 5.25) < 1e-9, "measured value preserved");
 }
 
+void test_parametric_wall_host_dependency_chain() {
+    using namespace mydesk::buildings;
+    ProjectDocument project;
+    project.name = "Parametric Core";
+    const auto baseLevel = project.addLevel("Level 1", 0.0);
+    const auto topLevel = project.addLevel("Level 2", 3.0);
+    const auto wallType = project.addWallType("Interior 150", 0.15, 2.8);
+    const auto doorType = project.addDoorType("Single 900", 0.9, 2.1);
+    const auto windowType = project.addWindowType("Window 1200", 1.2, 1.5, 0.9);
+    const auto wallId = project.addWall(wallType, baseLevel, 0.0, 0.0, 10.0, 0.0);
+    const auto doorId = project.addDoor(doorType, wallId, 0.25);
+    const auto windowId = project.addWindow(windowType, wallId, 0.75);
+    expect(doorId != 0 && windowId != 0, "hosted openings created on valid wall");
+    expect(project.addDoor(doorType, wallId, 1.2) == 0,
+           "opening outside normalized host range is rejected");
+
+    expect(project.setWallTopConstraint(wallId, topLevel, 0.2),
+           "wall constrained to upper level with offset");
+    const auto* wall = project.findWall(wallId);
+    expect(wall != nullptr, "constrained wall found");
+    expect(std::abs(project.wallHeight(*wall) - 3.2) < 1e-9,
+           "top constraint drives wall height");
+    expect(project.undo(), "top constraint undo succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 2.8) < 1e-9,
+           "undo restores unconnected type height");
+    expect(project.redo(), "top constraint redo succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 3.2) < 1e-9,
+           "redo restores level constraint");
+
+    const auto dimensionId = project.addAssociativeDimension(doorId, windowId, "Aligned");
+    const auto* dimension = project.findDimension(dimensionId);
+    expect(dimension != nullptr && dimension->associative, "associative dimension created");
+    expect(std::abs(project.dimensionValue(*dimension) - 5.0) < 1e-9,
+           "dimension derives from hosted opening references");
+
+    expect(project.moveWall(wallId, 2.0, 1.0, 2.0, 13.0), "wall geometry edit succeeds");
+    auto doorPosition = project.elementPosition(doorId);
+    auto windowPosition = project.elementPosition(windowId);
+    expect(doorPosition && windowPosition, "hosted opening positions resolve");
+    expect(std::abs(doorPosition->x - 2.0) < 1e-9 &&
+               std::abs(doorPosition->y - 4.0) < 1e-9,
+           "door follows moved and rotated host at normalized offset");
+    expect(std::abs(windowPosition->y - 10.0) < 1e-9,
+           "window follows moved host at normalized offset");
+    expect(std::abs(project.dimensionValue(*dimension) - 6.0) < 1e-9,
+           "associative dimension recomputes after host edit");
+
+    expect(project.undo(), "wall move undo succeeds");
+    expect(std::abs(project.dimensionValue(*dimension) - 5.0) < 1e-9,
+           "undo propagates to hosted references and dimension");
+    expect(project.redo(), "wall move redo succeeds");
+    expect(std::abs(project.dimensionValue(*dimension) - 6.0) < 1e-9,
+           "redo propagates dependency chain");
+
+    expect(project.setLevelElevation(topLevel, 4.0), "upper level edit succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 4.2) < 1e-9,
+           "constrained wall follows upper level");
+    expect(project.setLevelElevation(baseLevel, 0.5), "base level edit succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 3.7) < 1e-9,
+           "base-level move preserves constrained world top");
+    windowPosition = project.elementPosition(windowId);
+    expect(windowPosition && std::abs(windowPosition->z - 1.4) < 1e-9,
+           "window sill elevation follows base level");
+    expect(!project.setLevelElevation(baseLevel, 4.3),
+           "edit that would invert constrained wall is atomically rejected");
+    expect(std::abs(project.findLevel(baseLevel)->elevation - 0.5) < 1e-9,
+           "rejected edit leaves level unchanged");
+    expect(project.undo(), "base-level edit undo succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 4.2) < 1e-9,
+           "undo restores dependent wall height");
+    expect(project.redo(), "base-level edit redo succeeds");
+    expect(std::abs(project.wallHeight(*wall) - 3.7) < 1e-9,
+           "redo reapplies dependent wall height");
+
+    const auto native = project.serializeNative();
+    std::string error;
+    auto restored = ProjectDocument::deserializeNative(native, &error);
+    expect(error.empty(), "parametric document roundtrip has no error");
+    expect(restored.doorTypes.size() == 1, "hosted door type persists");
+    const auto* restoredWall = restored.findWall(wallId);
+    const auto* restoredDimension = restored.findDimension(dimensionId);
+    expect(restoredWall && restoredWall->topConstraintLevelId == topLevel,
+           "wall top constraint persists");
+    expect(std::abs(restored.wallHeight(*restoredWall) - 3.7) < 1e-9,
+           "restored constraint evaluates against restored levels");
+    expect(restoredDimension && restoredDimension->associative,
+           "associative dimension metadata persists");
+    expect(std::abs(restored.dimensionValue(*restoredDimension) - 6.0) < 1e-9,
+           "restored dimension remains live against host geometry");
+    const auto ifc = restored.exportIfc4();
+    expect(ifc.find("'TopElevation'") != std::string::npos,
+           "IFC export includes propagated constrained top elevation");
+}
+
 void test_advanced_schedules_filtering() {
     mydesk::buildings::ProjectDocument project;
     auto l1 = project.addLevel("Ground", 0.0);
@@ -618,6 +712,7 @@ int main() {
             "test_sheets_placement",
             "test_tags_annotation",
             "test_dimensions_measurement",
+            "test_parametric_wall_host_dependency_chain",
             "test_advanced_schedules_filtering",
             "test_materials_thermal_structural",
             "test_render_settings",
@@ -697,6 +792,9 @@ int main() {
         test_dimensions_measurement();
         std::cout << "[PASS] test_dimensions_measurement\n";
 
+        test_parametric_wall_host_dependency_chain();
+        std::cout << "[PASS] test_parametric_wall_host_dependency_chain\n";
+
         test_advanced_schedules_filtering();
         std::cout << "[PASS] test_advanced_schedules_filtering\n";
 
@@ -754,7 +852,7 @@ int main() {
         test_print_svg_export();
         std::cout << "[PASS] test_print_svg_export\n";
 
-        std::cout << "38 passed, 0 failed\n";
+        std::cout << "39 passed, 0 failed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& ex) {
         std::cout << "[FAIL] " << ex.what() << "\n0 passed, 1 failed\n";

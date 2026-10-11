@@ -3,6 +3,9 @@
 #include "mydesk/mechanical/part_document.hpp"
 #include "mydesk/mechanical/assembly_document.hpp"
 
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
+
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -115,6 +118,92 @@ void test_assembly_constraints_and_bom() {
     std::string err;
     expect(assy.exportStep(stepPath.string(), &err), err.empty() ? "step ok" : err);
     expect(std::filesystem::file_size(stepPath) > 200, "assembly step non-empty");
+
+    const auto native = assy.serializeNative();
+    auto loaded = mydesk::mechanical::AssemblyDocument::deserializeNative(native, &err);
+    expect(err.empty(), "assembly round-trip: " + err);
+    expect(loaded.name() == "GearboxAssembly", "assembly name restored");
+    expect(loaded.occurrences().size() == 3, "3 occurrences restored");
+    expect(loaded.constraints().size() == 2, "2 constraints restored");
+    expect(loaded.findOccurrence(occ2) != nullptr, "occurrence ids restored");
+    expect(std::abs(loaded.findOccurrence(occ2)->z - 10.0) < 1e-9,
+           "restored mate is solved");
+}
+
+void test_mechanical_joint_motion_undo_persistence() {
+    mydesk::mechanical::PartDocument base;
+    base.setName("JointBase");
+    base.addRectangleExtrude("BaseSketch", "BaseExtrude", 10.0, 10.0, 10.0);
+    expect(base.regenerate().ok, "base regenerated");
+
+    mydesk::mechanical::PartDocument arm;
+    arm.setName("JointArm");
+    arm.addRectangleExtrude("ArmSketch", "ArmExtrude", 20.0, 4.0, 4.0);
+    expect(arm.regenerate().ok, "arm regenerated");
+
+    mydesk::mechanical::PartDocument carriage;
+    carriage.setName("SliderCarriage");
+    carriage.addRectangleExtrude("CarriageSketch", "CarriageExtrude", 3.0, 3.0, 3.0);
+    expect(carriage.regenerate().ok, "carriage regenerated");
+
+    mydesk::mechanical::AssemblyDocument assembly;
+    assembly.setName("MotionAssembly");
+    const auto baseOccurrence = assembly.addOccurrence("Base", base, 0, 0, 0, true);
+    const auto armOccurrence = assembly.addOccurrence("Arm", arm);
+    const auto carriageOccurrence = assembly.addOccurrence("Carriage", carriage);
+    const auto hinge = assembly.addJoint(mydesk::mechanical::JointType::Revolute,
+                                         "Hinge", baseOccurrence, armOccurrence,
+                                         0, 0, 1, 10, 0, 0, -90, 90, 0);
+    const auto slide = assembly.addJoint(mydesk::mechanical::JointType::Slider,
+                                         "LinearRail", baseOccurrence, carriageOccurrence,
+                                         1, 0, 0, 0, 20, 0, 0, 15, 5);
+
+    auto report = assembly.solve();
+    expect(report.ok, report.message);
+    expect(report.jointsEvaluated == 2, "two joints evaluated");
+    expect(std::abs(assembly.findOccurrence(armOccurrence)->x - 10.0) < 1e-9,
+           "hinge origin applied");
+    expect(std::abs(assembly.findOccurrence(carriageOccurrence)->x - 5.0) < 1e-9,
+           "slider displacement applied");
+    expect(std::abs(assembly.findOccurrence(carriageOccurrence)->y - 20.0) < 1e-9,
+           "slider origin applied");
+
+    expect(assembly.setJointPosition(hinge, 90.0), "drive hinge to 90 degrees");
+    expect(!assembly.setJointPosition(hinge, 91.0), "joint limit rejects 91 degrees");
+    report = assembly.solve();
+    expect(report.ok, report.message);
+    expect(std::abs(assembly.findOccurrence(armOccurrence)->rotationDeg - 90.0) < 1e-9,
+           "revolute angle solved");
+
+    Bnd_Box rotatedBounds;
+    BRepBndLib::Add(assembly.buildAssemblyShape(), rotatedBounds);
+    double xmin, ymin, zmin, xmax, ymax, zmax;
+    rotatedBounds.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+    expect(ymax > 19.9, "OCCT arm B-rep rotated into Y direction");
+    expect(xmax < 14.0, "rotated arm no longer extends along X");
+
+    expect(assembly.undo(), "undo hinge drive");
+    expect(assembly.solve().ok, "solve after undo");
+    expect(std::abs(assembly.findOccurrence(armOccurrence)->rotationDeg) < 1e-9,
+           "undo restores hinge angle");
+    expect(assembly.redo(), "redo hinge drive");
+    expect(assembly.solve().ok, "solve after redo");
+    expect(std::abs(assembly.findOccurrence(armOccurrence)->rotationDeg - 90.0) < 1e-9,
+           "redo restores driven angle");
+
+    std::string error;
+    auto loaded = mydesk::mechanical::AssemblyDocument::deserializeNative(
+        assembly.serializeNative(), &error);
+    expect(error.empty(), "motion assembly round-trip: " + error);
+    expect(loaded.joints().size() == 2, "both joints restored");
+    expect(loaded.findJoint(hinge) != nullptr, "joint id restored");
+    expect(loaded.findJoint(slide) != nullptr, "slider id restored");
+    expect(std::abs(loaded.findJoint(hinge)->position - 90.0) < 1e-9,
+           "driven position persisted");
+    expect(std::abs(loaded.findOccurrence(armOccurrence)->rotationDeg - 90.0) < 1e-9,
+           "loaded revolute transform solved");
+    expect(std::abs(loaded.findOccurrence(carriageOccurrence)->x - 5.0) < 1e-9,
+           "loaded slider transform solved");
 }
 
 // ── New tests ─────────────────────────────────────────────────────────────────
@@ -331,6 +420,8 @@ int main() {
         {"test_hole_feature_boolean_cut",       test_hole_feature_boolean_cut},
         // "test_assembly_constraints_and_bom"
         {"test_assembly_constraints_and_bom",   test_assembly_constraints_and_bom},
+        // "test_mechanical_joint_motion_undo_persistence"
+        {"test_mechanical_joint_motion_undo_persistence", test_mechanical_joint_motion_undo_persistence},
         // "test_mechanical_revolve"
         {"test_mechanical_revolve",             test_mechanical_revolve},
         // "test_mechanical_sweep_circle_profile"

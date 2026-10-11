@@ -12,24 +12,26 @@
       "target_application": "Navisworks",
       "target_version": "2025",
       "category": "clash",
-      "name": "Federated multi-model hard clash detection with penetration depth",
+      "name": "Federated multi-model hard clash detection with broad and narrow phases",
       "command": "ClashDetective / HardClash",
-      "reference_behavior": "Executes spatial intersection analysis between element selection sets across disciplines. Identifies overlapping 3D bounding geometry, calculates minimum penetration overlap, and records clash records.",
-      "expected_input": "Structural column and MEP pipe overlapping in 3D space",
-      "expected_output": "1 hard clash detected; penetration depth 0.2 m; clash point recorded",
+      "reference_behavior": "Executes spatial intersection analysis between element selection sets across disciplines. Prunes spatially distant pairs, performs narrow-phase geometric intersection, suppresses duplicate unordered pairs, calculates penetration, and records clash records.",
+      "expected_input": "Structural column and MEP pipe overlapping in 3D space; rotated trays whose AABBs overlap while their oriented solids do not",
+      "expected_output": "True intersection produces one clash with penetration and clash point; rotated AABB false positive is rejected; distant pairs do not enter narrow phase",
       "formats": [
         ".mydesk-coord",
         ".bcf"
       ],
       "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
       "tests": [
-        "test_hard_clash_detection_and_penetration"
+        "test_hard_clash_detection_and_penetration",
+        "test_oriented_box_narrow_phase_and_broad_phase",
+        "test_duplicate_suppression_review_undo_and_rerun"
       ],
       "manual_tests": [],
-      "performance": "Interactive bounding box acceleration.",
+      "performance": "X-axis sweep-and-prune broad phase reports raw-pair, candidate, and narrow-phase counts; regression reduces 21 raw pairs to one SAT check.",
       "status": "FUNCTIONAL",
       "evidence": "products/coordinate/tests/test_coordinate.cpp",
-      "differences": "Detailed triangle-triangle polygonal mesh intersection is planned for subsequent iterations."
+      "differences": "Narrow phase currently supports AABBs and rigid OBBs. Triangle meshes, curves, compound solids, and transformed hierarchy instances remain planned."
     },
     {
       "id": "NW-CLEARANCE-CLASH-DETECTION",
@@ -39,31 +41,32 @@
       "name": "Clearance buffer proximity violation detection",
       "command": "ClashDetective / Clearance",
       "reference_behavior": "Computes Euclidean separation distance between isolated elements and flags clearance violations where distance is less than or equal to the specified buffer threshold.",
-      "expected_input": "Wall and electrical tray separated by 0.02 m with 0.05 m clearance threshold",
-      "expected_output": "1 clearance clash detected with distance 0.02 m",
+      "expected_input": "Axis-aligned elements separated by 0.02 m and rotated trays separated by 0.30 m",
+      "expected_output": "Clearance violations report exact AABB/OBB feature distances and witness midpoint coordinates",
       "formats": [
         ".mydesk-coord"
       ],
       "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
       "tests": [
-        "test_clearance_clash_detection"
+        "test_clearance_clash_detection",
+        "test_oriented_box_narrow_phase_and_broad_phase"
       ],
       "manual_tests": [],
-      "performance": "Interactive distance computation.",
+      "performance": "Broad-phase clearance expansion avoids feature-distance calculations for distant pairs.",
       "status": "FUNCTIONAL",
       "evidence": "products/coordinate/tests/test_coordinate.cpp",
-      "differences": "Complex non-convex clearance sweeps are deferred."
+      "differences": "Rigid-box vertex/face and edge/edge distance is implemented. Non-convex meshes, curves, and compound clearance sweeps are deferred."
     },
     {
       "id": "NW-BCF-EXPORT-PERSISTENCE",
       "target_application": "Navisworks",
       "target_version": "2025",
       "category": "interoperability",
-      "name": "BIM Collaboration Format (BCF 2.1 XML) export and session persistence",
+      "name": "BIM Collaboration Format (BCF 2.1 XML) export and complete coordination-session persistence",
       "command": "ExportBCF / SaveSession",
       "reference_behavior": "Exports clash viewpoints and component identifiers to industry standard BCF XML structure and roundtrips multi-model coordination state natively.",
-      "expected_input": "Coordinated multi-model session with clashes",
-      "expected_output": "Valid BCF 2.1 XML with viewpoints, origin coordinates, and components; restored session",
+      "expected_input": "Coordinated multi-model session with oriented geometry, configured tests, selection sets, clash results, and review state",
+      "expected_output": "BCF XML with origin coordinates and components; native schema restores sources, elements, OBB bases, tests, sets, results, and dispositions",
       "formats": [
         ".mydesk-coord",
         ".bcf"
@@ -76,7 +79,31 @@
       "performance": "Instantaneous XML export.",
       "status": "FUNCTIONAL",
       "evidence": "products/coordinate/tests/test_coordinate.cpp",
-      "differences": "Embedded PNG snapshot thumbnails in BCF archives are planned for GUI release."
+      "differences": "Embedded PNG snapshots and ZIP-based multi-file BCF archive packaging are planned for the GUI release."
+    },
+    {
+      "id": "NW-CLASH-REVIEW-WORKFLOW",
+      "target_application": "Navisworks",
+      "target_version": "2025",
+      "category": "clash",
+      "name": "Persistent clash review dispositions with undo and stable reruns",
+      "command": "ClashDetective / Results / Assign",
+      "reference_behavior": "Allows coordination reviewers to assign dispositions and comments to clash results without losing decisions when a test is rerun.",
+      "expected_input": "Approve a hard clash with a reviewer comment, undo and redo the edit, then rerun the clash test",
+      "expected_output": "Undo restores the prior disposition; redo restores approval; rerun preserves result identity, status, and comment",
+      "formats": [
+        ".mydesk-coord"
+      ],
+      "implementation": "products/coordinate/engine/src/coordinate_document.cpp",
+      "tests": [
+        "test_duplicate_suppression_review_undo_and_rerun",
+        "test_bcf_export_and_session_persistence"
+      ],
+      "manual_tests": [],
+      "performance": "Constant-time history append; result matching is keyed by canonical element pair per rerun.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/coordinate/tests/test_coordinate.cpp",
+      "differences": "Assignee, due date, batch disposition, external issue synchronization, and persisted undo history are not implemented."
     }
   ]
 }

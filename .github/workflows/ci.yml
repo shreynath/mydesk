@@ -6,6 +6,58 @@ on:
   pull_request:
 
 jobs:
+  product-linux:
+    name: MyDesk ${{ matrix.product }} (Linux)
+    strategy:
+      fail-fast: false
+      matrix:
+        product:
+          - draft
+          - draft-lt
+          - mechanical
+          - fusion
+          - buildings
+          - civil
+          - infra
+          - coordinate
+          - animate
+          - studio
+          - surface
+          - mill
+          - simulation
+          - vault
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build and product dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            libgl1-mesa-dev \
+            libocct-foundation-dev \
+            libocct-modeling-data-dev \
+            libocct-modeling-algorithms-dev \
+            libocct-data-exchange-dev
+
+      - name: Configure standalone product
+        run: |
+          cmake -S . -B "build/ci-${{ matrix.product }}" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DMYDESK_PRODUCT="${{ matrix.product }}" \
+            -DMYDESK_BUILD_DESKTOP=ON \
+            -DMYDESK_BUILD_TESTS=ON
+
+      - name: Build standalone product
+        run: cmake --build "build/ci-${{ matrix.product }}" --parallel 2
+
+      - name: Test standalone product
+        run: ctest --test-dir "build/ci-${{ matrix.product }}" --output-on-failure
+
   draft-build-test:
     name: MyDesk Draft (${{ matrix.os }})
     strategy:

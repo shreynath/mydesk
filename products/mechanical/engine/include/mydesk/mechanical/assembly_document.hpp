@@ -13,6 +13,7 @@ namespace mydesk::mechanical {
 
 using OccurrenceId = std::uint64_t;
 using ConstraintId = std::uint64_t;
+using JointId = std::uint64_t;
 
 enum class ConstraintType {
     Mate,
@@ -27,6 +28,10 @@ struct ComponentOccurrence {
     double x{0.0};
     double y{0.0};
     double z{0.0};
+    double rotationAxisX{0.0};
+    double rotationAxisY{0.0};
+    double rotationAxisZ{1.0};
+    double rotationDeg{0.0};
     bool isGrounded{false};
 };
 
@@ -37,6 +42,29 @@ struct AssemblyConstraint {
     OccurrenceId occurrenceA{0};
     OccurrenceId occurrenceB{0};
     double offset{0.0};
+};
+
+enum class JointType {
+    Rigid,
+    Revolute,
+    Slider,
+};
+
+struct AssemblyJoint {
+    JointId id{0};
+    JointType type{JointType::Rigid};
+    std::string name;
+    OccurrenceId parentOccurrence{0};
+    OccurrenceId childOccurrence{0};
+    double axisX{0.0};
+    double axisY{0.0};
+    double axisZ{1.0};
+    double offsetX{0.0};
+    double offsetY{0.0};
+    double offsetZ{0.0};
+    double position{0.0}; // degrees for revolute, millimetres for slider
+    double minimum{0.0};
+    double maximum{0.0};
 };
 
 struct BOMEntry {
@@ -51,6 +79,7 @@ struct AssemblySolveReport {
     std::string message;
     std::size_t occurrencesSolved{0};
     std::size_t constraintsEvaluated{0};
+    std::size_t jointsEvaluated{0};
 };
 
 class AssemblyDocument {
@@ -65,11 +94,23 @@ public:
 
     ConstraintId addConstraint(ConstraintType type, std::string name, OccurrenceId occurrenceA,
                                OccurrenceId occurrenceB, double offset = 0.0);
+    JointId addJoint(JointType type, std::string name, OccurrenceId parentOccurrence,
+                     OccurrenceId childOccurrence, double axisX, double axisY, double axisZ,
+                     double offsetX, double offsetY, double offsetZ,
+                     double minimum, double maximum, double position = 0.0);
+    bool setJointPosition(JointId id, double position);
 
     [[nodiscard]] const ComponentOccurrence* findOccurrence(OccurrenceId id) const;
     [[nodiscard]] ComponentOccurrence* findOccurrence(OccurrenceId id);
     [[nodiscard]] const std::vector<ComponentOccurrence>& occurrences() const { return occurrences_; }
     [[nodiscard]] const std::vector<AssemblyConstraint>& constraints() const { return constraints_; }
+    [[nodiscard]] const AssemblyJoint* findJoint(JointId id) const;
+    [[nodiscard]] const std::vector<AssemblyJoint>& joints() const { return joints_; }
+
+    [[nodiscard]] bool canUndo() const { return !undoStack_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redoStack_.empty(); }
+    bool undo();
+    bool redo();
 
     AssemblySolveReport solve();
     [[nodiscard]] TopoDS_Shape buildAssemblyShape() const;
@@ -82,11 +123,23 @@ public:
     static AssemblyDocument deserializeNative(std::string_view json, std::string* error = nullptr);
 
 private:
+    struct JointEdit {
+        JointId jointId{0};
+        double before{0.0};
+        double after{0.0};
+    };
+
+    [[nodiscard]] AssemblyJoint* findJointMutable(JointId id);
+
     std::string name_{"Assembly1"};
     std::vector<ComponentOccurrence> occurrences_;
     std::vector<AssemblyConstraint> constraints_;
+    std::vector<AssemblyJoint> joints_;
     OccurrenceId nextOccurrenceId_{1};
     ConstraintId nextConstraintId_{1};
+    JointId nextJointId_{1};
+    std::vector<JointEdit> undoStack_;
+    std::vector<JointEdit> redoStack_;
 };
 
 } // namespace mydesk::mechanical

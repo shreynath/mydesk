@@ -15,7 +15,7 @@ Prior scaffolding organized MyDesk as a single desktop executable with future do
 3. **CMake builds a single selected product by default** (`MYDESK_PRODUCT=draft`). Building “everything” is opt-in and never required for release.
 4. **No suite home app, account, telemetry, or mandatory cross-product install.**
 5. **Catalog `products/catalog.yaml` is the inventory of targets**, not a claim of implementation. Only products with real builds have maturity beyond `catalog-stub`.
-6. **Draft is the only implemented product today.** Other catalog entries remain planning rows until their own vertical slices begin.
+6. **Implementation status is evidence-driven.** Every catalog target now has a product-local executable, engine or shared Draft/LT domain stack, and tests, but most remain scaffolding or partial vertical slices. Catalog maturity and capability manifests—not this historical ADR—record current implementation evidence.
 
 ## Migration notes
 
@@ -23,7 +23,7 @@ Prior scaffolding organized MyDesk as a single desktop executable with future do
 |---|---|
 | `apps/desktop` → binary `MyDesk` | `products/draft/app` → binary `MyDeskDraft` |
 | `modules/draft` | Product-local helpers under `products/draft/` and/or shared `libs` (see ARCHITECTURE) |
-| “modules/mechanical…” umbrella UI | Separate future `products/mechanical`, etc. — **not** Draft tabs |
+| “modules/mechanical…” umbrella UI | Separate `products/mechanical`, `products/buildings`, and other product-local applications — **not** Draft tabs |
 | Shared command registry for all disciplines | Draft-owned commands; other products get their own interaction systems |
 
 Working Draft geometry/commands/tests must keep compiling across the move. Cosmetic-only folder reshuffles that break CI are forbidden.

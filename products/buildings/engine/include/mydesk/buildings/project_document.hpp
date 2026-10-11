@@ -77,6 +77,8 @@ struct Wall {
     double y1{0.0};
     double heightOverride{0.0}; // 0 => type default
     double baseOffset{0.0};
+    LevelId topConstraintLevelId{0}; // 0 => unconnected height
+    double topOffset{0.0};
     ElementId phaseCreatedId{0};
     ElementId phaseDemolishedId{0};
 };
@@ -421,6 +423,13 @@ struct Dimension {
     std::string dimType{"Aligned"};
     double measuredValue{0.0};
     std::string textOverride;
+    bool associative{false};
+};
+
+struct ElementPosition3D {
+    double x{0.0};
+    double y{0.0};
+    double z{0.0};
 };
 
 struct DetailComponent {
@@ -650,11 +659,21 @@ struct ProjectDocument {
     bool placeViewOnSheet(ElementId sheetId, ElementId viewId);
     ElementId addTag(ElementId targetElemId, std::string category, double x, double y, std::string label);
     ElementId addDimension(ElementId elemAId, ElementId elemBId, std::string dimType, double measuredValue, std::string textOverride = "");
+    ElementId addAssociativeDimension(ElementId elemAId, ElementId elemBId,
+                                      std::string dimType = "Aligned",
+                                      std::string textOverride = "");
     ElementId addDetailComponent(ElementId viewId, std::string familyName, double x, double y, double rotationDeg = 0.0);
     void addKeynote(std::string key, std::string text);
 
     // Lookups
     bool setLevelElevation(LevelId id, double elevation);
+    bool setWallTopConstraint(ElementId wallId, LevelId topLevelId, double topOffset = 0.0);
+    bool removeWallTopConstraint(ElementId wallId);
+    bool moveWall(ElementId wallId, double x0, double y0, double x1, double y1);
+    bool undo();
+    bool redo();
+    [[nodiscard]] bool canUndo() const { return !undoHistory_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redoHistory_.empty(); }
     [[nodiscard]] const Level* findLevel(LevelId id) const;
     [[nodiscard]] const Wall* findWall(ElementId id) const;
     [[nodiscard]] const WallType* findWallType(TypeId id) const;
@@ -662,6 +681,7 @@ struct ProjectDocument {
     [[nodiscard]] const WindowType* findWindowType(TypeId id) const;
     [[nodiscard]] const Room* findRoom(ElementId id) const;
     [[nodiscard]] const Material* findMaterial(TypeId id) const;
+    [[nodiscard]] const Dimension* findDimension(ElementId id) const;
 
     // Computational & Analysis Methods
     [[nodiscard]] double wallLength(const Wall& wall) const;
@@ -670,6 +690,8 @@ struct ProjectDocument {
     [[nodiscard]] double wallNetArea(const Wall& wall) const;
     [[nodiscard]] double wallBaseElevation(const Wall& wall) const;
     [[nodiscard]] double wallTopElevation(const Wall& wall) const;
+    [[nodiscard]] std::optional<ElementPosition3D> elementPosition(ElementId id) const;
+    [[nodiscard]] double dimensionValue(const Dimension& dimension) const;
 
     [[nodiscard]] double floorArea(const Floor& floor) const;
     [[nodiscard]] double floorVolume(const Floor& floor) const;
@@ -747,7 +769,21 @@ private:
     TypeId nextTypeId_{1};
     ElementId nextElementId_{1};
 
+    enum class EditKind { LevelElevation, WallGeometry, WallTopConstraint };
+    struct EditRecord {
+        EditKind kind{EditKind::LevelElevation};
+        ElementId targetId{0};
+        std::array<double, 4> beforeValues{};
+        std::array<double, 4> afterValues{};
+        LevelId beforeLevelId{0};
+        LevelId afterLevelId{0};
+    };
+    std::vector<EditRecord> undoHistory_;
+    std::vector<EditRecord> redoHistory_;
+
     static double computePolygonArea(const std::vector<std::pair<double, double>>& boundary);
+    bool applyEdit(const EditRecord& edit, bool forward);
+    [[nodiscard]] bool levelEditKeepsConstraintsValid(LevelId levelId, double elevation) const;
 };
 
 } // namespace mydesk::buildings

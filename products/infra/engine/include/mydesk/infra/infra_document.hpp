@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -40,6 +41,24 @@ struct ComponentRoad {
     [[nodiscard]] double totalLengthMeters() const;
 };
 
+struct CorridorSample {
+    double stationMeters{0.0};
+    RoadVertex centerline;
+    double terrainElevation{0.0};
+    double gradePercent{0.0};
+    double cutAreaSquareMeters{0.0};
+    double fillAreaSquareMeters{0.0};
+};
+
+struct CorridorEarthworkReport {
+    ElementId roadId{0};
+    double formationWidthMeters{0.0};
+    double cutVolumeCubicMeters{0.0};
+    double fillVolumeCubicMeters{0.0};
+    double maximumGradePercent{0.0};
+    std::vector<CorridorSample> samples;
+};
+
 struct BridgeStructure {
     ElementId id{0};
     std::string name;
@@ -64,10 +83,10 @@ public:
     InfraDocument();
 
     [[nodiscard]] const std::string& name() const { return name_; }
-    void setName(std::string name) { name_ = std::move(name); }
+    void setName(std::string name);
 
     [[nodiscard]] const std::string& crs() const { return crs_; }
-    void setCrs(std::string crs) { crs_ = std::move(crs); }
+    void setCrs(std::string crs);
 
     // Terrain DEM
     void setDemGrid(double originEasting, double originNorthing, double cellSize,
@@ -80,6 +99,15 @@ public:
                       std::vector<RoadVertex> centerline);
     [[nodiscard]] const std::vector<ComponentRoad>& roads() const { return roads_; }
     [[nodiscard]] const ComponentRoad* findRoad(ElementId id) const;
+    bool updateRoadCenterline(ElementId id, std::vector<RoadVertex> centerline);
+    bool removeRoad(ElementId id);
+
+    // Samples the design profile and terrain across the full formation width.
+    // Cross-section cut/fill areas are integrated by trapezoids; volumes use
+    // the average-end-area method between successive stations.
+    [[nodiscard]] std::optional<CorridorEarthworkReport> analyzeRoadEarthworks(
+        ElementId roadId, double stationIntervalMeters, double shoulderWidthMeters = 1.5,
+        double crossSectionIntervalMeters = 1.0) const;
 
     // Bridges
     ElementId addBridge(std::string name, ElementId roadId, double startSta, double endSta, int piers);
@@ -96,8 +124,31 @@ public:
     // Native persistence
     [[nodiscard]] std::string serializeNative() const;
     static InfraDocument deserializeNative(std::string_view json, std::string* error = nullptr);
+    [[nodiscard]] bool saveNativeFile(const std::filesystem::path& path, std::string* error = nullptr) const;
+    static std::optional<InfraDocument> loadNativeFile(const std::filesystem::path& path,
+                                                        std::string* error = nullptr);
+
+    [[nodiscard]] bool canUndo() const { return !undoStack_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redoStack_.empty(); }
+    bool undo();
+    bool redo();
+    void clearHistory();
 
 private:
+    struct State {
+        std::string name;
+        std::string crs;
+        DemGrid dem;
+        std::vector<ComponentRoad> roads;
+        std::vector<BridgeStructure> bridges;
+        std::vector<CityBuilding> buildings;
+        ElementId nextId{1};
+    };
+
+    [[nodiscard]] State captureState() const;
+    void restoreState(State state);
+    void checkpoint();
+
     std::string name_{"Untitled_Infra"};
     std::string crs_{"EPSG:3857"}; // Web Mercator default
     DemGrid dem_;
@@ -105,6 +156,8 @@ private:
     std::vector<BridgeStructure> bridges_;
     std::vector<CityBuilding> buildings_;
     ElementId nextId_{1};
+    std::vector<State> undoStack_;
+    std::vector<State> redoStack_;
 };
 
 } // namespace mydesk::infra

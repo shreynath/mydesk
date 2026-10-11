@@ -5,7 +5,7 @@
   "binary": "MyDeskMill",
   "target_application": "PowerMill",
   "target_version": "2025",
-  "note": "MyDesk Mill provides high-efficiency professional CAM, tool libraries, multi-axis milling strategies, feed/speed calculation, and CNC G-code post-processing targeting Autodesk PowerMill.",
+  "note": "Tested clean-room 2.5D CAM subsets. FUNCTIONAL entries are not claims of complete PowerMill parity or multi-axis machining support.",
   "capabilities": [
     {
       "id": "MILL-TOOL-LIBRARY",
@@ -57,12 +57,12 @@
       "expected_output": "Ordered cutting and rapid reposition moves",
       "formats": [],
       "implementation": "products/mill/engine/src/mill_document.cpp",
-      "tests": ["test_raster_generates_moves", "test_raster_cut_length"],
+      "tests": ["test_raster_generates_moves", "test_raster_cut_length", "test_selected_boundary_depths_and_validation"],
       "manual_tests": [],
       "performance": "Fast raster path generation",
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
-      "differences": "Zig-zag raster toolpath length and motion verified."
+      "differences": "Tested zig-zag scanline clipping, cutter-radius clearance against convex selected boundaries, and exact first/bottom stepdown levels. Surface projection, rest machining, and 3-axis collision avoidance are not implemented."
     },
     {
       "id": "MILL-CONTOUR-OFFSET",
@@ -76,12 +76,12 @@
       "expected_output": "Continuous boundary offset moves",
       "formats": [],
       "implementation": "products/mill/engine/src/mill_document.cpp",
-      "tests": ["test_parallel_offset_generates_moves"],
+      "tests": ["test_parallel_offset_generates_moves", "test_selected_boundary_depths_and_validation"],
       "manual_tests": [],
       "performance": "Fast offset calculation",
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
-      "differences": "Parallel offset cutting passes verified."
+      "differences": "Tested exact inward offsets for strictly convex planar selections. Concave boundaries, islands, adaptive engagement, and surface offsets remain unsupported."
     },
     {
       "id": "MILL-PENCIL-MILLING",
@@ -100,7 +100,7 @@
       "performance": "Fast corner detection",
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
-      "differences": "Corner cleanup toolpath verified."
+      "differences": "Traces the cutter-offset boundary at floor depth. Automatic surface-intersection and rest-material corner detection remain unsupported."
     },
     {
       "id": "MILL-GCODE-POSTPROCESS",
@@ -114,12 +114,31 @@
       "expected_output": "Validated CNC G-code NC file",
       "formats": [".tap", ".nc", ".gcode"],
       "implementation": "products/mill/engine/src/mill_document.cpp",
-      "tests": ["test_gcode_export_header", "test_gcode_export_spindle"],
+      "tests": ["test_gcode_export_header", "test_gcode_export_spindle", "test_selected_boundary_depths_and_validation"],
       "manual_tests": [],
       "performance": "Rapid postprocessing",
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
-      "differences": "Metric ISO/Fanuc compatible G-code verified."
+      "differences": "Tested generic metric absolute G0/G1, spindle, tool-change, dwell, and program framing after path validation. Machine-specific kinematics, canned cycles, macros, probing, and controller certification are not implemented."
+    },
+    {
+      "id": "MILL-SELECTED-GEOMETRY-VALIDATION",
+      "target_application": "PowerMill",
+      "target_version": "2025",
+      "category": "verification",
+      "name": "Selected planar geometry, tool clearance, depth, and post validation",
+      "command": "BOUNDARY / CALCULATE / VERIFY",
+      "reference_behavior": "Drive operations from selected model geometry, reject unsafe or inconsistent parameters, and post only verified paths.",
+      "expected_input": "Convex planar boundary, stock, cutter, depth range, stepover/stepdown, and selected drill centres",
+      "expected_output": "Cutter-centre paths clipped and offset within the selection; invalid tools, depths, clearances, and hole centres rejected",
+      "formats": [],
+      "implementation": "products/mill/engine/src/mill_document.cpp",
+      "tests": ["test_selected_boundary_depths_and_validation", "test_drilling"],
+      "manual_tests": [],
+      "performance": "Linear in polygon edges per offset or scanline; convex boundaries only",
+      "status": "FUNCTIONAL",
+      "evidence": "products/mill/tests/test_mill.cpp",
+      "differences": "Covers validated 2.5D convex boundaries and explicit hole centres. Full solid/mesh contact, holder collision, gouge checking, fixtures, and arbitrary topology are not implemented."
     }
   ]
 }

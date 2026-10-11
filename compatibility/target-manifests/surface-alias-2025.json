@@ -5,7 +5,7 @@
   "binary": "MyDeskSurface",
   "target_application": "Alias",
   "target_version": "2025",
-  "note": "MyDesk Surface provides Class-A industrial and automotive precision NURBS surfacing, continuity evaluation, and diagnostic reflection lines targeting Autodesk Alias.",
+  "note": "MyDesk Surface provides a partial precision NURBS surfacing, continuity, and diagnostic implementation targeting Autodesk Alias. FUNCTIONAL entries cover only their tested subsets and do not imply complete Class-A or Alias parity.",
   "capabilities": [
     {
       "id": "ALIAS-NURBS-CURVE-EVAL",
@@ -57,12 +57,12 @@
       "expected_output": "Point coordinates and surface normal vector",
       "formats": [".mysurface", ".igs"],
       "implementation": "products/surface/engine/src/surface_document.cpp",
-      "tests": ["test_surface_bilinear_patch"],
+      "tests": ["test_surface_bilinear_patch", "test_surface_analytic_derivatives"],
       "manual_tests": [],
       "performance": "Sub-millisecond patch evaluation",
       "status": "FUNCTIONAL",
       "evidence": "products/surface/tests/test_surface.cpp",
-      "differences": "Tensor-product NURBS surface patch evaluation verified."
+      "differences": "Rational tensor-product evaluation and analytical first/second derivatives are verified for the supported patches; trimming, intersections, degree editing, and surface rebuilding remain incomplete."
     },
     {
       "id": "ALIAS-GAUSSIAN-MEAN-CURVATURE",
@@ -76,31 +76,31 @@
       "expected_output": "Gaussian K and Mean H curvature scalar values",
       "formats": [".mysurface"],
       "implementation": "products/surface/engine/src/surface_document.cpp",
-      "tests": ["test_surface_gaussian_mean_curvature"],
+      "tests": ["test_surface_gaussian_mean_curvature", "test_surface_analytic_derivatives"],
       "manual_tests": [],
       "performance": "Fast analytical curvature computation",
       "status": "FUNCTIONAL",
       "evidence": "products/surface/tests/test_surface.cpp",
-      "differences": "Differential geometry fundamental forms verified."
+      "differences": "Gaussian and mean curvature use analytical rational NURBS derivatives and are verified on planar and parabolic cases; broader reference-surface validation remains incomplete."
     },
     {
       "id": "ALIAS-G0-G1-CONTINUITY",
       "target_application": "Alias",
       "target_version": "2025",
       "category": "continuity",
-      "name": "Class-A G0 positional and G1 tangent seam continuity verification",
+      "name": "G0/G1/G2 seam diagnostics and control-net alignment",
       "command": "CHECK / CONTINUITY",
-      "reference_behavior": "Verify boundary gap distance (G0) and normal angular deviation (G1) across adjacent patches.",
+      "reference_behavior": "Measure positional, tangent, and curvature continuity across adjacent patches and align editable control nets to a requested order with undo and redo.",
       "expected_input": "Two adjacent surface patches",
-      "expected_output": "Tolerance compliance report with max gap and angular deviation",
+      "expected_output": "Tolerance report with gap, angular, and normal-curvature deviation plus reversible G0/G1/G2 alignment",
       "formats": [".mysurface"],
       "implementation": "products/surface/engine/src/surface_document.cpp",
-      "tests": ["test_surface_g0_g1_continuity"],
+      "tests": ["test_surface_g0_g1_continuity", "test_surface_g2_align_undo_persistence"],
       "manual_tests": [],
       "performance": "Interactive seam diagnostic",
       "status": "FUNCTIONAL",
       "evidence": "products/surface/tests/test_surface.cpp",
-      "differences": "G0 and G1 boundary continuity inspection verified."
+      "differences": "Sampled G0/G1/G2 diagnostics and parameter-domain-scaled control-net alignment are verified for adjacent non-rational bicubic Bezier patches; arbitrary NURBS patch matching, topology-aware edge selection, and higher orders remain incomplete."
     },
     {
       "id": "ALIAS-ZEBRA-STRIPES",
@@ -135,10 +135,10 @@
       "implementation": "products/surface/engine/src/surface_document.cpp",
       "tests": ["test_surface_native_roundtrip"],
       "manual_tests": [],
-      "performance": "Fast atomic JSON persistence",
+      "performance": "In-memory schema-v2 structural serialization",
       "status": "FUNCTIONAL",
       "evidence": "products/surface/tests/test_surface.cpp",
-      "differences": "NURBS entity round-trip verified."
+      "differences": "Schema-v2 loading validates and restores curve/surface IDs, degrees, knots, weights, control points, and control grids; atomic file writes, migration from all historical variants, and unknown-field preservation remain incomplete."
     }
   ]
 }
