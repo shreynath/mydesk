@@ -20,7 +20,10 @@ The archive contains the selected executable, that product's docs and
 changelog when present, its `VERSION`, and the project license/notices. The
 `packaging.install-contract` CTest installs to a temporary staging prefix and
 checks that the expected executable and metadata exist and that no other
-MyDesk product executable leaked into the install.
+MyDesk product executable leaked into the install. Runtime-deployed desktop
+products additionally construct their real main window from the installed
+location in deterministic smoke mode; on macOS the contract also rejects
+Mach-O load paths into Homebrew, MacPorts, `/usr/local`, or a user directory.
 
 Default generators are DMG and TGZ on macOS, ZIP on Windows, and TGZ on other
 systems. Override them at configure time with

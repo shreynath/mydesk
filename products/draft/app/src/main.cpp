@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QSurfaceFormat>
+#include <QTimer>
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
@@ -15,6 +16,10 @@ int main(int argc, char* argv[]) {
     QSurfaceFormat::setDefaultFormat(format);
 
     mydesk::desktop::MainWindow window;
-    window.show();
+    if (QCoreApplication::arguments().contains(QStringLiteral("--packaging-smoke"))) {
+        QTimer::singleShot(0, &app, &QCoreApplication::quit);
+    } else {
+        window.show();
+    }
     return app.exec();
 }

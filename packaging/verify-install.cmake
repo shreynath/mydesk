@@ -93,6 +93,30 @@ if(MYDESK_IS_APPLE AND MYDESK_REQUIRE_RELOCATABLE_BUNDLE)
   endforeach()
 endif()
 
+if(MYDESK_REQUIRE_RELOCATABLE_BUNDLE)
+  if(MYDESK_IS_APPLE)
+    execute_process(
+      COMMAND "${_installed_binary}" --packaging-smoke
+      RESULT_VARIABLE _launch_result
+      OUTPUT_VARIABLE _launch_stdout
+      ERROR_VARIABLE _launch_stderr
+      TIMEOUT 15)
+  else()
+    execute_process(
+      COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+        "${_installed_binary}" --packaging-smoke
+      RESULT_VARIABLE _launch_result
+      OUTPUT_VARIABLE _launch_stdout
+      ERROR_VARIABLE _launch_stderr
+      TIMEOUT 15)
+  endif()
+  if(NOT _launch_result EQUAL 0)
+    message(FATAL_ERROR
+      "Installed ${MYDESK_PRODUCT_ID} application failed its UI construction smoke "
+      "(${_launch_result})\n${_launch_stdout}\n${_launch_stderr}")
+  endif()
+endif()
+
 set(_metadata_root "${MYDESK_VERIFY_ROOT}/share/mydesk-${MYDESK_PRODUCT_ID}")
 foreach(_metadata README.txt VERSION LICENSE NOTICE ATTRIBUTION.md THIRD_PARTY.md)
   if(NOT EXISTS "${_metadata_root}/${_metadata}")
