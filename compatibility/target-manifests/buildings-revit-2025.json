@@ -8,6 +8,38 @@
   "note": "Target inventory with tested clean-room subsets. FUNCTIONAL and PARTIAL_PARITY entries are not claims of complete Revit compatibility.",
   "capabilities": [
     {
+      "id": "RVT-DESKTOP-BIM-WORKSPACE",
+      "target_application": "Revit",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent BIM desktop workspace",
+      "command": "MyDeskBuildings",
+      "reference_behavior": "A persistent BIM authoring workspace provides a project browser, properties, coordinated plan and 3D views, interactive semantic element creation and selection, undo/redo, native projects, and IFC export.",
+      "expected_input": "Create levels and walls, place hosted openings, edit element properties, save/reopen the project, and export IFC4.",
+      "expected_output": "Browser, properties, plan and axonometric views remain synchronized with the editable semantic ProjectDocument and exported model.",
+      "formats": [
+        ".mydesk-bim",
+        ".ifc"
+      ],
+      "implementation": [
+        "products/buildings/app/src/main_window.cpp",
+        "products/buildings/app/src/bim_viewport.cpp",
+        "products/buildings/app/src/document_controller.cpp"
+      ],
+      "tests": [
+        "test_buildings_qt_authoring_workflow"
+      ],
+      "manual_tests": [
+        "Launch MyDeskBuildings and create a wall with two plan clicks",
+        "Place a hosted door and window, edit offsets, undo and redo",
+        "Save, reopen, switch to axonometric view, and export IFC4"
+      ],
+      "performance": "CPU-rendered interactive viewport intended for small and medium current-schema projects.",
+      "status": "PARTIAL_PARITY",
+      "evidence": "products/buildings/tests/test_document_controller.cpp; products/buildings/tests/test_buildings_ui.cpp",
+      "differences": "Implemented authoring is currently limited to levels, linear walls, hosted doors/windows, and their exposed properties. Floors, roofs, MEP, structure, sheets, schedules, sections, snapping, grips, temporary dimensions, GPU rendering, and many professional dialogs are not yet exposed through the desktop interface. The axonometric view is not a full hidden-line or photorealistic 3D renderer."
+    },
+    {
       "id": "RVT-SEMANTIC-WALLS-LEVELS",
       "target_application": "Revit",
       "target_version": "2025",

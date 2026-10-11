@@ -33,13 +33,32 @@ session-local and intentionally is not serialized.
 
 ## UI
 
-`MyDeskBuildings` currently launches a CLI summary of the project and schedules. A discipline-specific Qt shell (project browser, level views, properties) follows.
+`MyDeskBuildings` is a persistent Qt 6 BIM authoring application rather than a seeded command-line
+demonstration. Its application controller owns the live `ProjectDocument`, current selection, native
+file path, modified state, and snapshot transactions. The interface provides:
+
+- a project browser organized into levels, walls, hosted openings, and rooms;
+- a properties palette that edits level elevations, wall endpoints, and door/window host positions;
+- a zoomable level-plan viewport with thickness-aware walls, room boundaries, and opening symbols;
+- an axonometric building viewport that extrudes walls using computed base/top elevations;
+- two-click wall authoring and wall-hosted door/window placement using geometric hit testing;
+- application-wide undo/redo for creation and property edits, including hosted dependency state;
+- New, Open, Save, Save As, and IFC4 Export workflows with modified-document protection.
+
+The browser, properties palette, and both viewport modes read the same semantic document used by
+schedules and IFC export. There is no parallel display-only scene model. The plan/axonometric
+renderer is a CPU `QPainter` viewport; it does not yet provide GPU hidden-line removal, sections,
+perspective cameras, material rendering, grips, snapping, or arbitrary element authoring.
+
+The standalone install step uses Qt's platform deployment tooling to copy the Widgets/Gui runtime
+and platform plugins into the Buildings package without pulling in any other MyDesk product.
 
 ## Tests
 
 Multistory project, wall schedule quantities, two-level wall constraint propagation, hosted-opening
 placement, associative dimensions, invalid-edit rollback, undo/redo, native round-trip of dependency
-relationships, and IFC entity presence.
+relationships, IFC entity presence, and an application-controller integration test covering wall and
+opening authoring, property edits, undo/redo, atomic native save/reopen, and IFC file export.
 
 ## Current boundary
 

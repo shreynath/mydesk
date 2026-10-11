@@ -8,6 +8,9 @@
 
 namespace {
 
+// Registered by the separate Qt offscreen executable:
+// "test_buildings_qt_authoring_workflow"
+
 void expect(bool cond, const std::string& msg) {
     if (!cond) {
         throw std::runtime_error(msg);
