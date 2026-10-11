@@ -14,31 +14,32 @@
       "category": "survey",
       "name": "COGO points, Delaunay TIN surface, and cut/fill volumes",
       "command": "CreatePoint / CreateSurface / Volumes",
-      "reference_behavior": "3D COGO points form Delaunay TIN surface. Evaluates barycentric elevation interpolation and computes prismoidal cut/fill earthwork volumes against a datum elevation.",
+      "reference_behavior": "3D COGO points form a Delaunay TIN surface. The implemented subset evaluates barycentric elevation interpolation, triangle contours, and a datum-based planar-triangle cut/fill estimate.",
       "expected_input": "3 survey points forming triangle, datum elevation 8.0 m",
-      "expected_output": "Interpolated elevation 10.0 m; cut volume 100 m3, fill volume 0 m3",
+      "expected_output": "Interpolated elevation 8.0 m; cut volume 100 m3, fill volume 0 m3",
       "formats": [
         ".mydesk-civil",
         ".xml"
       ],
       "implementation": "products/civil/engine/src/civil_document.cpp",
       "tests": [
-        "test_cogo_and_tin_surface_volumes"
+        "test_cogo_and_tin_surface_volumes",
+        "test_delaunay_and_complete_native_roundtrip"
       ],
       "manual_tests": [],
       "performance": "Interactive surface evaluation.",
       "status": "FUNCTIONAL",
       "evidence": "products/civil/tests/test_civil.cpp",
-      "differences": "Breaklines and boundary clipping are planned for subsequent iterations."
+      "differences": "No breaklines, boundaries, point groups, surface edits, or contour stitching. Volume calculation does not split a triangle where the datum crosses its face."
     },
     {
       "id": "C3D-ALIGNMENT-STATIONING",
       "target_application": "Civil 3D",
       "target_version": "2025",
       "category": "alignment",
-      "name": "Horizontal alignment, station equations, and station/offset projection",
+      "name": "Horizontal alignment stationing and station/offset projection",
       "command": "CreateAlignment / StationOffset",
-      "reference_behavior": "Parametric tangent/curve alignment calculates cumulative engineering stationing (STA 00+00.00) and projects (x, y) coordinates to station and perpendicular signed offset.",
+      "reference_behavior": "The implemented tangent/curve alignment calculates cumulative engineering stationing (STA 00+00.00); tangent entities support coordinate projection to station and perpendicular signed offset.",
       "expected_input": "1000m horizontal alignment; point at (300, 25)",
       "expected_output": "Station format STA 5+24.50; station 300, offset +25",
       "formats": [
@@ -52,7 +53,7 @@
       "performance": "Interactive station/offset lookup.",
       "status": "FUNCTIONAL",
       "evidence": "products/civil/tests/test_civil.cpp",
-      "differences": "Clothoid spiral transition curves are deferred."
+      "differences": "Station equations, clothoid spirals, constraint-based layout, curve station/offset projection, superelevation, and labels are absent."
     },
     {
       "id": "C3D-PROFILE-LANDXML",
@@ -61,7 +62,7 @@
       "category": "profile",
       "name": "Vertical profile PVI grade calculation and LandXML 1.2 interoperability",
       "command": "CreateProfile / ExportLandXML",
-      "reference_behavior": "Profile PVI station/elevation evaluation along alignment and LandXML 1.2 standard export with CgPoints, Surfaces, and Alignments.",
+      "reference_behavior": "Profile PVI station/elevation evaluation along an alignment and LandXML 1.2 export of the implemented CgPoint, surface, alignment, and profile subset.",
       "expected_input": "Profile with 5% grade; LandXML export",
       "expected_output": "Elevation 120.0 m at STA 400; valid LandXML 1.2 XML document",
       "formats": [
@@ -70,13 +71,38 @@
       ],
       "implementation": "products/civil/engine/src/civil_document.cpp",
       "tests": [
-        "test_landxml_export_and_native_persistence"
+        "test_landxml_export_and_native_persistence",
+        "test_delaunay_and_complete_native_roundtrip"
       ],
       "manual_tests": [],
       "performance": "Instantaneous XML serialization.",
       "status": "FUNCTIONAL",
       "evidence": "products/civil/tests/test_civil.cpp",
-      "differences": "Subassemblies and corridor surface generation are planned for a subsequent iteration."
+      "differences": "No LandXML import, schema-wide conformance claim, graphical profile editor, corridors, assemblies, grading, parcels, or pipe networks."
+    },
+    {
+      "id": "C3D-DESKTOP-WORKSPACE",
+      "target_application": "Civil 3D",
+      "target_version": "2025",
+      "category": "desktop",
+      "name": "Persistent civil project browser, plan viewport, properties, history, and files",
+      "command": "MyDeskCivil",
+      "reference_behavior": "A standalone civil workspace creates and selects domain objects, edits COGO and project properties, visualizes TIN/contour/alignment geometry, and preserves work through undo, save, reopen, and LandXML export.",
+      "expected_input": "Five survey points, one TIN, one alignment, one profile, COGO elevation edit",
+      "expected_output": "Selectable civil hierarchy and plan geometry; edited state survives redo and native reopen; exported XML contains surface, alignment, and profile definitions",
+      "formats": [
+        ".mydesk-civil",
+        ".xml"
+      ],
+      "implementation": "products/civil/app/src/main_window.cpp",
+      "tests": [
+        "testCivilAuthoringPersistenceAndUndo"
+      ],
+      "manual_tests": [],
+      "performance": "CPU plan viewport intended for the currently tested small project subset.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/civil/app/tests/test_civil_ui.cpp",
+      "differences": "No profile view, section editor, corridor model, survey database, production labeling, sheet generation, or GPU large-surface renderer."
     }
   ]
 }

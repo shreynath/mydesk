@@ -1,30 +1,48 @@
-#include "mydesk/civil/civil_document.hpp"
+// SPDX-License-Identifier: MPL-2.0
+#include "main_window.hpp"
 
-#include <iostream>
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QFileInfo>
+#include <QStyleFactory>
+#include <QTimer>
 
 int main(int argc, char** argv) {
-    std::cout << "MyDesk Civil v0.1.0 — Civil 3D Class Professional Engineering\n";
-    mydesk::civil::CivilDocument doc;
-    doc.setName("ProjectCivil");
-    const auto p1 = doc.addPoint("100", 1000.0, 2000.0, 105.5, "BENCHMARK");
-    const auto p2 = doc.addPoint("101", 1100.0, 2000.0, 107.2, "GROUND");
-    const auto p3 = doc.addPoint("102", 1050.0, 2080.0, 109.0, "GROUND");
-    const auto s1 = doc.buildTinSurface("EG", {p1, p2, p3});
+    QApplication application(argc, argv);
+    QCoreApplication::setOrganizationName("MyDesk");
+    QCoreApplication::setApplicationName("MyDesk Civil");
+    QCoreApplication::setApplicationVersion("0.2.0");
+    application.setStyle(QStyleFactory::create("Fusion"));
+    application.setStyleSheet(R"(
+        QMainWindow, QDockWidget, QTreeWidget, QWidget { background: #141b22; color: #dce6ec; }
+        QMenuBar, QMenu, QToolBar, QStatusBar { background: #202b34; color: #f3f7f9; }
+        QTreeWidget { alternate-background-color: #19242d; border: 0; }
+        QTreeWidget::item:selected { background: #136f83; color: white; }
+        QLineEdit, QDoubleSpinBox { background: #0f171d; border: 1px solid #52636d;
+            border-radius: 3px; padding: 4px; color: #f5f8fa; }
+        QPushButton { background: #176c7c; border: 1px solid #50afbd; border-radius: 3px;
+            color: white; padding: 7px 12px; }
+        QPushButton:hover { background: #208395; }
+        QDockWidget::title { background: #26343e; padding: 7px; font-weight: 600; }
+    )");
 
-    const auto* surf = doc.findSurface(s1);
-    if (surf) {
-        std::cout << "Built TIN surface '" << surf->name << "' with " << surf->triangles.size() << " triangles.\n";
+    QCommandLineParser parser;
+    parser.setApplicationDescription("MyDesk Civil professional civil engineering design application");
+    parser.addHelpOption(); parser.addVersionOption();
+    QCommandLineOption packagingSmoke("packaging-smoke",
+        "Construct the deployed civil workspace and exit without showing a window.");
+    parser.addOption(packagingSmoke);
+    parser.addPositionalArgument("project", "MyDesk Civil .mydesk-civil project to open.");
+    parser.process(application);
+
+    CivilMainWindow window;
+    if (parser.isSet(packagingSmoke)) {
+        QTimer::singleShot(0, &application, &QCoreApplication::quit);
+        return application.exec();
     }
-
-    const auto al1 = doc.createAlignment("Centerline", 0.0);
-    doc.addAlignmentTangent(al1, 1000.0, 2000.0, 1500.0, 2000.0);
-    const auto* al = doc.findAlignment(al1);
-    if (al) {
-        std::cout << "Alignment '" << al->name << "' total length: " << al->totalLength()
-                  << " m (" << al->formatStation(al->totalLength()) << ")\n";
+    if (!parser.positionalArguments().isEmpty()) {
+        window.openDocument(QFileInfo(parser.positionalArguments().front()).absoluteFilePath());
     }
-
-    (void)argc;
-    (void)argv;
-    return 0;
+    window.show();
+    return application.exec();
 }

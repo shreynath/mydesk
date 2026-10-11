@@ -97,6 +97,44 @@ void test_landxml_export_and_native_persistence() {
     expect(loaded.points().front().pointNumber == "1", "point number matches");
 }
 
+void test_delaunay_and_complete_native_roundtrip() {
+    mydesk::civil::CivilDocument doc;
+    doc.setName("Subdivision A");
+    const auto p1 = doc.addPoint("1", 0.0, 0.0, 100.0, "CORNER");
+    const auto p2 = doc.addPoint("2", 100.0, 0.0, 101.0, "CORNER");
+    const auto p3 = doc.addPoint("3", 100.0, 100.0, 104.0, "CORNER");
+    const auto p4 = doc.addPoint("4", 0.0, 100.0, 102.0, "CORNER");
+    const auto p5 = doc.addPoint("5", 50.0, 50.0, 103.0, "CENTER");
+    const auto surfaceId = doc.buildTinSurface("Existing Ground", {p1, p2, p3, p4, p5});
+    const auto* surface = doc.findSurface(surfaceId);
+    expect(surface != nullptr && surface->triangles.size() == 4,
+           "interior point participates in four Delaunay triangles");
+
+    const auto alignmentId = doc.createAlignment("Road A", 1000.0);
+    expect(doc.addAlignmentTangent(alignmentId, 0.0, 40.0, 100.0, 40.0),
+           "alignment tangent added");
+    expect(doc.addAlignmentCurve(alignmentId, 100.0, 60.0, 20.0, -1.5707963267948966,
+                                 0.0, false), "alignment curve added");
+    const auto profileId = doc.createProfile("Finished Grade", alignmentId);
+    expect(doc.addProfilePVI(profileId, 1000.0, 100.0), "first PVI added");
+    expect(doc.addProfilePVI(profileId, 1100.0, 102.0, 30.0), "second PVI added");
+
+    const auto serialized = doc.serializeNative();
+    std::string error;
+    auto restored = mydesk::civil::CivilDocument::deserializeNative(serialized, &error);
+    expect(error.empty(), "complete native document parses");
+    expect(restored.surfaces().size() == 1 && restored.surfaces().front().triangles.size() == 4,
+           "TIN topology roundtrips");
+    expect(restored.alignments().size() == 1 && restored.alignments().front().segments.size() == 2,
+           "alignment entities roundtrip");
+    expect(restored.profiles().size() == 1 && restored.profiles().front().pvis.size() == 2,
+           "profile PVIs roundtrip");
+    expect(restored.updatePoint(p5, "5A", 55.0, 50.0, 103.5, "CENTER EDIT"),
+           "COGO point updates");
+    expect(restored.findSurface(surfaceId)->triangles.size() == 4,
+           "referencing surface retriangulates after point edit");
+}
+
 } // namespace
 
 int main() {
@@ -116,7 +154,12 @@ int main() {
         test_landxml_export_and_native_persistence();
         std::cout << "[PASS] test_landxml_export_and_native_persistence\n";
 
-        std::cout << "3 passed, 0 failed\n";
+        const char* kRegistered4 = "test_delaunay_and_complete_native_roundtrip";
+        (void)kRegistered4;
+        test_delaunay_and_complete_native_roundtrip();
+        std::cout << "[PASS] test_delaunay_and_complete_native_roundtrip\n";
+
+        std::cout << "4 passed, 0 failed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& ex) {
         std::cout << "[FAIL] " << ex.what() << "\n0 passed, 1 failed\n";

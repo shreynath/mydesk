@@ -106,22 +106,30 @@ public:
 
     PointId addPoint(std::string pointNum, double easting, double northing, double elevation,
                      std::string desc);
+    bool updatePoint(PointId id, std::string pointNum, double easting, double northing,
+                     double elevation, std::string desc);
     [[nodiscard]] const CogoPoint* findPoint(PointId id) const;
     [[nodiscard]] const std::vector<CogoPoint>& points() const { return points_; }
 
     SurfaceId buildTinSurface(std::string name, const std::vector<PointId>& pointIds);
+    bool renameSurface(SurfaceId id, std::string name);
     [[nodiscard]] const TinSurface* findSurface(SurfaceId id) const;
+    [[nodiscard]] const std::vector<TinSurface>& surfaces() const { return surfaces_; }
 
     AlignmentId createAlignment(std::string name, double startStation = 0.0);
     bool addAlignmentTangent(AlignmentId id, double startX, double startY, double endX,
                              double endY);
     bool addAlignmentCurve(AlignmentId id, double centerX, double centerY, double radius,
                            double startAngle, double endAngle, bool clockwise = false);
+    bool updateAlignment(AlignmentId id, std::string name, double startStation);
     [[nodiscard]] const Alignment* findAlignment(AlignmentId id) const;
+    [[nodiscard]] const std::vector<Alignment>& alignments() const { return alignments_; }
 
     ProfileId createProfile(std::string name, AlignmentId alignmentId);
     bool addProfilePVI(ProfileId id, double station, double elevation, double curveLength = 0.0);
+    bool renameProfile(ProfileId id, std::string name);
     [[nodiscard]] const Profile* findProfile(ProfileId id) const;
+    [[nodiscard]] const std::vector<Profile>& profiles() const { return profiles_; }
 
     [[nodiscard]] std::string exportLandXml() const;
     [[nodiscard]] std::string serializeNative() const;
