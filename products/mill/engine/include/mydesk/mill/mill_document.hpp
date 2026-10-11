@@ -4,8 +4,10 @@
 //           feed/speed calculation, G-code (RS-274) export.
 #pragma once
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mydesk::mill {
@@ -141,24 +143,37 @@ class MillDocument {
 public:
     MillDocument();
 
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
+    void set_name(std::string name);
+
     // Tool library
     std::size_t add_tool(Tool t);
     Tool&       tool(std::size_t i) { return tools_.at(i); }
+    const Tool& tool(std::size_t i) const { return tools_.at(i); }
     std::size_t tool_count() const noexcept { return tools_.size(); }
+    bool set_tool(std::size_t i, Tool tool);
+    bool remove_tool(std::size_t i);
 
     // Stock
     void       set_stock(StockBox s);
     StockBox&  stock() noexcept { return stock_; }
+    const StockBox& stock() const noexcept { return stock_; }
 
     // Selected model geometry
     std::size_t add_boundary(MachiningBoundary boundary);
     const MachiningBoundary& boundary(std::size_t i) const { return boundaries_.at(i); }
     std::size_t boundary_count() const noexcept { return boundaries_.size(); }
+    bool set_boundary(std::size_t i, MachiningBoundary boundary);
+    bool remove_boundary(std::size_t i);
 
     // Toolpath generation
-    std::size_t generate(const OperationParams& params);
+    std::size_t generate(const OperationParams& params, std::string name = {});
     const Toolpath& toolpath(std::size_t i) const { return toolpaths_.at(i); }
     std::size_t toolpath_count() const noexcept { return toolpaths_.size(); }
+    bool regenerate(std::size_t i, const OperationParams& params, std::string name = {});
+    bool rename_toolpath(std::size_t i, std::string name);
+    bool remove_toolpath(std::size_t i);
+    void clear_toolpaths();
     ToolpathValidation validate_toolpath(std::size_t i) const;
 
     // Feed/speed calculator
@@ -169,11 +184,38 @@ public:
     // G-code export — all toolpaths
     std::string export_gcode(const GCodeOptions& opts = {}) const;
 
+    // Native .mymill JSON persistence. Loading validates all tools, stock,
+    // selected boundaries, operation parameters, and regenerated paths.
+    [[nodiscard]] std::string serialize_native() const;
+    static MillDocument deserialize_native(std::string_view json,
+                                           std::string* error = nullptr);
+    bool save_native_file(const std::filesystem::path& path,
+                          std::string* error = nullptr) const;
+    static MillDocument load_native_file(const std::filesystem::path& path,
+                                         std::string* error = nullptr);
+
+    [[nodiscard]] bool can_undo() const noexcept { return !undo_.empty(); }
+    [[nodiscard]] bool can_redo() const noexcept { return !redo_.empty(); }
+    bool undo();
+    bool redo();
+    void clear_history() noexcept { undo_.clear(); redo_.clear(); }
+
 private:
     std::vector<Tool>       tools_;
     std::vector<MachiningBoundary> boundaries_;
     std::vector<Toolpath>   toolpaths_;
     StockBox                stock_;
+    std::string name_{"Untitled Mill Project"};
+
+    struct Snapshot {
+        std::string name;
+        std::vector<Tool> tools;
+        std::vector<MachiningBoundary> boundaries;
+        std::vector<Toolpath> toolpaths;
+        StockBox stock;
+    };
+    std::vector<Snapshot> undo_;
+    std::vector<Snapshot> redo_;
 
     Toolpath generate_raster(const OperationParams& p) const;
     Toolpath generate_parallel_offset(const OperationParams& p) const;
@@ -182,6 +224,11 @@ private:
     Toolpath generate_profile(const OperationParams& p) const;
     void validate_operation(const OperationParams& p) const;
     std::vector<Vec2> selected_boundary(const OperationParams& p, double cutter_offset_mm) const;
+    static void validate_tool(const Tool& tool);
+    static void validate_stock(const StockBox& stock);
+    [[nodiscard]] Snapshot capture() const;
+    void restore(Snapshot snapshot);
+    void checkpoint();
 };
 
 } // namespace mydesk::mill

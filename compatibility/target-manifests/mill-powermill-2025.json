@@ -114,12 +114,12 @@
       "expected_output": "Validated CNC G-code NC file",
       "formats": [".tap", ".nc", ".gcode"],
       "implementation": "products/mill/engine/src/mill_document.cpp",
-      "tests": ["test_gcode_export_header", "test_gcode_export_spindle", "test_selected_boundary_depths_and_validation"],
+      "tests": ["test_gcode_export_header", "test_gcode_export_spindle", "test_selected_boundary_depths_and_validation", "test_imperial_generic_post"],
       "manual_tests": [],
       "performance": "Rapid postprocessing",
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
-      "differences": "Tested generic metric absolute G0/G1, spindle, tool-change, dwell, and program framing after path validation. Machine-specific kinematics, canned cycles, macros, probing, and controller certification are not implemented."
+      "differences": "Tested generic absolute metric and unit-converted inch G0/G1, spindle, tool-change, dwell, and program framing after path validation. Machine-specific kinematics, canned cycles, macros, probing, and controller certification are not implemented."
     },
     {
       "id": "MILL-SELECTED-GEOMETRY-VALIDATION",
@@ -139,6 +139,44 @@
       "status": "FUNCTIONAL",
       "evidence": "products/mill/tests/test_mill.cpp",
       "differences": "Covers validated 2.5D convex boundaries and explicit hole centres. Full solid/mesh contact, holder collision, gouge checking, fixtures, and arbitrary topology are not implemented."
+    },
+    {
+      "id": "MILL-NATIVE-DOCUMENT-HISTORY",
+      "target_application": "PowerMill",
+      "target_version": "2025",
+      "category": "document",
+      "name": "Editable CAM project persistence and history",
+      "command": "FILE / SAVE; EDIT / UNDO",
+      "reference_behavior": "Persist an editable CAM project and provide undo/redo for setup and operation changes.",
+      "expected_input": "Stock, tools, boundaries, editable operation parameters, and document mutations",
+      "expected_output": "Validated reopened project with regenerated paths and reversible edits",
+      "formats": [".mymill"],
+      "implementation": "products/mill/engine/src/mill_document.cpp",
+      "tests": ["test_operation_edit_undo_redo", "test_native_document_roundtrip"],
+      "manual_tests": [],
+      "performance": "Snapshot history; calculated moves are regenerated on open",
+      "status": "FUNCTIONAL",
+      "evidence": "products/mill/tests/test_mill.cpp",
+      "differences": "Schema-v1 native persistence and product-local history are tested. It is not PowerMill project-format compatible, does not store arbitrary CAD models, and does not provide collaborative or PDM history."
+    },
+    {
+      "id": "MILL-DESKTOP-CAM-WORKFLOW",
+      "target_application": "PowerMill",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Persistent desktop CAM authoring workflow",
+      "command": "CREATE / OPERATION; APPLY / REGENERATE; FILE / EXPORT",
+      "reference_behavior": "Author and inspect machining setups through a project browser, operation properties, and interactive machining viewport.",
+      "expected_input": "Desktop selection, property edits, viewport navigation, save/open, and NC export",
+      "expected_output": "Engine-backed stock, tools, boundaries, regenerated toolpaths, native project, and posted NC file",
+      "formats": [".mymill", ".nc", ".tap", ".gcode"],
+      "implementation": "products/mill/app/main_window.cpp",
+      "tests": ["camAuthoringPersistenceAndPost"],
+      "manual_tests": [],
+      "performance": "Interactive CPU path inspection for tested 2.5D project sizes",
+      "status": "FUNCTIONAL",
+      "evidence": "products/mill/app/tests/test_mill_ui.cpp",
+      "differences": "Qt workflow, property-driven regeneration, top/isometric stock and path display, selection, undo/redo, save/reopen, and export are tested. The viewport is not stock-removal simulation and lacks direct boundary-vertex editing, solid-model import, GPU rendering, machine simulation, and multi-axis verification."
     }
   ]
 }

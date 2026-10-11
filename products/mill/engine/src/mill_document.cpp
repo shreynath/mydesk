@@ -4,9 +4,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
+
+#include <nlohmann/json.hpp>
 
 namespace mydesk::mill {
 
@@ -185,19 +189,22 @@ MillDocument::MillDocument() {
     stock_.max_corner = {100.0, 100.0, 0.0};
 }
 
-std::size_t MillDocument::add_tool(Tool tool) {
+void MillDocument::validate_tool(const Tool& tool) {
     if (tool.name.empty() || !finite(tool.diameter_mm) || tool.diameter_mm <= 0.0 ||
-        !finite(tool.flutes) || tool.flutes <= 0.0 || !finite(tool.cutting_length_mm) ||
-        tool.cutting_length_mm <= 0.0 || !finite(tool.surface_speed_m_min) ||
-        tool.surface_speed_m_min <= 0.0 || !finite(tool.feed_per_tooth_mm) ||
-        tool.feed_per_tooth_mm <= 0.0) {
-        throw std::invalid_argument("tool geometry and cutting data must be positive and finite");
+        !finite(tool.corner_radius_mm) || tool.corner_radius_mm < 0.0 ||
+        tool.corner_radius_mm > tool.diameter_mm * 0.5 + epsilon ||
+        !finite(tool.flutes) || tool.flutes <= 0.0 ||
+        !finite(tool.overall_length_mm) || tool.overall_length_mm <= 0.0 ||
+        !finite(tool.cutting_length_mm) || tool.cutting_length_mm <= 0.0 ||
+        tool.cutting_length_mm > tool.overall_length_mm + epsilon ||
+        !finite(tool.shank_diameter_mm) || tool.shank_diameter_mm <= 0.0 ||
+        !finite(tool.surface_speed_m_min) || tool.surface_speed_m_min <= 0.0 ||
+        !finite(tool.feed_per_tooth_mm) || tool.feed_per_tooth_mm <= 0.0) {
+        throw std::invalid_argument("tool geometry and cutting data must be positive, finite, and consistent");
     }
-    tools_.push_back(std::move(tool));
-    return tools_.size() - 1;
 }
 
-void MillDocument::set_stock(StockBox stock) {
+void MillDocument::validate_stock(const StockBox& stock) {
     const bool valid = finite(stock.min_corner.x) && finite(stock.min_corner.y) &&
                        finite(stock.min_corner.z) && finite(stock.max_corner.x) &&
                        finite(stock.max_corner.y) && finite(stock.max_corner.z) &&
@@ -205,7 +212,95 @@ void MillDocument::set_stock(StockBox stock) {
                        stock.min_corner.y < stock.max_corner.y &&
                        stock.min_corner.z < stock.max_corner.z;
     if (!valid) throw std::invalid_argument("stock must be a finite, non-empty box");
+}
+
+MillDocument::Snapshot MillDocument::capture() const {
+    return {name_, tools_, boundaries_, toolpaths_, stock_};
+}
+
+void MillDocument::restore(Snapshot snapshot) {
+    name_ = std::move(snapshot.name);
+    tools_ = std::move(snapshot.tools);
+    boundaries_ = std::move(snapshot.boundaries);
+    toolpaths_ = std::move(snapshot.toolpaths);
+    stock_ = snapshot.stock;
+}
+
+void MillDocument::checkpoint() {
+    undo_.push_back(capture());
+    redo_.clear();
+}
+
+bool MillDocument::undo() {
+    if (undo_.empty()) return false;
+    redo_.push_back(capture());
+    Snapshot snapshot = std::move(undo_.back());
+    undo_.pop_back();
+    restore(std::move(snapshot));
+    return true;
+}
+
+bool MillDocument::redo() {
+    if (redo_.empty()) return false;
+    undo_.push_back(capture());
+    Snapshot snapshot = std::move(redo_.back());
+    redo_.pop_back();
+    restore(std::move(snapshot));
+    return true;
+}
+
+void MillDocument::set_name(std::string name) {
+    if (name.empty()) throw std::invalid_argument("project name cannot be empty");
+    if (name == name_) return;
+    checkpoint();
+    name_ = std::move(name);
+}
+
+std::size_t MillDocument::add_tool(Tool tool) {
+    validate_tool(tool);
+    checkpoint();
+    tools_.push_back(std::move(tool));
+    return tools_.size() - 1;
+}
+
+bool MillDocument::set_tool(std::size_t index, Tool tool) {
+    if (index >= tools_.size()) return false;
+    validate_tool(tool);
+    checkpoint();
+    tools_[index] = std::move(tool);
+    // Tool geometry or cutting data invalidates every dependent calculated path.
+    toolpaths_.erase(std::remove_if(toolpaths_.begin(), toolpaths_.end(),
+        [index](const Toolpath& path) { return path.params.tool_index == index; }),
+        toolpaths_.end());
+    return true;
+}
+
+bool MillDocument::remove_tool(std::size_t index) {
+    if (index >= tools_.size()) return false;
+    checkpoint();
+    toolpaths_.erase(std::remove_if(toolpaths_.begin(), toolpaths_.end(),
+        [index](const Toolpath& path) { return path.params.tool_index == index; }),
+        toolpaths_.end());
+    for (Toolpath& path : toolpaths_) {
+        if (path.params.tool_index > index) --path.params.tool_index;
+    }
+    tools_.erase(tools_.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
+void MillDocument::set_stock(StockBox stock) {
+    validate_stock(stock);
+    for (const MachiningBoundary& boundary : boundaries_) {
+        for (const Vec2& point : boundary.polygon) {
+            if (point.x < stock.min_corner.x - epsilon || point.x > stock.max_corner.x + epsilon ||
+                point.y < stock.min_corner.y - epsilon || point.y > stock.max_corner.y + epsilon) {
+                throw std::invalid_argument("new stock extents would exclude an existing machining boundary");
+            }
+        }
+    }
+    checkpoint();
     stock_ = stock;
+    toolpaths_.clear();
 }
 
 std::size_t MillDocument::add_boundary(MachiningBoundary boundary) {
@@ -216,8 +311,45 @@ std::size_t MillDocument::add_boundary(MachiningBoundary boundary) {
             throw std::invalid_argument("machining boundary must lie within stock XY extents");
         }
     }
+    if (boundary.name.empty()) throw std::invalid_argument("machining boundary needs a name");
+    checkpoint();
     boundaries_.push_back(std::move(boundary));
     return boundaries_.size() - 1;
+}
+
+bool MillDocument::set_boundary(std::size_t index, MachiningBoundary boundary) {
+    if (index >= boundaries_.size()) return false;
+    boundary.polygon = normalize_convex(std::move(boundary.polygon));
+    if (boundary.name.empty()) throw std::invalid_argument("machining boundary needs a name");
+    for (const Vec2& point : boundary.polygon) {
+        if (point.x < stock_.min_corner.x - epsilon || point.x > stock_.max_corner.x + epsilon ||
+            point.y < stock_.min_corner.y - epsilon || point.y > stock_.max_corner.y + epsilon) {
+            throw std::invalid_argument("machining boundary must lie within stock XY extents");
+        }
+    }
+    checkpoint();
+    boundaries_[index] = std::move(boundary);
+    toolpaths_.erase(std::remove_if(toolpaths_.begin(), toolpaths_.end(),
+        [index](const Toolpath& path) {
+            return path.params.boundary_index && *path.params.boundary_index == index;
+        }), toolpaths_.end());
+    return true;
+}
+
+bool MillDocument::remove_boundary(std::size_t index) {
+    if (index >= boundaries_.size()) return false;
+    checkpoint();
+    toolpaths_.erase(std::remove_if(toolpaths_.begin(), toolpaths_.end(),
+        [index](const Toolpath& path) {
+            return path.params.boundary_index && *path.params.boundary_index == index;
+        }), toolpaths_.end());
+    for (Toolpath& path : toolpaths_) {
+        if (path.params.boundary_index && *path.params.boundary_index > index) {
+            --*path.params.boundary_index;
+        }
+    }
+    boundaries_.erase(boundaries_.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
 }
 
 MillDocument::FeedSpeed MillDocument::calc_feed_speed(std::size_t tool_index) const {
@@ -365,7 +497,7 @@ Toolpath MillDocument::generate_profile(const OperationParams& params) const {
     return toolpath;
 }
 
-std::size_t MillDocument::generate(const OperationParams& params) {
+std::size_t MillDocument::generate(const OperationParams& params, std::string name) {
     validate_operation(params);
     Toolpath toolpath;
     switch (params.strategy) {
@@ -375,8 +507,50 @@ std::size_t MillDocument::generate(const OperationParams& params) {
         case Strategy::Drilling: toolpath = generate_drilling(params); break;
         case Strategy::Profile: toolpath = generate_profile(params); break;
     }
+    if (!name.empty()) toolpath.name = std::move(name);
+    checkpoint();
     toolpaths_.push_back(std::move(toolpath));
     return toolpaths_.size() - 1;
+}
+
+bool MillDocument::regenerate(std::size_t index, const OperationParams& params, std::string name) {
+    if (index >= toolpaths_.size()) return false;
+    validate_operation(params);
+    Toolpath calculated;
+    switch (params.strategy) {
+        case Strategy::RasterZigZag: calculated = generate_raster(params); break;
+        case Strategy::ParallelOffset: calculated = generate_parallel_offset(params); break;
+        case Strategy::PencilMilling: calculated = generate_pencil(params); break;
+        case Strategy::Drilling: calculated = generate_drilling(params); break;
+        case Strategy::Profile: calculated = generate_profile(params); break;
+    }
+    if (name.empty()) name = toolpaths_[index].name;
+    checkpoint();
+    calculated.name = std::move(name);
+    toolpaths_[index] = std::move(calculated);
+    return true;
+}
+
+bool MillDocument::rename_toolpath(std::size_t index, std::string name) {
+    if (index >= toolpaths_.size()) return false;
+    if (name.empty()) throw std::invalid_argument("toolpath name cannot be empty");
+    if (toolpaths_[index].name == name) return true;
+    checkpoint();
+    toolpaths_[index].name = std::move(name);
+    return true;
+}
+
+bool MillDocument::remove_toolpath(std::size_t index) {
+    if (index >= toolpaths_.size()) return false;
+    checkpoint();
+    toolpaths_.erase(toolpaths_.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
+void MillDocument::clear_toolpaths() {
+    if (toolpaths_.empty()) return;
+    checkpoint();
+    toolpaths_.clear();
 }
 
 ToolpathValidation MillDocument::validate_toolpath(std::size_t index) const {
@@ -409,6 +583,16 @@ ToolpathValidation MillDocument::validate_toolpath(std::size_t index) const {
 }
 
 std::string MillDocument::export_gcode(const GCodeOptions& options) const {
+    if (options.machine_name.empty() || options.machine_name.find_first_of("\r\n()") != std::string::npos) {
+        throw std::invalid_argument("machine name must be a single safe comment token");
+    }
+    if (!options.absolute_mode) {
+        throw std::invalid_argument("the generic post currently supports absolute positioning only");
+    }
+    if (options.decimal_places < 0 || options.decimal_places > 6) {
+        throw std::invalid_argument("decimal places must be between zero and six");
+    }
+    const double unit_scale = options.metric ? 1.0 : (1.0 / 25.4);
     std::ostringstream output;
     auto format = [&options](double value) {
         std::ostringstream text;
@@ -418,9 +602,9 @@ std::string MillDocument::export_gcode(const GCodeOptions& options) const {
     };
 
     output << "%\nO0001 (" << options.machine_name << ")\n";
-    if (options.metric) output << "G21  ; metric\n";
-    if (options.absolute_mode) output << "G90  ; absolute\n";
-    output << "G17  ; XY plane\nG94  ; feed in mm/min\n";
+    output << (options.metric ? "G21  ; metric\n" : "G20  ; inch\n");
+    output << "G90  ; absolute\n";
+    output << "G17  ; XY plane\nG94  ; feed per minute\n";
     if (options.use_tool_length_comp) output << "G43 H1 ; tool length comp\n";
     output << '\n';
 
@@ -443,21 +627,26 @@ std::string MillDocument::export_gcode(const GCodeOptions& options) const {
             switch (move.kind) {
                 case MoveKind::Rapid:
                 case MoveKind::Retract:
-                    output << "G0 X" << format(move.pos.x) << " Y" << format(move.pos.y)
-                           << " Z" << format(move.pos.z) << '\n';
+                    output << "G0 X" << format(move.pos.x * unit_scale)
+                           << " Y" << format(move.pos.y * unit_scale)
+                           << " Z" << format(move.pos.z * unit_scale) << '\n';
                     break;
                 case MoveKind::Linear:
                 case MoveKind::PlungeEntry:
-                    output << "G1 X" << format(move.pos.x) << " Y" << format(move.pos.y)
-                           << " Z" << format(move.pos.z) << " F" << format(move.feed_mm_min) << '\n';
+                    output << "G1 X" << format(move.pos.x * unit_scale)
+                           << " Y" << format(move.pos.y * unit_scale)
+                           << " Z" << format(move.pos.z * unit_scale)
+                           << " F" << format(move.feed_mm_min * unit_scale) << '\n';
                     break;
                 case MoveKind::ArcCW:
                 case MoveKind::ArcCCW:
                     output << (move.kind == MoveKind::ArcCW ? "G2" : "G3")
-                           << " X" << format(move.pos.x) << " Y" << format(move.pos.y)
-                           << " Z" << format(move.pos.z) << " I" << format(move.arc_center.x)
-                           << " J" << format(move.arc_center.y)
-                           << " F" << format(move.feed_mm_min) << '\n';
+                           << " X" << format(move.pos.x * unit_scale)
+                           << " Y" << format(move.pos.y * unit_scale)
+                           << " Z" << format(move.pos.z * unit_scale)
+                           << " I" << format(move.arc_center.x * unit_scale)
+                           << " J" << format(move.arc_center.y * unit_scale)
+                           << " F" << format(move.feed_mm_min * unit_scale) << '\n';
                     break;
                 case MoveKind::Dwell: output << "G4 P500\n"; break;
                 case MoveKind::ToolChange: output << "M06\n"; break;
@@ -467,6 +656,190 @@ std::string MillDocument::export_gcode(const GCodeOptions& options) const {
     }
     output << "M30  ; program end\n%\n";
     return output.str();
+}
+
+std::string MillDocument::serialize_native() const {
+    using nlohmann::json;
+    json root{{"schema", "mydesk.mill"}, {"version", 1}, {"name", name_}};
+    const auto vec3 = [](const Vec3& value) {
+        return json::array({value.x, value.y, value.z});
+    };
+    root["stock"] = {{"min", vec3(stock_.min_corner)}, {"max", vec3(stock_.max_corner)}};
+    root["tools"] = json::array();
+    for (const Tool& tool : tools_) {
+        root["tools"].push_back({
+            {"name", tool.name}, {"kind", static_cast<int>(tool.kind)},
+            {"diameter_mm", tool.diameter_mm}, {"corner_radius_mm", tool.corner_radius_mm},
+            {"flutes", tool.flutes}, {"overall_length_mm", tool.overall_length_mm},
+            {"cutting_length_mm", tool.cutting_length_mm},
+            {"shank_diameter_mm", tool.shank_diameter_mm},
+            {"surface_speed_m_min", tool.surface_speed_m_min},
+            {"feed_per_tooth_mm", tool.feed_per_tooth_mm}});
+    }
+    root["boundaries"] = json::array();
+    for (const MachiningBoundary& boundary : boundaries_) {
+        json points = json::array();
+        for (const Vec2& point : boundary.polygon) points.push_back({point.x, point.y});
+        root["boundaries"].push_back({{"name", boundary.name}, {"polygon", points}});
+    }
+    root["operations"] = json::array();
+    for (const Toolpath& path : toolpaths_) {
+        json drills = json::array();
+        for (const Vec2& point : path.params.drill_points) drills.push_back({point.x, point.y});
+        json params{
+            {"strategy", static_cast<int>(path.params.strategy)},
+            {"tool_index", path.params.tool_index},
+            {"stepover_mm", path.params.stepover_mm}, {"stepdown_mm", path.params.stepdown_mm},
+            {"z_top_mm", path.params.z_top_mm}, {"z_bottom_mm", path.params.z_bottom_mm},
+            {"safe_z_mm", path.params.safe_z_mm}, {"tolerance_mm", path.params.tolerance_mm},
+            {"climb_cut", path.params.climb_cut}, {"ramp_angle_deg", path.params.ramp_angle_deg},
+            {"boundary_index", path.params.boundary_index ? json(*path.params.boundary_index) : json(nullptr)},
+            {"drill_points", drills}};
+        root["operations"].push_back({{"name", path.name}, {"params", params}});
+    }
+    return root.dump(2);
+}
+
+MillDocument MillDocument::deserialize_native(std::string_view text, std::string* error) {
+    using nlohmann::json;
+    if (error) error->clear();
+    try {
+        const json root = json::parse(text);
+        if (root.at("schema").get<std::string>() != "mydesk.mill" ||
+            root.at("version").get<int>() != 1) {
+            throw std::runtime_error("unsupported MyDesk Mill document schema");
+        }
+        auto parse_vec3 = [](const json& value) {
+            if (!value.is_array() || value.size() != 3) {
+                throw std::runtime_error("expected a three-component coordinate");
+            }
+            return Vec3{value.at(0).get<double>(), value.at(1).get<double>(),
+                        value.at(2).get<double>()};
+        };
+
+        MillDocument document;
+        document.set_name(root.at("name").get<std::string>());
+        const json& stock = root.at("stock");
+        document.set_stock({parse_vec3(stock.at("min")), parse_vec3(stock.at("max"))});
+        for (const json& value : root.at("tools")) {
+            const int kind = value.at("kind").get<int>();
+            if (kind < static_cast<int>(ToolKind::FlatEndmill) ||
+                kind > static_cast<int>(ToolKind::FormTool)) {
+                throw std::runtime_error("document contains an unknown tool kind");
+            }
+            Tool tool;
+            tool.name = value.at("name").get<std::string>();
+            tool.kind = static_cast<ToolKind>(kind);
+            tool.diameter_mm = value.at("diameter_mm").get<double>();
+            tool.corner_radius_mm = value.at("corner_radius_mm").get<double>();
+            tool.flutes = value.at("flutes").get<double>();
+            tool.overall_length_mm = value.at("overall_length_mm").get<double>();
+            tool.cutting_length_mm = value.at("cutting_length_mm").get<double>();
+            tool.shank_diameter_mm = value.at("shank_diameter_mm").get<double>();
+            tool.surface_speed_m_min = value.at("surface_speed_m_min").get<double>();
+            tool.feed_per_tooth_mm = value.at("feed_per_tooth_mm").get<double>();
+            document.add_tool(std::move(tool));
+        }
+        for (const json& value : root.at("boundaries")) {
+            MachiningBoundary boundary;
+            boundary.name = value.at("name").get<std::string>();
+            for (const json& point : value.at("polygon")) {
+                if (!point.is_array() || point.size() != 2) {
+                    throw std::runtime_error("expected a two-component boundary coordinate");
+                }
+                boundary.polygon.push_back({point.at(0).get<double>(), point.at(1).get<double>()});
+            }
+            document.add_boundary(std::move(boundary));
+        }
+        for (const json& value : root.at("operations")) {
+            const json& source = value.at("params");
+            const int strategy = source.at("strategy").get<int>();
+            if (strategy < static_cast<int>(Strategy::RasterZigZag) ||
+                strategy > static_cast<int>(Strategy::Profile)) {
+                throw std::runtime_error("document contains an unknown machining strategy");
+            }
+            OperationParams params;
+            params.strategy = static_cast<Strategy>(strategy);
+            params.tool_index = source.at("tool_index").get<std::size_t>();
+            params.stepover_mm = source.at("stepover_mm").get<double>();
+            params.stepdown_mm = source.at("stepdown_mm").get<double>();
+            params.z_top_mm = source.at("z_top_mm").get<double>();
+            params.z_bottom_mm = source.at("z_bottom_mm").get<double>();
+            params.safe_z_mm = source.at("safe_z_mm").get<double>();
+            params.tolerance_mm = source.at("tolerance_mm").get<double>();
+            params.climb_cut = source.at("climb_cut").get<bool>();
+            params.ramp_angle_deg = source.at("ramp_angle_deg").get<double>();
+            if (!source.at("boundary_index").is_null()) {
+                params.boundary_index = source.at("boundary_index").get<std::size_t>();
+            }
+            for (const json& point : source.at("drill_points")) {
+                if (!point.is_array() || point.size() != 2) {
+                    throw std::runtime_error("expected a two-component drilling coordinate");
+                }
+                params.drill_points.push_back({point.at(0).get<double>(), point.at(1).get<double>()});
+            }
+            document.generate(params, value.at("name").get<std::string>());
+        }
+        document.undo_.clear();
+        document.redo_.clear();
+        return document;
+    } catch (const std::exception& exception) {
+        if (error) *error = exception.what();
+        return MillDocument{};
+    }
+}
+
+bool MillDocument::save_native_file(const std::filesystem::path& path, std::string* error) const {
+    if (error) error->clear();
+    try {
+        if (path.empty()) throw std::runtime_error("document path is empty");
+        const std::filesystem::path temporary = path.string() + ".tmp";
+        const std::filesystem::path backup = path.string() + ".bak";
+        {
+            std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+            if (!output) throw std::runtime_error("cannot open temporary document for writing");
+            output << serialize_native();
+            output.flush();
+            if (!output) throw std::runtime_error("failed while writing temporary document");
+        }
+        std::error_code ec;
+        const bool had_original = std::filesystem::exists(path, ec) && !ec;
+        if (had_original) {
+            std::filesystem::remove(backup, ec);
+            ec.clear();
+            std::filesystem::rename(path, backup, ec);
+            if (ec) throw std::runtime_error("cannot stage existing document for replacement");
+        }
+        std::filesystem::rename(temporary, path, ec);
+        if (ec) {
+            if (had_original) {
+                std::error_code restore_error;
+                std::filesystem::rename(backup, path, restore_error);
+            }
+            throw std::runtime_error("cannot replace the destination document");
+        }
+        if (had_original) std::filesystem::remove(backup, ec);
+        return true;
+    } catch (const std::exception& exception) {
+        if (error) *error = exception.what();
+        return false;
+    }
+}
+
+MillDocument MillDocument::load_native_file(const std::filesystem::path& path, std::string* error) {
+    if (error) error->clear();
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        if (error) *error = "cannot open MyDesk Mill document";
+        return {};
+    }
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    if (!input.good() && !input.eof()) {
+        if (error) *error = "failed while reading MyDesk Mill document";
+        return {};
+    }
+    return deserialize_native(contents.str(), error);
 }
 
 } // namespace mydesk::mill

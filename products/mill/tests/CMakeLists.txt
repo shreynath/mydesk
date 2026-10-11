@@ -10,5 +10,6 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_SOURCE_DIR}/tools/compatibility-runner/check_manifest.py
             --manifest ${CMAKE_SOURCE_DIR}/compatibility/target-manifests/mill-powermill-2025.json
             --tests ${CMAKE_CURRENT_SOURCE_DIR}/test_mill.cpp
+                    ${CMAKE_SOURCE_DIR}/products/mill/app/tests/test_mill_ui.cpp
             --root ${CMAKE_SOURCE_DIR})
 endif()

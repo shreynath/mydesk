@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 
@@ -285,6 +286,93 @@ static void test_selected_boundary_depths_and_validation() {
     CHECK(rejected);
 }
 
+static MillDocument make_editable_document() {
+    MillDocument document;
+    document.set_name("Bracket setup");
+    document.set_stock({{0.0, 0.0, -12.0}, {80.0, 60.0, 0.0}});
+    Tool tool;
+    tool.name = "D8 rougher";
+    tool.diameter_mm = 8.0;
+    tool.flutes = 3.0;
+    tool.cutting_length_mm = 20.0;
+    tool.surface_speed_m_min = 180.0;
+    tool.feed_per_tooth_mm = 0.06;
+    document.add_tool(tool);
+    document.add_boundary({"Pocket", {{8.0, 8.0}, {72.0, 8.0},
+                                                {72.0, 52.0}, {8.0, 52.0}}});
+    OperationParams params;
+    params.strategy = Strategy::ParallelOffset;
+    params.tool_index = 0;
+    params.boundary_index = 0;
+    params.stepover_mm = 3.0;
+    params.stepdown_mm = 4.0;
+    params.z_bottom_mm = -8.0;
+    params.safe_z_mm = 8.0;
+    document.generate(params);
+    document.rename_toolpath(0, "Pocket roughing");
+    return document;
+}
+
+static void test_operation_edit_undo_redo() {
+    MillDocument document = make_editable_document();
+    const std::size_t original_moves = document.toolpath(0).moves.size();
+    OperationParams edited = document.toolpath(0).params;
+    edited.strategy = Strategy::Profile;
+    edited.stepdown_mm = 2.0;
+    CHECK(document.regenerate(0, edited));
+    CHECK(document.toolpath(0).name == "Pocket roughing");
+    CHECK(document.toolpath(0).params.strategy == Strategy::Profile);
+    CHECK(document.toolpath(0).moves.size() != original_moves);
+    CHECK(document.undo());
+    CHECK(document.toolpath(0).params.strategy == Strategy::ParallelOffset);
+    CHECK(document.redo());
+    CHECK(document.toolpath(0).params.strategy == Strategy::Profile);
+
+    Tool changed = document.tool(0);
+    changed.diameter_mm = 10.0;
+    changed.shank_diameter_mm = 10.0;
+    CHECK(document.set_tool(0, changed));
+    CHECK(document.toolpath_count() == 0); // dependent paths are invalidated
+    CHECK(document.undo());
+    CHECK(document.toolpath_count() == 1);
+}
+
+static void test_native_document_roundtrip() {
+    MillDocument document = make_editable_document();
+    const std::string encoded = document.serialize_native();
+    std::string error;
+    MillDocument reopened = MillDocument::deserialize_native(encoded, &error);
+    CHECK(error.empty());
+    CHECK(reopened.name() == "Bracket setup");
+    CHECK(reopened.tool_count() == 1);
+    CHECK(reopened.boundary_count() == 1);
+    CHECK(reopened.toolpath_count() == 1);
+    CHECK(reopened.toolpath(0).name == "Pocket roughing");
+    CHECK(reopened.validate_toolpath(0).collision_free);
+    CHECK(!reopened.can_undo());
+
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "mydesk-mill-roundtrip.mymill";
+    CHECK(document.save_native_file(path, &error));
+    CHECK(error.empty());
+    reopened = MillDocument::load_native_file(path, &error);
+    CHECK(error.empty());
+    CHECK(reopened.toolpath_count() == 1);
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+static void test_imperial_generic_post() {
+    MillDocument document = make_editable_document();
+    GCodeOptions options;
+    options.metric = false;
+    options.decimal_places = 4;
+    const std::string output = document.export_gcode(options);
+    CHECK(output.find("G20") != std::string::npos);
+    CHECK(output.find("G90") != std::string::npos);
+    CHECK(output.find("X0.4724") != std::string::npos); // 12 mm / 25.4
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -310,6 +398,12 @@ int main() {
     test_gcode_export_spindle();
     // "test_selected_boundary_depths_and_validation"
     test_selected_boundary_depths_and_validation();
+    // "test_operation_edit_undo_redo"
+    test_operation_edit_undo_redo();
+    // "test_native_document_roundtrip"
+    test_native_document_roundtrip();
+    // "test_imperial_generic_post"
+    test_imperial_generic_post();
 
     if (g_failed == 0) {
         std::printf("All Mill tests passed.\n");
