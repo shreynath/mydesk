@@ -110,9 +110,11 @@ endif()
 set(CPACK_PACKAGE_FILE_NAME
   "${MYDESK_PACKAGE_BINARY}-${MYDESK_PACKAGE_VERSION}-${_mydesk_package_system}-${_mydesk_package_arch}")
 
-# These generators create installable per-product development artifacts. They
-# intentionally do not claim signing, notarization, or bundled third-party
-# runtimes; release-ready native installers remain a separate gate.
+# These generators create per-product development artifacts. Product install
+# rules may bundle their linked runtimes, but this layer intentionally makes no
+# blanket claim about runtime completeness, signing, notarization, or
+# clean-machine readiness; release-ready native installers remain a separate
+# product-and-platform gate.
 if(APPLE)
   set(_mydesk_default_generators "DragNDrop;TGZ")
 elseif(WIN32)

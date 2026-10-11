@@ -29,9 +29,15 @@ product version, operating system, and processor.
 
 ## Current release boundary
 
-These artifacts are unsigned development packages. They do not yet bundle Qt,
-Open CASCADE, or other system runtimes. The build host must supply those
-dependencies. CI evidence for one operating system is not evidence for another.
+These artifacts are unsigned development packages. Mechanical, Buildings,
+Coordinate, Animate, and Studio now run Qt's deployment step during install;
+on the local macOS configuration this places their linked Qt frameworks and
+platform plugins inside each independent application bundle. Mechanical's
+local bundle also contains the linked Open CASCADE libraries with relocated
+loader paths. This is runtime-bundling evidence for that configuration, not a
+clean-machine, signing, or cross-platform certification. Draft and products
+without a deployment step can still require system runtimes. CI evidence for
+one operating system is not evidence for another.
 
 A platform package may be called a redistributable installer only after all of
 these product-specific gates pass on that platform:
@@ -54,9 +60,12 @@ limitations above visible in release notes.
 
 The workflow defines independent configure, build, test, install-contract,
 package, checksum, and artifact-upload jobs for every catalog product on
-Ubuntu, macOS, and Windows. Qt is installed only for Draft. Open CASCADE comes
-from distribution packages on Ubuntu, Homebrew on macOS, and vcpkg on Windows
-for Mechanical and Fusion.
+Ubuntu, macOS, and Windows. Qt is installed for Draft, Mechanical, Buildings,
+Coordinate, Animate, and Studio. Open CASCADE comes from distribution packages
+on Ubuntu, Homebrew on macOS, and vcpkg on Windows for Mechanical and Fusion.
+Each real Qt product also has a non-Windows executable-location smoke step;
+its product-specific Qt UI regression remains the substantive interaction
+test.
 
 Defining a job is not evidence that a platform passes. Record platform support
 only from a completed workflow run, and retain failures rather than describing

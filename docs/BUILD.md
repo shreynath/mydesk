@@ -2,7 +2,9 @@
 
 Default product is Draft (`MYDESK_PRODUCT=draft`). Each other preset selects
 and builds one independent product; see `CMakePresets.json` for the complete
-list. Mechanical and Fusion additionally require Open CASCADE.
+list. Draft, Mechanical, Buildings, Coordinate, Animate, and Studio require Qt
+6 for their desktop applications. Mechanical and Fusion additionally require
+Open CASCADE.
 
 ## macOS
 
@@ -65,6 +67,8 @@ cpack --config build/mill/CPackConfig.cmake -G TGZ -B build/mill/packages
 ```
 
 The resulting artifact contains only that selected application and its package
-metadata. These are unsigned development packages whose external runtimes are
-not yet bundled. See [`docs/PACKAGING.md`](PACKAGING.md) for the verified
-install contract and the remaining native release gates.
+metadata. These are unsigned development packages. Several Qt products now
+bundle their linked runtimes during installation, but clean-machine, signing,
+and cross-platform release gates remain open. See
+[`docs/PACKAGING.md`](PACKAGING.md) for the verified install contract and the
+remaining native release gates.

@@ -39,9 +39,11 @@ jobs:
         run: |
           set -euo pipefail
           packages=(cmake ninja-build)
-          if [ "${{ matrix.product }}" = draft ]; then
-            packages+=(qt6-base-dev libgl1-mesa-dev)
-          fi
+          case "${{ matrix.product }}" in
+            draft|mechanical|buildings|coordinate|animate|studio)
+              packages+=(qt6-base-dev libgl1-mesa-dev)
+              ;;
+          esac
           if [ "${{ matrix.product }}" = mechanical ] || [ "${{ matrix.product }}" = fusion ]; then
             packages+=(
               libocct-foundation-dev
@@ -59,16 +61,20 @@ jobs:
         run: |
           set -euo pipefail
           packages=(cmake ninja)
-          if [ "${{ matrix.product }}" = draft ]; then
-            packages+=(qt@6)
-          fi
+          case "${{ matrix.product }}" in
+            draft|mechanical|buildings|coordinate|animate|studio)
+              packages+=(qt@6)
+              ;;
+          esac
           if [ "${{ matrix.product }}" = mechanical ] || [ "${{ matrix.product }}" = fusion ]; then
             packages+=(opencascade)
           fi
           brew install "${packages[@]}"
-          if [ "${{ matrix.product }}" = draft ]; then
-            echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
-          fi
+          case "${{ matrix.product }}" in
+            draft|mechanical|buildings|coordinate|animate|studio)
+              echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+              ;;
+          esac
 
       - name: Install build tools (Windows)
         if: runner.os == 'Windows'
@@ -79,8 +85,8 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install Qt (Windows Draft)
-        if: runner.os == 'Windows' && matrix.product == 'draft'
+      - name: Install Qt (Windows desktop products)
+        if: runner.os == 'Windows' && (matrix.product == 'draft' || matrix.product == 'mechanical' || matrix.product == 'buildings' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio')
         shell: bash
         run: |
           set -euo pipefail
@@ -147,22 +153,29 @@ jobs:
             build/ci-${{ matrix.product }}/packages/*.sha256
           if-no-files-found: error
 
-      - name: Draft GUI smoke (macOS/Linux)
-        if: matrix.product == 'draft' && runner.os != 'Windows'
+      - name: Desktop GUI binary smoke (macOS/Linux)
+        if: runner.os != 'Windows' && (matrix.product == 'draft' || matrix.product == 'mechanical' || matrix.product == 'buildings' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio')
         shell: bash
         run: |
           set -euo pipefail
+          case "${{ matrix.product }}" in
+            draft) binary=MyDeskDraft ;;
+            mechanical) binary=MyDeskMechanical ;;
+            buildings) binary=MyDeskBuildings ;;
+            coordinate) binary=MyDeskCoordinate ;;
+            animate) binary=MyDeskAnimate ;;
+            studio) binary=MyDeskStudio ;;
+          esac
+          root="build/ci-${{ matrix.product }}"
           BIN=""
-          if [ -x build/ci-draft/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft ]; then
-            BIN=build/ci-draft/products/draft/app/MyDeskDraft.app/Contents/MacOS/MyDeskDraft
-          elif [ -x build/ci-draft/products/draft/app/MyDeskDraft ]; then
-            BIN=build/ci-draft/products/draft/app/MyDeskDraft
+          if [ -x "$root/products/${{ matrix.product }}/app/$binary.app/Contents/MacOS/$binary" ]; then
+            BIN="$root/products/${{ matrix.product }}/app/$binary.app/Contents/MacOS/$binary"
+          elif [ -x "$root/products/${{ matrix.product }}/app/$binary" ]; then
+            BIN="$root/products/${{ matrix.product }}/app/$binary"
           else
-            echo "MyDeskDraft binary not found" >&2
-            find build/ci-draft -name 'MyDeskDraft*' -type f 2>/dev/null || true
+            echo "$binary binary not found" >&2
+            find "$root" -name "$binary*" -type f 2>/dev/null || true
             exit 1
           fi
-          export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
-          "$BIN" --help >/dev/null 2>&1 || true
           test -x "$BIN"
           echo "Smoke OK: $BIN"

@@ -20,3 +20,13 @@ set_target_properties(mydesk_mechanical_app PROPERTIES
   MACOSX_BUNDLE_BUNDLE_NAME "MyDesk Mechanical"
   MACOSX_BUNDLE_GUI_IDENTIFIER "app.mydesk.mechanical")
 install(TARGETS mydesk_mechanical_app BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+
+if(COMMAND qt_generate_deploy_app_script)
+  qt_generate_deploy_app_script(
+    TARGET mydesk_mechanical_app
+    OUTPUT_SCRIPT mechanical_deploy_script
+    INCLUDE_PLUGIN_TYPES platforms styles
+    NO_TRANSLATIONS
+    NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${mechanical_deploy_script})
+endif()
