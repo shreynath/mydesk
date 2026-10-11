@@ -8,6 +8,29 @@
   "note": "Full target inventory. FUNCTIONAL is not complete parity. Most entries remain NOT_STARTED.",
   "capabilities": [
     {
+      "id": "INV-DESKTOP-MODELING-WORKFLOW",
+      "target_application": "Inventor",
+      "target_version": "2025",
+      "category": "desktop-ui",
+      "name": "Persistent part and assembly desktop modeling workflow",
+      "command": "MyDeskMechanical",
+      "reference_behavior": "A persistent desktop application provides model browsing, parameter editing, evaluated 3D geometry, undo/redo, native documents, and neutral-format export.",
+      "expected_input": "Create an extruded box, edit its width, cut a positioned hole, undo/redo, save/reopen, export STEP, then insert the current part into an assembly.",
+      "expected_output": "The OCCT B-rep regenerates after edits; browser and shaded viewport reflect the document; history and persistence restore exact tested model states; exported STEP is non-empty.",
+      "formats": [".mydesk-mech", ".mydesk-assy", ".step", ".iges"],
+      "implementation": [
+        "products/mechanical/app/src/mechanical_session.cpp",
+        "products/mechanical/app/src/main_window.cpp",
+        "products/mechanical/app/src/shape_viewport.cpp"
+      ],
+      "tests": ["part_workflow_round_trip", "assembly_browser_workflow_round_trip"],
+      "manual_tests": [],
+      "performance": "The tested small part and two-occurrence assembly regenerate interactively; large-model viewport performance is not yet characterized.",
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in the Mechanical Qt desktop and exercised by mydesk_mechanical_gui_tests.",
+      "differences": "No interactive constrained sketcher, face/edge picking, complete feature-dialog set, drawing environment, hierarchical assembly editing, or accelerated OCCT selection context. This is a substantive workflow slice, not full Inventor UI parity."
+    },
+    {
       "id": "INV-SKETCH-RECT-EXTRUDE",
       "target_application": "Inventor",
       "target_version": "2025",
@@ -27,9 +50,9 @@
       ],
       "manual_tests": [],
       "performance": "Regeneration of this feature is interactive.",
-      "status": "VERIFIED_PARITY",
+      "status": "PARTIAL_PARITY",
       "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_extrude_regenerate_step",
-      "differences": "Verified against reference behavior."
+      "differences": "The tested rectangle/extrude, parameter regeneration, native round-trip, and STEP output work. Inventor's sketch constraint system, feature options, reference selection, units and error recovery are not fully matched."
     },
     {
       "id": "INV-SKETCH-CONSTRAINTS",
@@ -238,9 +261,9 @@
       ],
       "manual_tests": [],
       "performance": "Interactive boolean subtraction via OCCT.",
-      "status": "VERIFIED_PARITY",
+      "status": "PARTIAL_PARITY",
       "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_hole_feature_boolean_cut",
-      "differences": "Verified against reference behavior."
+      "differences": "The tested cylindrical through-cut and persistence behavior work. Counterbore/countersink, tapped and clearance standards, termination modes, face-reference placement, and patterned holes are not fully matched."
     },
     {
       "id": "INV-THREAD",

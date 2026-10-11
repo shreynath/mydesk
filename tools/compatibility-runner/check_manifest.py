@@ -55,13 +55,14 @@ def fail(messages: list[str]) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
-    parser.add_argument("--tests", required=True, type=Path)
+    parser.add_argument("--tests", required=True, type=Path, nargs="+")
     parser.add_argument("--root", required=True, type=Path)
     args = parser.parse_args()
 
     errors: list[str] = []
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    test_source = args.tests.read_text(encoding="utf-8")
+    test_source = "\n".join(path.read_text(encoding="utf-8") for path in args.tests)
+    test_labels = ", ".join(str(path) for path in args.tests)
     capabilities = manifest.get("capabilities")
     if not isinstance(capabilities, list) or not capabilities:
         return fail(["capabilities must be a non-empty list"])
@@ -98,7 +99,7 @@ def main() -> int:
         for name in tests:
             needle = f'"{name}"'
             if needle not in test_source:
-                errors.append(f"{label} test {name} is not registered in {args.tests}")
+                errors.append(f"{label} test {name} is not registered in {test_labels}")
         if status in EVIDENCE_STATUS:
             implementation = capability["implementation"]
             paths = implementation if isinstance(implementation, list) else [implementation]

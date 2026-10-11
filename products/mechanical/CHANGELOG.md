@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replaced the one-shot console entry point with a persistent Qt 6 Mechanical desktop application.
+- Added a domain-specific part feature browser, assembly occurrence/constraint/joint browser, editable parameter and joint property table, and mechanical feature toolbar.
+- Added an OCCT-derived shaded triangle viewport with orbit, zoom, fit, and evaluated-body selection.
+- Added working box extrusion, hole, parameter regeneration, current-part occurrence insertion, and document-level undo/redo workflows.
+- Added atomic native part/assembly open and save, unsaved-change handling, STEP part/assembly export, and IGES part export.
+- Added desktop-session regression tests covering regeneration, boolean cuts, history, save/reopen, export, and assembly occurrence editing.
 - Added bounded rigid, revolute, and slider assembly joints with normalized axes and drive positions.
 - Applied joint rotations and translations to occurrence B-reps during OCCT compound assembly generation.
 - Added undo/redo for joint drive edits.
