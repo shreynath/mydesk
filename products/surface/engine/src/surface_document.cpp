@@ -413,8 +413,32 @@ double NurbsSurface::meanCurvatureAt(double u, double v) const {
 
 SurfaceDocument::SurfaceDocument() = default;
 
+SurfaceDocument::State SurfaceDocument::state() const {
+    return {name_, curves_, surfaces_, nextCurveId_, nextSurfId_};
+}
+
+void SurfaceDocument::restore(State state) {
+    name_ = std::move(state.name);
+    curves_ = std::move(state.curves);
+    surfaces_ = std::move(state.surfaces);
+    nextCurveId_ = state.nextCurveId;
+    nextSurfId_ = state.nextSurfId;
+}
+
+void SurfaceDocument::checkpoint() {
+    undoStack_.push_back(state());
+    redoStack_.clear();
+}
+
+void SurfaceDocument::setName(std::string name) {
+    if (name == name_) return;
+    checkpoint();
+    name_ = std::move(name);
+}
+
 CurveId SurfaceDocument::addCubicCurve(std::string name, std::vector<Vec3> controlPoints) {
     if (controlPoints.size() < 4) return 0;
+    checkpoint();
     NurbsCurve c;
     c.id = nextCurveId_++;
     c.name = std::move(name);
@@ -440,6 +464,34 @@ const NurbsCurve* SurfaceDocument::findCurve(CurveId id) const {
         if (c.id == id) return &c;
     }
     return nullptr;
+}
+
+NurbsCurve* SurfaceDocument::findCurveMutable(CurveId id) {
+    for (auto& curve : curves_) {
+        if (curve.id == id) return &curve;
+    }
+    return nullptr;
+}
+
+bool SurfaceDocument::renameCurve(CurveId id, std::string name) {
+    auto* curve = findCurveMutable(id);
+    if (!curve || name.empty() || curve->name == name) return false;
+    checkpoint();
+    findCurveMutable(id)->name = std::move(name);
+    return true;
+}
+
+bool SurfaceDocument::setCurveControlPoint(CurveId id, std::size_t index, WeightedPoint point) {
+    auto* curve = findCurveMutable(id);
+    if (!curve || index >= curve->controlPoints.size() || !(point.w > 0.0) ||
+        !std::isfinite(point.p.x) || !std::isfinite(point.p.y) ||
+        !std::isfinite(point.p.z) || !std::isfinite(point.w)) return false;
+    const auto& before = curve->controlPoints[index];
+    if (before.p.x == point.p.x && before.p.y == point.p.y &&
+        before.p.z == point.p.z && before.w == point.w) return false;
+    checkpoint();
+    findCurveMutable(id)->controlPoints[index] = point;
+    return true;
 }
 
 std::vector<CurvatureCombSample> SurfaceDocument::generateCurvatureComb(CurveId id, int samples, double scale) const {
@@ -470,6 +522,7 @@ std::vector<CurvatureCombSample> SurfaceDocument::generateCurvatureComb(CurveId 
 }
 
 SurfacePatchId SurfaceDocument::addBilinearPatch(std::string name, Vec3 p00, Vec3 p10, Vec3 p01, Vec3 p11) {
+    checkpoint();
     NurbsSurface s;
     s.id = nextSurfId_++;
     s.name = std::move(name);
@@ -489,6 +542,7 @@ SurfacePatchId SurfaceDocument::addBilinearPatch(std::string name, Vec3 p00, Vec
 
 SurfacePatchId SurfaceDocument::addBicubicPatch(std::string name, const std::vector<Vec3>& grid4x4) {
     if (grid4x4.size() != 16) return 0;
+    checkpoint();
     NurbsSurface s;
     s.id = nextSurfId_++;
     s.name = std::move(name);
@@ -517,6 +571,28 @@ NurbsSurface* SurfaceDocument::findSurfaceMutable(SurfacePatchId id) {
         if (surface.id == id) return &surface;
     }
     return nullptr;
+}
+
+bool SurfaceDocument::renameSurface(SurfacePatchId id, std::string name) {
+    auto* surface = findSurfaceMutable(id);
+    if (!surface || name.empty() || surface->name == name) return false;
+    checkpoint();
+    findSurfaceMutable(id)->name = std::move(name);
+    return true;
+}
+
+bool SurfaceDocument::setSurfaceControlPoint(SurfacePatchId id, std::size_t index,
+                                             WeightedPoint point) {
+    auto* surface = findSurfaceMutable(id);
+    if (!surface || index >= surface->controlGrid.size() || !(point.w > 0.0) ||
+        !std::isfinite(point.p.x) || !std::isfinite(point.p.y) ||
+        !std::isfinite(point.p.z) || !std::isfinite(point.w)) return false;
+    const auto& before = surface->controlGrid[index];
+    if (before.p.x == point.p.x && before.p.y == point.p.y &&
+        before.p.z == point.p.z && before.w == point.w) return false;
+    checkpoint();
+    findSurfaceMutable(id)->controlGrid[index] = point;
+    return true;
 }
 
 ContinuityReport SurfaceDocument::checkSeamContinuity(SurfacePatchId patchA, SurfacePatchId patchB, int samples) const {
@@ -598,9 +674,9 @@ bool SurfaceDocument::alignSeam(SurfacePatchId patchA, SurfacePatchId patchB,
         if (std::abs(cp.w - 1.0) > 1e-12) return false;
     }
 
-    SurfaceEdit edit;
-    edit.patchId = patchB;
-    edit.before = target->controlGrid;
+    checkpoint();
+    source = findSurface(patchA);
+    target = findSurfaceMutable(patchB);
     const double sourceSpan = source->knotsU.back() - source->knotsU.front();
     const double targetSpan = target->knotsU.back() - target->knotsU.front();
     const double firstDerivativeScale = targetSpan / sourceSpan;
@@ -629,31 +705,24 @@ bool SurfaceDocument::alignSeam(SurfacePatchId patchA, SurfacePatchId patchB,
             target->controlGrid[2 * target->numV + j].w = 1.0;
         }
     }
-    edit.after = target->controlGrid;
-    undoStack_.push_back(std::move(edit));
-    redoStack_.clear();
     return true;
 }
 
 bool SurfaceDocument::undo() {
     if (undoStack_.empty()) return false;
-    SurfaceEdit edit = std::move(undoStack_.back());
+    State previous = std::move(undoStack_.back());
     undoStack_.pop_back();
-    auto* surface = findSurfaceMutable(edit.patchId);
-    if (!surface) return false;
-    surface->controlGrid = edit.before;
-    redoStack_.push_back(std::move(edit));
+    redoStack_.push_back(state());
+    restore(std::move(previous));
     return true;
 }
 
 bool SurfaceDocument::redo() {
     if (redoStack_.empty()) return false;
-    SurfaceEdit edit = std::move(redoStack_.back());
+    State next = std::move(redoStack_.back());
     redoStack_.pop_back();
-    auto* surface = findSurfaceMutable(edit.patchId);
-    if (!surface) return false;
-    surface->controlGrid = edit.after;
-    undoStack_.push_back(std::move(edit));
+    undoStack_.push_back(state());
+    restore(std::move(next));
     return true;
 }
 

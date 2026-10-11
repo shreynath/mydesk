@@ -27,12 +27,21 @@ The current implementation is a partial compatibility foundation and does not cl
     - Zebra stripe reflection line simulation for highlight line continuity inspection.
   - **Interoperability & Persistence**:
     - Versioned native `.mysurface` JSON persistence preserving curve knots/control points and complete surface knot vectors/control grids.
+    - Qt file workflow uses `QSaveFile` replacement semantics so a failed write does not replace the previous native document.
+- **Desktop application**:
+  - Persistent Qt 6 main window with independent preferences under the `MyDeskSurface` application identity.
+  - Surface browser separating curves and surface patches, an editable control-vertex property panel, and a seam-analysis panel.
+  - CPU tessellation viewport evaluates the actual NURBS engine for shaded patches, wire/control nets,
+    curves, normals used by zebra shading, selection, orbit, pan, and zoom.
+  - Creation, naming, control-vertex editing, seam alignment, save/open, and undo/redo operate on the
+    same `SurfaceDocument`; there is no parallel demonstration scene.
 - **Binary**: `MyDeskSurface`.
 - **Identity**: Bundle `app.mydesk.surface`.
 
 ## Current limitations
 
 - Seam alignment currently supports the shared U boundary of non-rational bicubic Bezier patches. General NURBS degree, rational-weight, knot-insertion, and arbitrary-edge alignment are not implemented yet.
-- Undo/redo currently covers seam-alignment edits; creation and all future modeling commands still need command-history integration.
 - The current IGES method is only an export preview and is not a conforming multi-entity IGES writer. STEP exchange is not implemented.
-- Trimming, filleting, blending, draft analysis, surface intersections, and production tessellation remain future work.
+- The viewport is a CPU diagnostic renderer. GPU tessellation, high-quality antialiasing, material rendering,
+  topology-aware sub-object picking, manipulators, construction history, and production render output are not implemented.
+- Trimming, filleting, blending, draft analysis, surface intersections, general rebuild/knot editing, and production tessellation remain future work.

@@ -92,12 +92,14 @@ public:
     SurfaceDocument();
 
     [[nodiscard]] const std::string& name() const { return name_; }
-    void setName(std::string name) { name_ = std::move(name); }
+    void setName(std::string name);
 
     // NURBS Curves
     CurveId addCubicCurve(std::string name, std::vector<Vec3> controlPoints);
     [[nodiscard]] const NurbsCurve* findCurve(CurveId id) const;
     [[nodiscard]] const std::vector<NurbsCurve>& curves() const { return curves_; }
+    bool renameCurve(CurveId id, std::string name);
+    bool setCurveControlPoint(CurveId id, std::size_t index, WeightedPoint point);
     [[nodiscard]] std::vector<CurvatureCombSample> generateCurvatureComb(CurveId id, int samples, double scale = 1.0) const;
 
     // NURBS Surfaces
@@ -105,6 +107,8 @@ public:
     SurfacePatchId addBicubicPatch(std::string name, const std::vector<Vec3>& grid4x4);
     [[nodiscard]] const NurbsSurface* findSurface(SurfacePatchId id) const;
     [[nodiscard]] const std::vector<NurbsSurface>& surfaces() const { return surfaces_; }
+    bool renameSurface(SurfacePatchId id, std::string name);
+    bool setSurfaceControlPoint(SurfacePatchId id, std::size_t index, WeightedPoint point);
 
     // Continuity Analysis
     [[nodiscard]] ContinuityReport checkSeamContinuity(SurfacePatchId patchA, SurfacePatchId patchB,
@@ -129,12 +133,18 @@ public:
     static SurfaceDocument deserializeNative(std::string_view json, std::string* error = nullptr);
 
 private:
-    struct SurfaceEdit {
-        SurfacePatchId patchId{0};
-        std::vector<WeightedPoint> before;
-        std::vector<WeightedPoint> after;
+    struct State {
+        std::string name;
+        std::vector<NurbsCurve> curves;
+        std::vector<NurbsSurface> surfaces;
+        CurveId nextCurveId{1};
+        SurfacePatchId nextSurfId{1};
     };
 
+    void checkpoint();
+    [[nodiscard]] State state() const;
+    void restore(State state);
+    [[nodiscard]] NurbsCurve* findCurveMutable(CurveId id);
     [[nodiscard]] NurbsSurface* findSurfaceMutable(SurfacePatchId id);
 
     std::string name_{"Untitled_Surface"};
@@ -142,8 +152,8 @@ private:
     std::vector<NurbsSurface> surfaces_;
     CurveId nextCurveId_{1};
     SurfacePatchId nextSurfId_{1};
-    std::vector<SurfaceEdit> undoStack_;
-    std::vector<SurfaceEdit> redoStack_;
+    std::vector<State> undoStack_;
+    std::vector<State> redoStack_;
 };
 
 } // namespace mydesk::surface

@@ -4,7 +4,7 @@ Inventory for MyDesk v0.1. Update when adding packages.
 
 | Dependency | Use | License | Notes |
 |---|---|---|---|
-| Qt 6 (Widgets, Gui) | Desktop shell | LGPL v3 / commercial | Dynamically linked via system/Homebrew/aqt |
+| Qt 6 (Widgets, Gui, Test) | Desktop applications and UI tests | LGPL v3 / commercial | Dynamically linked; supported application install rules deploy the required Qt runtime and plugins from the configured Qt distribution |
 | CMake | Build | BSD-3 | Dev only |
 | Ninja | Build | Apache-2.0 | Dev only |
 | Apple clang / MSVC / GCC | Toolchain | Vendor | Dev only |

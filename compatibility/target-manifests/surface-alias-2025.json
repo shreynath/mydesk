@@ -95,7 +95,7 @@
       "expected_output": "Tolerance report with gap, angular, and normal-curvature deviation plus reversible G0/G1/G2 alignment",
       "formats": [".mysurface"],
       "implementation": "products/surface/engine/src/surface_document.cpp",
-      "tests": ["test_surface_g0_g1_continuity", "test_surface_g2_align_undo_persistence"],
+      "tests": ["test_surface_g0_g1_continuity", "test_surface_g2_align_undo_persistence", "test_surface_ui_seam_tools"],
       "manual_tests": [],
       "performance": "Interactive seam diagnostic",
       "status": "FUNCTIONAL",
@@ -132,13 +132,32 @@
       "expected_input": "SurfaceDocument instance",
       "expected_output": "Complete round-trip restoration",
       "formats": [".mysurface"],
-      "implementation": "products/surface/engine/src/surface_document.cpp",
-      "tests": ["test_surface_native_roundtrip"],
+      "implementation": ["products/surface/engine/src/surface_document.cpp", "products/surface/app/main_window.cpp"],
+      "tests": ["test_surface_native_roundtrip", "test_surface_desktop_workflow"],
       "manual_tests": [],
-      "performance": "In-memory schema-v2 structural serialization",
+      "performance": "In-memory schema-v2 structural serialization with atomic desktop file replacement",
       "status": "FUNCTIONAL",
-      "evidence": "products/surface/tests/test_surface.cpp",
-      "differences": "Schema-v2 loading validates and restores curve/surface IDs, degrees, knots, weights, control points, and control grids; atomic file writes, migration from all historical variants, and unknown-field preservation remain incomplete."
+      "evidence": "products/surface/tests/test_surface.cpp and products/surface/app/tests/test_surface_ui.cpp",
+      "differences": "Schema-v2 loading validates and restores curve/surface IDs, degrees, knots, weights, control points, and control grids. The Qt workflow uses atomic QSaveFile replacement and is round-trip tested; migration from all historical variants, unknown-field preservation, autosave, and crash recovery remain incomplete."
+    },
+    {
+      "id": "ALIAS-DESKTOP-SURFACING-WORKFLOW",
+      "target_application": "Alias",
+      "target_version": "2025",
+      "category": "desktop workflow",
+      "name": "Persistent interactive NURBS surfacing workspace",
+      "command": "CREATE / OBJECT EDIT / CV EDIT / VIEW / UNDO / REDO",
+      "reference_behavior": "Provide a persistent industrial-surfacing desktop workspace with surface hierarchy, editable control vertices, diagnostic 3D navigation, continuity tools, document history, and native project file workflows.",
+      "expected_input": "Interactive curve and surface creation, browser selection, control-vertex values, viewport gestures, seam selections, and native document paths",
+      "expected_output": "Engine-backed geometry edits shown in a navigable tessellated viewport and preserved through undo, redo, save, and reopen",
+      "formats": [".mysurface", ".igs preview"],
+      "implementation": ["products/surface/app/main_window.cpp", "products/surface/app/surface_viewport.cpp", "products/surface/engine/src/surface_document.cpp"],
+      "tests": ["test_surface_desktop_workflow", "test_surface_ui_seam_tools", "test_surface_creation_and_control_edit_history"],
+      "manual_tests": ["Orbit, pan, zoom, select a patch and control vertex, then inspect curvature and zebra diagnostics"],
+      "performance": "Interactive CPU sampling for the small and medium patch sets covered by current tests",
+      "status": "FUNCTIONAL",
+      "evidence": "products/surface/app/tests/test_surface_ui.cpp and products/surface/tests/test_surface.cpp",
+      "differences": "The UI is a substantive engine-backed surfacing workspace, but not Alias parity. It lacks GPU/production tessellation, arbitrary topology and trimming, modeling manipulators, construction history, layered scene organization, advanced diagnostic families, production rendering, and conforming CAD exchange."
     }
   ]
 }

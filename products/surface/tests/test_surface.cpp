@@ -216,6 +216,29 @@ static void test_surface_native_roundtrip() {
     CHECK_NEAR(center.y, 5.0, 1e-10);
 }
 
+static void test_surface_creation_and_control_edit_history() {
+    SurfaceDocument doc;
+    const auto curve = doc.addCubicCurve("Profile", {{0,0,0},{10,5,0},{20,5,0},{30,0,0}});
+    const auto patch = doc.addBilinearPatch("Panel", {0,0,0},{10,0,0},{0,10,0},{10,10,0});
+    CHECK(doc.curves().size() == 1);
+    CHECK(doc.surfaces().size() == 1);
+    CHECK(doc.setCurveControlPoint(curve, 1, {{10, 7, 2}, 0.75}));
+    CHECK_NEAR(doc.findCurve(curve)->controlPoints[1].p.y, 7.0, 1e-12);
+    CHECK(doc.renameSurface(patch, "Outer Panel"));
+    CHECK(doc.setSurfaceControlPoint(patch, 3, {{10, 10, 6}, 1.25}));
+    CHECK_NEAR(doc.findSurface(patch)->controlGrid[3].p.z, 6.0, 1e-12);
+    CHECK(doc.undo());
+    CHECK_NEAR(doc.findSurface(patch)->controlGrid[3].p.z, 0.0, 1e-12);
+    CHECK(doc.undo());
+    CHECK(doc.findSurface(patch)->name == "Panel");
+    CHECK(doc.redo());
+    CHECK(doc.findSurface(patch)->name == "Outer Panel");
+    CHECK(doc.redo());
+    CHECK_NEAR(doc.findSurface(patch)->controlGrid[3].p.z, 6.0, 1e-12);
+    CHECK(!doc.setSurfaceControlPoint(patch, 99, {{}, 1.0}));
+    CHECK(!doc.setCurveControlPoint(curve, 0, {{}, 0.0}));
+}
+
 int main() {
     // Registered capability test identifiers:
     // "test_surface_nurbs_curve_eval"
@@ -236,6 +259,8 @@ int main() {
     test_surface_zebra_stripes();
     // "test_surface_native_roundtrip"
     test_surface_native_roundtrip();
+    // "test_surface_creation_and_control_edit_history"
+    test_surface_creation_and_control_edit_history();
 
     if (g_failed == 0) {
         std::printf("All Surface tests passed.\n");
