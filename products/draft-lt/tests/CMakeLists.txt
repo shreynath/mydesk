@@ -10,6 +10,20 @@ target_link_libraries(mydesk_draft_lt_tests
 )
 add_test(NAME mydesk_draft_lt_tests COMMAND mydesk_draft_lt_tests)
 
+if(TARGET mydesk_draft_lt_ui)
+  add_executable(mydesk_draft_lt_ui_tests test_draft_lt_ui.cpp)
+  target_link_libraries(mydesk_draft_lt_ui_tests PRIVATE mydesk_draft_lt_ui)
+  add_test(NAME mydesk_draft_lt_ui_tests COMMAND mydesk_draft_lt_ui_tests)
+  set_tests_properties(mydesk_draft_lt_ui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(TARGET MyDeskDraftLT)
+  add_test(NAME mydesk_draft_lt_packaging_smoke
+           COMMAND $<TARGET_FILE:MyDeskDraftLT> --packaging-smoke)
+  set_tests_properties(mydesk_draft_lt_packaging_smoke
+                       PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
   add_test(

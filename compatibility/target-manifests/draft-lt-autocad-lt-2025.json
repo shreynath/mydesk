@@ -5,7 +5,7 @@
   "binary": "MyDeskDraftLT",
   "target_application": "AutoCAD LT",
   "target_version": "2025",
-  "note": "AutoCAD LT is a distinct commercial target. MyDesk Draft LT provides dedicated 2D drafting, layer styles, and vector exchange with independent binary and packaging.",
+  "note": "AutoCAD LT is a distinct commercial target. MyDesk Draft LT has an independent Qt desktop workspace connected to the editable 2D document engine. The implemented workflow is functional but far short of complete AutoCAD LT parity.",
   "capabilities": [
     {
       "id": "ACADLT-2D-DRAFTING",
@@ -18,13 +18,13 @@
       "expected_input": "Create annotated multilayer drawing",
       "expected_output": "Drawing persists with layers and dimensions",
       "formats": [".mydesk", ".dxf"],
-      "implementation": "products/draft-lt/app/main.cpp",
+      "implementation": ["products/draft-lt/app/main_window.cpp", "products/draft-lt/app/canvas_widget.cpp", "core/commands/src/draft_commands.cpp"],
       "tests": ["test_draft_lt_2d_drafting", "test_draft_lt_roundtrip"],
       "manual_tests": [],
       "performance": "Interactive on large 2D drawings",
       "status": "FUNCTIONAL",
-      "evidence": "products/draft-lt/tests/test_draft_lt.cpp",
-      "differences": "Dedicated MyDeskDraftLT binary. 3D solid modeling omitted by design."
+      "evidence": "Engine regression coverage is in products/draft-lt/tests/test_draft_lt.cpp; the Qt create/edit/undo/save/reopen/export workflow is exercised by products/draft-lt/tests/test_draft_lt_ui.cpp.",
+      "differences": "The independent Qt workspace implements a tested core workflow. Spline editing, complete dimensions/annotation styles, constraints, external references, tables, sheet sets, and large-drawing qualification remain incomplete."
     },
     {
       "id": "ACADLT-NO-3D-SOLIDS",
@@ -37,13 +37,13 @@
       "expected_input": "N/A",
       "expected_output": "N/A",
       "formats": [],
-      "implementation": "products/draft-lt/app/main.cpp",
+      "implementation": "core/commands/src/draft_commands.cpp",
       "tests": ["test_draft_lt_no_3d_solids"],
       "manual_tests": [],
       "performance": "N/A",
-      "status": "VERIFIED_PARITY",
-      "evidence": "Automated test confirms 3D solid operations (EXTRUDE, PRESSPULL) are unavailable in Draft LT, matching AutoCAD LT scope.",
-      "differences": "Omitted by design from AutoCAD LT product definition."
+      "status": "FUNCTIONAL",
+      "evidence": "Automated test confirms 3D solid operations (EXTRUDE, PRESSPULL) are unavailable in this product.",
+      "differences": "Omitted by the Draft LT product definition; this scoped omission is not a claim of overall product parity."
     },
     {
       "id": "ACADLT-LINETYPE",
@@ -61,8 +61,8 @@
       "manual_tests": [],
       "performance": "Interactive",
       "status": "FUNCTIONAL",
-      "evidence": "products/draft-lt/tests/test_draft_lt.cpp",
-      "differences": "Full parity on standard linetypes and lineweights."
+      "evidence": "Engine tests cover layer styles; the Qt UI test applies entity linetype and lineweight changes through the selection properties editor.",
+      "differences": "Standard named linetypes and common lineweights are editable and rendered. Custom linetype definitions, plot-style tables, and complete property palettes are not implemented."
     },
     {
       "id": "ACADLT-LAYER-STATES",
@@ -100,7 +100,7 @@
       "performance": "Multi-sheet drawings plot without rasterization",
       "status": "FUNCTIONAL",
       "evidence": "Vector SVG/PDF layout plot engine renders sheets, paper setup dimensions, and layout viewports.",
-      "differences": "Vector SVG and PDF plotting implemented; printer driver direct rasterizer in progress."
+      "differences": "The engine produces tested vector SVG/PDF output. The Draft LT desktop does not yet expose a complete plot/page-setup workflow, printer drivers, or plot-style tables."
     },
     {
       "id": "ACADLT-DWG",
