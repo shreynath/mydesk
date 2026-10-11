@@ -444,4 +444,207 @@ ModifyResult chamferLines(document::Document& doc, document::EntityId idA, docum
     return {true, "CHAMFER complete"};
 }
 
+namespace {
+
+geometry::Vec2 mirrorPt(geometry::Vec2 p, geometry::Vec2 p1, geometry::Vec2 p2) {
+    geometry::Vec2 d = p2 - p1;
+    double lenSq = d.x * d.x + d.y * d.y;
+    if (lenSq < 1e-12) return p;
+    geometry::Vec2 v = p - p1;
+    double t = (v.x * d.x + v.y * d.y) / lenSq;
+    geometry::Vec2 proj = p1 + d * t;
+    return proj * 2.0 - p;
+}
+
+geometry::Vec2 rotatePt(geometry::Vec2 p, geometry::Vec2 center, double rad) {
+    double cosA = std::cos(rad);
+    double sinA = std::sin(rad);
+    geometry::Vec2 v = p - center;
+    return {center.x + v.x * cosA - v.y * sinA, center.y + v.x * sinA + v.y * cosA};
+}
+
+double normAngleDeg(double deg) {
+    while (deg < 0.0) deg += 360.0;
+    while (deg >= 360.0) deg -= 360.0;
+    return deg;
+}
+
+document::Entity transformEntity(const document::Entity& src, document::EntityId newId,
+                                 const std::function<geometry::Vec2(geometry::Vec2)>& xform) {
+    document::Entity ent = src;
+    ent.id = newId;
+    if (const auto* l = std::get_if<document::LineEntity>(&src.geometry)) {
+        ent.geometry = document::LineEntity{xform(l->start), xform(l->end)};
+    } else if (const auto* c = std::get_if<document::CircleEntity>(&src.geometry)) {
+        ent.geometry = document::CircleEntity{xform(c->center), c->radius};
+    } else if (const auto* a = std::get_if<document::ArcEntity>(&src.geometry)) {
+        ent.geometry = document::ArcEntity{xform(a->center), a->radius, a->startAngle, a->endAngle};
+    } else if (const auto* pl = std::get_if<document::PolylineEntity>(&src.geometry)) {
+        std::vector<geometry::Vec2> vts;
+        vts.reserve(pl->vertices.size());
+        for (const auto& pt : pl->vertices) vts.push_back(xform(pt));
+        ent.geometry = document::PolylineEntity{std::move(vts), pl->closed};
+    } else if (const auto* t = std::get_if<document::TextEntity>(&src.geometry)) {
+        ent.geometry = document::TextEntity{xform(t->position), t->height, t->rotationDeg, t->contents};
+    } else if (const auto* dim = std::get_if<document::DimensionLinearEntity>(&src.geometry)) {
+        ent.geometry = document::DimensionLinearEntity{xform(dim->start), xform(dim->end),
+                                                       xform(dim->dimLine)};
+    } else if (const auto* ins = std::get_if<document::InsertEntity>(&src.geometry)) {
+        document::InsertEntity ni = *ins;
+        ni.insertion = xform(ins->insertion);
+        ent.geometry = ni;
+    }
+    return ent;
+}
+
+} // namespace
+
+ModifyResult mirrorEntities(document::Document& doc, const std::vector<document::EntityId>& ids,
+                            geometry::Vec2 p1, geometry::Vec2 p2, bool eraseSource) {
+    if (std::hypot(p2.x - p1.x, p2.y - p1.y) < 1e-9) {
+        return {false, "MIRROR: mirror line points must be distinct"};
+    }
+    if (ids.empty()) {
+        return {false, "MIRROR: no objects selected"};
+    }
+
+    doc.beginComposite("MIRROR");
+    std::size_t count = 0;
+    double axisAngleDeg = std::atan2(p2.y - p1.y, p2.x - p1.x) * 180.0 / kPi;
+
+    for (auto id : ids) {
+        const auto* ent = doc.findEntity(id);
+        if (!ent) continue;
+
+        auto xform = [&](geometry::Vec2 p) { return mirrorPt(p, p1, p2); };
+        document::Entity mir = transformEntity(*ent, doc.allocateEntityIdPublic(), xform);
+
+        if (const auto* a = std::get_if<document::ArcEntity>(&ent->geometry)) {
+            double ns = normAngleDeg(2.0 * axisAngleDeg - a->endAngle);
+            double ne = normAngleDeg(2.0 * axisAngleDeg - a->startAngle);
+            mir.geometry = document::ArcEntity{mirrorPt(a->center, p1, p2), a->radius, ns, ne};
+        }
+
+        doc.compositeAdd(mir);
+        ++count;
+
+        if (eraseSource) {
+            doc.compositeRemove(id);
+        }
+    }
+    doc.commitComposite();
+    return {true, "MIRROR: mirrored " + std::to_string(count) + " object(s)"};
+}
+
+ModifyResult arrayRectangular(document::Document& doc, const std::vector<document::EntityId>& ids,
+                             int rows, int cols, double rowSpacing, double colSpacing) {
+    if (rows <= 0 || cols <= 0) {
+        return {false, "ARRAY: rows and cols must be positive"};
+    }
+    if (ids.empty()) {
+        return {false, "ARRAY: no objects selected"};
+    }
+
+    doc.beginComposite("ARRAYRECT");
+    std::size_t created = 0;
+    for (int r = 0; r < rows; ++r) {
+        for (int c = 0; c < cols; ++c) {
+            if (r == 0 && c == 0) continue;
+            geometry::Vec2 offset{c * colSpacing, r * rowSpacing};
+            auto xform = [offset](geometry::Vec2 p) { return p + offset; };
+            for (auto id : ids) {
+                const auto* ent = doc.findEntity(id);
+                if (!ent) continue;
+                document::Entity copy = transformEntity(*ent, doc.allocateEntityIdPublic(), xform);
+                doc.compositeAdd(copy);
+                ++created;
+            }
+        }
+    }
+    doc.commitComposite();
+    return {true, "ARRAYRECT: created " + std::to_string(created) + " objects"};
+}
+
+ModifyResult arrayPolar(document::Document& doc, const std::vector<document::EntityId>& ids,
+                        geometry::Vec2 center, int itemCount, double totalAngleDeg) {
+    if (itemCount <= 1) {
+        return {false, "ARRAYPOLAR: item count must be at least 2"};
+    }
+    if (ids.empty()) {
+        return {false, "ARRAYPOLAR: no objects selected"};
+    }
+
+    doc.beginComposite("ARRAYPOLAR");
+    std::size_t created = 0;
+    double stepDeg = totalAngleDeg / static_cast<double>(itemCount);
+    for (int i = 1; i < itemCount; ++i) {
+        double rad = (stepDeg * static_cast<double>(i)) * kPi / 180.0;
+        auto xform = [center, rad](geometry::Vec2 p) { return rotatePt(p, center, rad); };
+        for (auto id : ids) {
+            const auto* ent = doc.findEntity(id);
+            if (!ent) continue;
+            document::Entity copy = transformEntity(*ent, doc.allocateEntityIdPublic(), xform);
+            if (const auto* a = std::get_if<document::ArcEntity>(&copy.geometry)) {
+                double ns = normAngleDeg(a->startAngle + stepDeg * static_cast<double>(i));
+                double ne = normAngleDeg(a->endAngle + stepDeg * static_cast<double>(i));
+                copy.geometry = document::ArcEntity{a->center, a->radius, ns, ne};
+            }
+            doc.compositeAdd(copy);
+            ++created;
+        }
+    }
+    doc.commitComposite();
+    return {true, "ARRAYPOLAR: created " + std::to_string(created) + " objects"};
+}
+
+ModifyResult stretchEntities(document::Document& doc, const std::vector<document::EntityId>& ids,
+                             geometry::Vec2 winMin, geometry::Vec2 winMax,
+                             geometry::Vec2 displacement) {
+    double minX = std::min(winMin.x, winMax.x);
+    double maxX = std::max(winMin.x, winMax.x);
+    double minY = std::min(winMin.y, winMax.y);
+    double maxY = std::max(winMin.y, winMax.y);
+
+    auto inWin = [minX, maxX, minY, maxY](geometry::Vec2 p) {
+        return p.x >= minX - 1e-6 && p.x <= maxX + 1e-6 &&
+               p.y >= minY - 1e-6 && p.y <= maxY + 1e-6;
+    };
+
+    doc.beginComposite("STRETCH");
+    std::size_t modified = 0;
+    for (auto id : ids) {
+        const auto* ent = doc.findEntity(id);
+        if (!ent) continue;
+
+        if (const auto* l = std::get_if<document::LineEntity>(&ent->geometry)) {
+            geometry::Vec2 s = l->start;
+            geometry::Vec2 e = l->end;
+            bool changed = false;
+            if (inWin(s)) { s = s + displacement; changed = true; }
+            if (inWin(e)) { e = e + displacement; changed = true; }
+            if (changed) {
+                document::Entity repl = *ent;
+                repl.geometry = document::LineEntity{s, e};
+                doc.compositeReplace(*ent, repl);
+                ++modified;
+            }
+        } else if (const auto* pl = std::get_if<document::PolylineEntity>(&ent->geometry)) {
+            std::vector<geometry::Vec2> vts = pl->vertices;
+            bool changed = false;
+            for (auto& v : vts) {
+                if (inWin(v)) { v = v + displacement; changed = true; }
+            }
+            if (changed) {
+                document::Entity repl = *ent;
+                repl.geometry = document::PolylineEntity{vts, pl->closed};
+                doc.compositeReplace(*ent, repl);
+                ++modified;
+            }
+        }
+    }
+    doc.commitComposite();
+    return {true, "STRETCH: modified " + std::to_string(modified) + " objects"};
+}
+
 } // namespace mydesk::modify
+

@@ -9,7 +9,7 @@ products:
   - id: draft
     name: MyDesk Draft
     binary: MyDeskDraft
-    target_workflow: AutoCAD / AutoCAD LT class professional CAD
+    target_workflow: AutoCAD class professional CAD
     entry_point: products/draft/app
     version_file: products/draft/VERSION
     cmake_product: draft
@@ -18,29 +18,27 @@ products:
     maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: AutoCAD, versions: ["2025", "2026"] }
-      - { vendor: Autodesk, product: AutoCAD LT, versions: ["2025", "2026"] }
     docs: products/draft/docs
     packaging: products/draft/packaging
     issue_label: product:draft
 
   - id: draft-lt
-    name: MyDesk Draft (AutoCAD LT track)
-    binary: MyDeskDraft
+    name: MyDesk Draft LT
+    binary: MyDeskDraftLT
     target_workflow: AutoCAD LT class 2D drafting (distinct commercial target)
-    entry_point: products/draft/app
-    version_file: products/draft/VERSION
-    cmake_product: draft
+    entry_point: products/draft-lt/app
+    version_file: products/draft-lt/VERSION
+    cmake_product: draft-lt
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
     document_extension: .mydesk
     maturity: alpha
     notes: >
-      Distinct commercial target from full AutoCAD. Currently shares the MyDeskDraft
-      executable and Draft document model. LT-specific inventory and exclusions live in
-      compatibility/target-manifests/draft-lt-autocad-lt-2025.json. Do not delete this
-      row because Draft still lacks some full-AutoCAD features.
+      Distinct commercial target from full AutoCAD with dedicated MyDeskDraftLT binary.
+      LT-specific inventory and exclusions live in
+      compatibility/target-manifests/draft-lt-autocad-lt-2025.json.
     comparison_targets:
       - { vendor: Autodesk, product: AutoCAD LT, versions: ["2025", "2026"] }
-    docs: products/draft/docs
+    docs: products/draft-lt/docs
     issue_label: product:draft-lt
 
   - id: mechanical
@@ -65,10 +63,11 @@ products:
     version_file: products/fusion/VERSION
     cmake_product: fusion
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
-    notes: Independent product — not a renamed Mechanical executable.
+    maturity: scaffolding
+    notes: Independent timeline-driven parametric, direct modeling, and CAM product.
     comparison_targets:
       - { vendor: Autodesk, product: Fusion, versions: ["current"] }
+    docs: products/fusion/docs
     issue_label: product:fusion
 
   - id: buildings
@@ -99,6 +98,20 @@ products:
     docs: products/civil/docs
     issue_label: product:civil
 
+  - id: infra
+    name: MyDesk Infra
+    binary: MyDeskInfra
+    target_workflow: InfraWorks class conceptual infrastructure
+    entry_point: products/infra/app
+    version_file: products/infra/VERSION
+    cmake_product: infra
+    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
+    maturity: scaffolding
+    comparison_targets:
+      - { vendor: Autodesk, product: InfraWorks, versions: ["2025", "2026"] }
+    docs: products/infra/docs
+    issue_label: product:infra
+
   - id: coordinate
     name: MyDesk Coordinate
     binary: MyDeskCoordinate
@@ -112,17 +125,6 @@ products:
       - { vendor: Autodesk, product: Navisworks, versions: ["2025", "2026"] }
     docs: products/coordinate/docs
     issue_label: product:coordinate
-
-  - id: infra
-    name: MyDesk Infra
-    binary: MyDeskInfra
-    target_workflow: InfraWorks class conceptual infrastructure
-    entry_point: products/infra/app
-    version_file: products/infra/VERSION
-    cmake_product: infra
-    platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
-    issue_label: product:infra
 
   - id: animate
     name: MyDesk Animate
@@ -147,8 +149,11 @@ products:
     version_file: products/studio/VERSION
     cmake_product: studio
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
-    notes: Distinct UX from Animate where workflows differ.
+    maturity: scaffolding
+    notes: Dedicated modifier-stack oriented 3D modeling and rendering application.
+    comparison_targets:
+      - { vendor: Autodesk, product: "3ds Max", versions: ["2025", "2026"] }
+    docs: products/studio/docs
     issue_label: product:studio
 
   - id: surface
@@ -159,7 +164,11 @@ products:
     version_file: products/surface/VERSION
     cmake_product: surface
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
+    maturity: scaffolding
+    notes: Class-A precision NURBS surfacing, continuity evaluation, and reflection diagnostics.
+    comparison_targets:
+      - { vendor: Autodesk, product: Alias, versions: ["2025", "2026"] }
+    docs: products/surface/docs
     issue_label: product:surface
 
   - id: mill
@@ -185,7 +194,6 @@ products:
     cmake_product: simulation
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
     maturity: scaffolding
-    notes: May split into discipline-specific installers later.
     comparison_targets:
       - { vendor: Autodesk, product: "Simulation Mechanical", versions: ["current"] }
       - { vendor: Autodesk, product: "Nastran In-CAD",        versions: ["current"] }
@@ -200,8 +208,11 @@ products:
     version_file: products/vault/VERSION
     cmake_product: vault
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: catalog-stub
-    notes: Optional self-hosted server; local use where appropriate.
+    maturity: scaffolding
+    notes: Engineering product data management, content addressing, locking, and BOM generation.
+    comparison_targets:
+      - { vendor: Autodesk, product: Vault, versions: ["2025", "2026"] }
+    docs: products/vault/docs
     issue_label: product:vault
 
 shared_libraries:

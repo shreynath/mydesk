@@ -30,6 +30,9 @@ target_link_libraries(mydesk_mechanical_engine
     TKDE
     TKXSBase
     TKDESTEP
+    TKDEIGES
+    TKFillet
+    TKOffset
 )
 
 target_link_directories(mydesk_mechanical_engine PUBLIC ${OpenCASCADE_LIBRARY_DIR})

@@ -78,3 +78,58 @@ void test_selection_window_crossing() {
     doc.selectInRect(cross, true, false);
     expect(doc.selection().size() == 1, "crossing selects intersecting");
 }
+
+void test_mirror_and_stretch() {
+    mydesk::document::Document doc;
+    const auto l1 = doc.addLine({0, 0}, {10, 0});
+    // Mirror across y = 5 (axis (0,5) to (10,5)) with eraseSource = false
+    auto m1 = mydesk::modify::mirrorEntities(doc, {l1}, {0, 5}, {10, 5}, false);
+    expect(m1.ok, m1.message);
+    expect(doc.entities().size() == 2, "source + mirrored copy");
+    const auto* l2 = std::get_if<mydesk::document::LineEntity>(&doc.entities().back().geometry);
+    expect(l2 != nullptr, "mirrored is line");
+    expect(l2->start.nearlyEqual({0, 10}, 1e-6) && l2->end.nearlyEqual({10, 10}, 1e-6),
+           "mirrored line position");
+
+    // Mirror with eraseSource = true
+    auto m2 = mydesk::modify::mirrorEntities(doc, {l1}, {0, 0}, {0, 10}, true);
+    expect(m2.ok, m2.message);
+    // l1 erased, new mirrored copy created across y-axis
+    expect(doc.findEntity(l1) == nullptr, "source erased");
+
+    // Mirror Arc
+    mydesk::document::Document docArc;
+    const auto arcId = docArc.addArc({5, 5}, 3.0, 0.0, 90.0);
+    auto mArc = mydesk::modify::mirrorEntities(docArc, {arcId}, {0, 0}, {10, 0}, false);
+    expect(mArc.ok, mArc.message);
+    expect(docArc.entities().size() == 2, "arc mirrored");
+
+    // STRETCH
+    mydesk::document::Document docStretch;
+    const auto sLine = docStretch.addLine({0, 0}, {10, 0});
+    // Window from (8, -2) to (12, 2) covers endpoint (10, 0)
+    auto resStr = mydesk::modify::stretchEntities(docStretch, {sLine}, {8, -2}, {12, 2}, {5, 3});
+    expect(resStr.ok, resStr.message);
+    const auto* strLine = std::get_if<mydesk::document::LineEntity>(&docStretch.findEntity(sLine)->geometry);
+    expect(strLine != nullptr, "stretched line");
+    expect(strLine->start.nearlyEqual({0, 0}, 1e-6), "start unmoved");
+    expect(strLine->end.nearlyEqual({15, 3}, 1e-6), "end stretched to (15, 3)");
+}
+
+void test_array_rectangular_and_polar() {
+    mydesk::document::Document doc;
+    const auto c = doc.addCircle({10, 10}, 2.0);
+    // 3 rows, 4 cols, rowSpacing 20, colSpacing 30
+    auto rArr = mydesk::modify::arrayRectangular(doc, {c}, 3, 4, 20.0, 30.0);
+    expect(rArr.ok, rArr.message);
+    expect(doc.entities().size() == 12, "3x4 = 12 total entities");
+
+    // Polar array
+    mydesk::document::Document docPolar;
+    const auto l = docPolar.addLine({10, 0}, {20, 0});
+    // 4 items around (0,0), 360 degrees
+    auto pArr = mydesk::modify::arrayPolar(docPolar, {l}, {0, 0}, 4, 360.0);
+    expect(pArr.ok, pArr.message);
+    expect(docPolar.entities().size() == 4, "4 items in 360 polar array");
+}
+

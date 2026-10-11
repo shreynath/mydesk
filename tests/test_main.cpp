@@ -41,6 +41,9 @@ void test_linetype_lineweight_commands_and_roundtrip();
 void test_block_attributes_and_exchange();
 void test_attributes_regression_and_nested_blocks();
 void test_layouts_viewports_and_plotting();
+void test_mirror_and_stretch();
+void test_array_rectangular_and_polar();
+void test_draft_audit_purge_matchprop_qselect();
 
 int main() {
     const std::vector<TestCase> tests = {
@@ -76,6 +79,9 @@ int main() {
         {"test_attributes_regression_and_nested_blocks",
          &test_attributes_regression_and_nested_blocks},
         {"test_layouts_viewports_and_plotting", &test_layouts_viewports_and_plotting},
+        {"test_mirror_and_stretch", &test_mirror_and_stretch},
+        {"test_array_rectangular_and_polar", &test_array_rectangular_and_polar},
+        {"test_draft_audit_purge_matchprop_qselect", &test_draft_audit_purge_matchprop_qselect},
     };
 
     int failed = 0;

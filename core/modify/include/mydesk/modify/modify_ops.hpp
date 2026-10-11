@@ -28,4 +28,24 @@ struct ModifyResult {
 [[nodiscard]] ModifyResult chamferLines(document::Document& doc, document::EntityId a,
                                         document::EntityId b, double dist1, double dist2);
 
+[[nodiscard]] ModifyResult mirrorEntities(document::Document& doc,
+                                         const std::vector<document::EntityId>& ids,
+                                         geometry::Vec2 p1, geometry::Vec2 p2,
+                                         bool eraseSource = false);
+
+[[nodiscard]] ModifyResult arrayRectangular(document::Document& doc,
+                                            const std::vector<document::EntityId>& ids,
+                                            int rows, int cols, double rowSpacing,
+                                            double colSpacing);
+
+[[nodiscard]] ModifyResult arrayPolar(document::Document& doc,
+                                      const std::vector<document::EntityId>& ids,
+                                      geometry::Vec2 center, int itemCount,
+                                      double totalAngleDeg = 360.0);
+
+[[nodiscard]] ModifyResult stretchEntities(document::Document& doc,
+                                           const std::vector<document::EntityId>& ids,
+                                           geometry::Vec2 winMin, geometry::Vec2 winMax,
+                                           geometry::Vec2 displacement);
+
 } // namespace mydesk::modify

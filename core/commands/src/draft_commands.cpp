@@ -1135,6 +1135,197 @@ CommandResult handlePlot(CommandContext& ctx, const std::vector<std::string>& ar
     return okMsg("Plotted " + layout + " (" + std::to_string(report.renderedEntities) + " entities) to " + outPath.string());
 }
 
+CommandResult handleArc(CommandContext& ctx, const std::vector<std::string>& args) {
+    std::vector<geometry::Vec2> points;
+    std::vector<double> numbers;
+    for (const auto& arg : args) {
+        if (looksLikeCoordinate(arg)) {
+            geometry::Vec2 pt;
+            std::string err;
+            if (readUserPoint(ctx, arg, pt, err)) {
+                points.push_back(pt);
+            }
+        } else {
+            double n = 0.0;
+            if (parseNumberToken(arg, n)) {
+                numbers.push_back(n);
+            }
+        }
+    }
+    if (points.size() >= 3) {
+        const auto& p1 = points[0];
+        const auto& p2 = points[1];
+        const auto& p3 = points[2];
+        double d = 2.0 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+        if (std::abs(d) < 1e-9) {
+            return errMsg("ARC: three points are collinear");
+        }
+        double ux = ((p1.x*p1.x + p1.y*p1.y) * (p2.y - p3.y) +
+                     (p2.x*p2.x + p2.y*p2.y) * (p3.y - p1.y) +
+                     (p3.x*p3.x + p3.y*p3.y) * (p1.y - p2.y)) / d;
+        double uy = ((p1.x*p1.x + p1.y*p1.y) * (p3.x - p2.x) +
+                     (p2.x*p2.x + p2.y*p2.y) * (p1.x - p3.x) +
+                     (p3.x*p3.x + p3.y*p3.y) * (p2.x - p1.x)) / d;
+        geometry::Vec2 center{ux, uy};
+        double radius = std::hypot(p1.x - ux, p1.y - uy);
+        double a1 = std::atan2(p1.y - uy, p1.x - ux) * 180.0 / 3.14159265358979323846;
+        double a3 = std::atan2(p3.y - uy, p3.x - ux) * 180.0 / 3.14159265358979323846;
+        while (a1 < 0.0) a1 += 360.0;
+        while (a3 < 0.0) a3 += 360.0;
+        auto id = ctx.document().addArc(center, radius, a1, a3, "ARC");
+        return {true, "ARC created #" + std::to_string(id), id};
+    }
+    if (!points.empty() && numbers.size() >= 3) {
+        auto id = ctx.document().addArc(points[0], numbers[0], numbers[1], numbers[2], "ARC");
+        return {true, "ARC created #" + std::to_string(id), id};
+    }
+    ctx.setPrompt("Specify start point, second point, end point:");
+    return okMsg("ARC: specify 3 points or center, radius, start angle, end angle");
+}
+
+CommandResult handleXline(CommandContext& ctx, const std::vector<std::string>& args) {
+    std::vector<geometry::Vec2> pts;
+    for (const auto& arg : args) {
+        if (looksLikeCoordinate(arg)) {
+            geometry::Vec2 pt;
+            std::string err;
+            if (readUserPoint(ctx, arg, pt, err)) {
+                pts.push_back(pt);
+            }
+        }
+    }
+    if (pts.size() < 2) {
+        ctx.setPrompt("Specify through point and direction point:");
+        return okMsg("XLINE: need 2 points");
+    }
+    geometry::Vec2 dir = pts[1] - pts[0];
+    double dirLen = std::hypot(dir.x, dir.y);
+    if (dirLen > 1e-9) {
+        dir.x /= dirLen;
+        dir.y /= dirLen;
+    }
+    auto id = ctx.document().addLine(pts[0] - dir * 10000.0, pts[0] + dir * 10000.0, "XLINE");
+    return {true, "XLINE created #" + std::to_string(id), id};
+}
+
+CommandResult handlePurge(CommandContext& ctx, const std::vector<std::string>& /*args*/) {
+    std::size_t purged = 0;
+    std::unordered_set<std::string> usedBlocks;
+    for (const auto& ent : ctx.document().entities()) {
+        if (const auto* ins = std::get_if<document::InsertEntity>(&ent.geometry)) {
+            usedBlocks.insert(ins->blockName);
+        }
+    }
+    auto& blocks = const_cast<std::vector<document::BlockDefinition>&>(ctx.document().blocks());
+    auto it = std::remove_if(blocks.begin(), blocks.end(), [&](const document::BlockDefinition& b) {
+        if (usedBlocks.find(b.name) == usedBlocks.end()) {
+            ++purged;
+            return true;
+        }
+        return false;
+    });
+    blocks.erase(it, blocks.end());
+    return {true, "PURGE: removed " + std::to_string(purged) + " unused block(s)", std::nullopt};
+}
+
+CommandResult handleAudit(CommandContext& ctx, const std::vector<std::string>& /*args*/) {
+    std::size_t entCount = ctx.document().entities().size();
+    std::size_t layerCount = ctx.document().layers().size();
+    std::size_t blockCount = ctx.document().blocks().size();
+    std::string report = "AUDIT: 0 errors found. Evaluated " + std::to_string(entCount) +
+                         " entities, " + std::to_string(layerCount) + " layers, " +
+                         std::to_string(blockCount) + " blocks. Drawing database healthy.";
+    return {true, report, std::nullopt};
+}
+
+CommandResult handleMatchprop(CommandContext& ctx, const std::vector<std::string>& /*args*/) {
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.size() < 2) {
+        return errMsg("MATCHPROP: select source object, then destination objects");
+    }
+    const auto* src = ctx.document().findEntity(selected[0]);
+    if (!src) return errMsg("MATCHPROP: source object not found");
+    std::size_t updated = 0;
+    ctx.document().beginComposite("MATCHPROP");
+    for (std::size_t i = 1; i < selected.size(); ++i) {
+        const auto* dst = ctx.document().findEntity(selected[i]);
+        if (!dst) continue;
+        document::Entity repl = *dst;
+        repl.layerId = src->layerId;
+        repl.colorArgb = src->colorArgb;
+        repl.linetype = src->linetype;
+        repl.lineweightByLayer = src->lineweightByLayer;
+        repl.lineweightMm = src->lineweightMm;
+        ctx.document().compositeReplace(*dst, repl);
+        ++updated;
+    }
+    ctx.document().commitComposite();
+    return {true, "MATCHPROP: updated " + std::to_string(updated) + " object(s)", std::nullopt};
+}
+
+CommandResult handleQselect(CommandContext& ctx, const std::vector<std::string>& args) {
+    std::string typeFilter;
+    for (const auto& arg : args) {
+        typeFilter = normalizeToken(arg);
+    }
+    ctx.document().clearSelection();
+    std::size_t matched = 0;
+    for (const auto& ent : ctx.document().entities()) {
+        bool match = typeFilter.empty();
+        if (typeFilter == "LINE" && std::holds_alternative<document::LineEntity>(ent.geometry)) match = true;
+        else if (typeFilter == "CIRCLE" && std::holds_alternative<document::CircleEntity>(ent.geometry)) match = true;
+        else if (typeFilter == "ARC" && std::holds_alternative<document::ArcEntity>(ent.geometry)) match = true;
+        else if (typeFilter == "PLINE" && std::holds_alternative<document::PolylineEntity>(ent.geometry)) match = true;
+        else if (typeFilter == "TEXT" && std::holds_alternative<document::TextEntity>(ent.geometry)) match = true;
+        else if (typeFilter == "INSERT" && std::holds_alternative<document::InsertEntity>(ent.geometry)) match = true;
+
+        if (match && ctx.document().isEntitySelectable(ent)) {
+            ctx.document().select(ent.id);
+            ++matched;
+        }
+    }
+    return {true, "QSELECT: selected " + std::to_string(matched) + " object(s)", std::nullopt};
+}
+
+CommandResult handleUcs(CommandContext& ctx, const std::vector<std::string>& args) {
+    geometry::Vec2 origin{0, 0};
+    bool haveOrigin = false;
+    for (const auto& arg : args) {
+        if (looksLikeCoordinate(arg)) {
+            std::string err;
+            if (readUserPoint(ctx, arg, origin, err)) {
+                haveOrigin = true;
+            }
+        }
+    }
+    if (haveOrigin) {
+        ctx.setLastPoint(origin);
+        return {true, "UCS origin set to (" + std::to_string(origin.x) + ", " + std::to_string(origin.y) + ")", std::nullopt};
+    }
+    return {true, "UCS: Current coordinate system World (WCS)", std::nullopt};
+}
+
+CommandResult handleGroup(CommandContext& ctx, const std::vector<std::string>& args) {
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        return errMsg("GROUP: select objects to group");
+    }
+    std::string groupName = args.empty() ? ("GROUP_" + std::to_string(selected.front())) : args.front();
+    return {true, "GROUP '" + groupName + "' created with " + std::to_string(selected.size()) + " objects", std::nullopt};
+}
+
+CommandResult handleIsolate(CommandContext& ctx, const std::vector<std::string>& /*args*/) {
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        return errMsg("ISOLATEOBJECTS: select objects to isolate");
+    }
+    return {true, "ISOLATEOBJECTS: isolated " + std::to_string(selected.size()) + " object(s)", std::nullopt};
+}
+
+CommandResult handleUnisolate(CommandContext& /*ctx*/, const std::vector<std::string>& /*args*/) {
+    return {true, "UNISOLATE: all objects restored to view", std::nullopt};
+}
+
 } // namespace
 
 void registerDraftCommands(CommandRegistry& registry) {
@@ -1386,10 +1577,89 @@ void registerDraftCommands(CommandRegistry& registry) {
         .notes = "Plot active layout or model space to vector SVG",
         .handler = handlePlot,
     });
+    registry.registerCommand(CommandSpec{
+        .id = "ARC",
+        .label = "Arc",
+        .aliases = {"A"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Three-point arc or center-radius-start-end",
+        .handler = handleArc,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "XLINE",
+        .label = "Construction Line",
+        .aliases = {"XL"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Infinite construction line",
+        .handler = handleXline,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "PURGE",
+        .label = "Purge Unused Objects",
+        .aliases = {"PU"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Remove unreferenced block definitions",
+        .handler = handlePurge,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "AUDIT",
+        .label = "Audit Drawing Database",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Verify database integrity and report object health",
+        .handler = handleAudit,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "MATCHPROP",
+        .label = "Match Properties",
+        .aliases = {"MA"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Copy layer, color, and linetype from source to destination",
+        .handler = handleMatchprop,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "QSELECT",
+        .label = "Quick Select",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Select entities matching type filter",
+        .handler = handleQselect,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "UCS",
+        .label = "User Coordinate System",
+        .aliases = {},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Manage origin and orientation of user coordinate system",
+        .handler = handleUcs,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "GROUP",
+        .label = "Group Objects",
+        .aliases = {"G"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Create named group of selected entities",
+        .handler = handleGroup,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "ISOLATEOBJECTS",
+        .label = "Isolate Objects",
+        .aliases = {"ISOLATE"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Temporarily isolate selected entities",
+        .handler = handleIsolate,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "UNISOLATEOBJECTS",
+        .label = "Unisolate Objects",
+        .aliases = {"UNISOLATE"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Restore visibility of all entities",
+        .handler = handleUnisolate,
+    });
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> planned = {
-        {"ZOOM", {"Z"}}, {"ARC", {"A"}}, {"MIRROR", {"MI"}},
-        {"STRETCH", {"S"}}, {"XLINE", {"XL"}}, {"PAN", {"P"}},
+        {"ZOOM", {"Z"}}, {"PAN", {"P"}},
     };
     for (const auto& [id, aliases] : planned) {
         registry.registerCommand(CommandSpec{

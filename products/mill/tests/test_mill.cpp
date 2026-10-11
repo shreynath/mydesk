@@ -227,15 +227,25 @@ static void test_gcode_export_spindle() {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main() {
+    // "test_tool_library"
     test_tool_library();
+    // "test_feed_speed"
     test_feed_speed();
+    // "test_raster_generates_moves"
     test_raster_generates_moves();
+    // "test_raster_cut_length"
     test_raster_cut_length();
+    // "test_parallel_offset_generates_moves"
     test_parallel_offset_generates_moves();
+    // "test_pencil_generates_moves"
     test_pencil_generates_moves();
+    // "test_drilling"
     test_drilling();
+    // "test_profile"
     test_profile();
+    // "test_gcode_export_header"
     test_gcode_export_header();
+    // "test_gcode_export_spindle"
     test_gcode_export_spindle();
 
     if (g_failed == 0) {

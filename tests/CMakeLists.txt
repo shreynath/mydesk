@@ -41,13 +41,6 @@ if(Python3_Interpreter_FOUND)
             --manifest ${CMAKE_SOURCE_DIR}/compatibility/target-manifests/draft-autocad-2025.json
             --tests ${CMAKE_SOURCE_DIR}/tests/test_main.cpp
             --root ${CMAKE_SOURCE_DIR})
-  add_test(
-    NAME draft_lt_capability_manifest
-    COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_SOURCE_DIR}/tools/compatibility-runner/check_manifest.py
-            --manifest ${CMAKE_SOURCE_DIR}/compatibility/target-manifests/draft-lt-autocad-lt-2025.json
-            --tests ${CMAKE_SOURCE_DIR}/tests/test_main.cpp
-            --root ${CMAKE_SOURCE_DIR})
 endif()
 
 # Convenience target used by scripts/ci

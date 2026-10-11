@@ -50,6 +50,18 @@
       }
     },
     {
+      "name": "draft-lt",
+      "displayName": "MyDesk Draft LT (AutoCAD LT)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/draft-lt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "draft-lt",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "mechanical",
       "displayName": "MyDesk Mechanical (OCCT)",
       "generator": "Ninja",
@@ -60,6 +72,18 @@
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON",
         "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/opencascade;/usr/local/opt/opencascade"
+      }
+    },
+    {
+      "name": "fusion",
+      "displayName": "MyDesk Fusion (CAD/CAM/CAE)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/fusion",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "fusion",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
       }
     },
     {
@@ -82,6 +106,18 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "MYDESK_PRODUCT": "civil",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "infra",
+      "displayName": "MyDesk Infra (InfraWorks)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/infra",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "infra",
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON"
       }
@@ -111,6 +147,30 @@
       }
     },
     {
+      "name": "studio",
+      "displayName": "MyDesk Studio (3ds Max)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/studio",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "studio",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "surface",
+      "displayName": "MyDesk Surface (Alias)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/surface",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "surface",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "mill",
       "displayName": "MyDesk Mill (PowerMill-class CAM)",
       "generator": "Ninja",
@@ -130,6 +190,18 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "MYDESK_PRODUCT": "simulation",
+        "MYDESK_BUILD_DESKTOP": "ON",
+        "MYDESK_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "vault",
+      "displayName": "MyDesk Vault (PDM)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/vault",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MYDESK_PRODUCT": "vault",
         "MYDESK_BUILD_DESKTOP": "ON",
         "MYDESK_BUILD_TESTS": "ON"
       }
@@ -170,13 +242,19 @@
     { "name": "draft-macos-release", "configurePreset": "draft-macos-release" },
     { "name": "release", "configurePreset": "release" },
     { "name": "headless", "configurePreset": "headless" },
+    { "name": "draft-lt", "configurePreset": "draft-lt" },
     { "name": "mechanical", "configurePreset": "mechanical" },
+    { "name": "fusion", "configurePreset": "fusion" },
     { "name": "buildings", "configurePreset": "buildings" },
     { "name": "civil", "configurePreset": "civil" },
+    { "name": "infra", "configurePreset": "infra" },
     { "name": "coordinate", "configurePreset": "coordinate" },
     { "name": "animate", "configurePreset": "animate" },
+    { "name": "studio", "configurePreset": "studio" },
+    { "name": "surface", "configurePreset": "surface" },
     { "name": "mill", "configurePreset": "mill" },
     { "name": "simulation", "configurePreset": "simulation" },
+    { "name": "vault", "configurePreset": "vault" },
     { "name": "ci-macos", "configurePreset": "ci-macos" },
     { "name": "ci-linux", "configurePreset": "ci-linux" },
     { "name": "ci-windows", "configurePreset": "ci-windows" }
@@ -193,8 +271,33 @@
       "output": { "outputOnFailure": true }
     },
     {
+      "name": "draft-lt",
+      "configurePreset": "draft-lt",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "mechanical",
+      "configurePreset": "mechanical",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "fusion",
+      "configurePreset": "fusion",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "buildings",
+      "configurePreset": "buildings",
+      "output": { "outputOnFailure": true }
+    },
+    {
       "name": "civil",
       "configurePreset": "civil",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "infra",
+      "configurePreset": "infra",
       "output": { "outputOnFailure": true }
     },
     {
@@ -208,6 +311,16 @@
       "output": { "outputOnFailure": true }
     },
     {
+      "name": "studio",
+      "configurePreset": "studio",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "surface",
+      "configurePreset": "surface",
+      "output": { "outputOnFailure": true }
+    },
+    {
       "name": "mill",
       "configurePreset": "mill",
       "output": { "outputOnFailure": true }
@@ -215,6 +328,11 @@
     {
       "name": "simulation",
       "configurePreset": "simulation",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "vault",
+      "configurePreset": "vault",
       "output": { "outputOnFailure": true }
     }
   ]

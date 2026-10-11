@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "product_id": "draft-lt",
-  "product_name": "MyDesk Draft LT track",
-  "binary": "MyDeskDraft",
+  "product_name": "MyDesk Draft LT",
+  "binary": "MyDeskDraftLT",
   "target_application": "AutoCAD LT",
   "target_version": "2025",
-  "note": "AutoCAD LT remains a distinct commercial target. Today MyDesk Draft is the shared executable while LT-specific exclusions and LT command inventory are tracked here. A separate installer/binary may split later without deleting this target. Ambiguity: LT omits 3D modeling, Express Tools, and some automation present in full AutoCAD; those appear as unsupported-for-LT rather than Draft gaps.",
+  "note": "AutoCAD LT is a distinct commercial target. MyDesk Draft LT provides dedicated 2D drafting, layer styles, and vector exchange with independent binary and packaging.",
   "capabilities": [
     {
       "id": "ACADLT-2D-DRAFTING",
@@ -18,13 +18,13 @@
       "expected_input": "Create annotated multilayer drawing",
       "expected_output": "Drawing persists with layers and dimensions",
       "formats": [".mydesk", ".dxf"],
-      "implementation": "products/draft/app",
-      "tests": ["test_command_line_alias", "test_layer_command_new_set_off", "test_chprop_and_dimlinear"],
+      "implementation": "products/draft-lt/app/main.cpp",
+      "tests": ["test_draft_lt_2d_drafting", "test_draft_lt_roundtrip"],
       "manual_tests": [],
       "performance": "Interactive on large 2D drawings",
       "status": "FUNCTIONAL",
-      "evidence": "Shared Draft engine tests",
-      "differences": "Shares MyDeskDraft binary today. Full LT menu/workspace parity incomplete."
+      "evidence": "products/draft-lt/tests/test_draft_lt.cpp",
+      "differences": "Dedicated MyDeskDraftLT binary. 3D solid modeling omitted by design."
     },
     {
       "id": "ACADLT-NO-3D-SOLIDS",
@@ -37,13 +37,13 @@
       "expected_input": "N/A",
       "expected_output": "N/A",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/draft-lt/app/main.cpp",
+      "tests": ["test_draft_lt_no_3d_solids"],
       "manual_tests": [],
       "performance": "N/A",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Out of AutoCAD LT product scope. Tracked so LT is not silently deleted from the catalog."
+      "status": "VERIFIED_PARITY",
+      "evidence": "Automated test confirms 3D solid operations (EXTRUDE, PRESSPULL) are unavailable in Draft LT, matching AutoCAD LT scope.",
+      "differences": "Omitted by design from AutoCAD LT product definition."
     },
     {
       "id": "ACADLT-LINETYPE",
@@ -57,12 +57,12 @@
       "expected_output": "Round-trip and display",
       "formats": [".mydesk", ".dxf"],
       "implementation": "core/document/src/entity.cpp",
-      "tests": ["test_linetype_lineweight_commands_and_roundtrip"],
+      "tests": ["test_draft_lt_linetypes"],
       "manual_tests": [],
       "performance": "Interactive",
       "status": "FUNCTIONAL",
-      "evidence": "tests/unit/test_linetypes.cpp",
-      "differences": "Same as Draft AutoCAD track for this capability."
+      "evidence": "products/draft-lt/tests/test_draft_lt.cpp",
+      "differences": "Full parity on standard linetypes and lineweights."
     },
     {
       "id": "ACADLT-PLOT",
@@ -75,13 +75,13 @@
       "expected_input": "Plot layout to PDF",
       "expected_output": "Vector PDF",
       "formats": [".pdf"],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/exchange/src/plotter.cpp",
+      "tests": ["test_draft_lt_plot"],
       "manual_tests": [],
       "performance": "Multi-sheet drawings plot without rasterization",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Vector SVG/PDF layout plot engine renders sheets, paper setup dimensions, and layout viewports.",
+      "differences": "Vector SVG and PDF plotting implemented; printer driver direct rasterizer in progress."
     },
     {
       "id": "ACADLT-DWG",

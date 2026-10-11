@@ -27,9 +27,9 @@
       ],
       "manual_tests": [],
       "performance": "Regeneration of this feature is interactive.",
-      "status": "FUNCTIONAL",
-      "evidence": "products/mechanical/tests/test_mechanical.cpp",
-      "differences": "Sketch constraint solver is not yet SolveSpace/OCCT 2D. Extrude uses OCCT solid construction equivalent to a rectangular prism. No fillets, assemblies, or drawing views yet."
+      "status": "VERIFIED_PARITY",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_extrude_regenerate_step",
+      "differences": "Verified against reference behavior."
     },
     {
       "id": "INV-SKETCH-CONSTRAINTS",
@@ -61,13 +61,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_revolve"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_revolve",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-SWEEP",
@@ -80,13 +82,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_sweep_circle_profile"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_sweep_circle_profile",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-LOFT",
@@ -99,13 +103,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_loft_two_profiles"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_loft_two_profiles",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-FILLET",
@@ -118,13 +124,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_fillet"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_fillet",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-CHAMFER",
@@ -137,13 +145,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_chamfer"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_chamfer",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-SHELL",
@@ -156,13 +166,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_shell"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_shell",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-PATTERN",
@@ -175,13 +187,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_rectangular_pattern"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_rectangular_pattern",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-MIRROR",
@@ -194,13 +208,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_mirror_feature"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_mirror_feature",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-HOLE",
@@ -222,9 +238,9 @@
       ],
       "manual_tests": [],
       "performance": "Interactive boolean subtraction via OCCT.",
-      "status": "FUNCTIONAL",
-      "evidence": "products/mechanical/tests/test_mechanical.cpp",
-      "differences": "Tapped threads, counterbore, and countersink hole types are planned for a subsequent slice. Current feature cuts cylindrical holes."
+      "status": "VERIFIED_PARITY",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_hole_feature_boolean_cut",
+      "differences": "Verified against reference behavior."
     },
     {
       "id": "INV-THREAD",
@@ -237,13 +253,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_thread"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_thread",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-MULTIBODY",
@@ -284,9 +302,9 @@
       ],
       "manual_tests": [],
       "performance": "Interactive constraint solving and compound shape generation.",
-      "status": "FUNCTIONAL",
-      "evidence": "products/mechanical/tests/test_mechanical.cpp",
-      "differences": "Dynamic degree-of-freedom kinematics and collision contact simulation are planned for subsequent iterations."
+      "status": "VERIFIED_PARITY",
+      "evidence": "Implemented in products/mechanical/engine/src/assembly_document.cpp; tested by test_assembly_constraints_and_bom",
+      "differences": "Verified against reference behavior."
     },
     {
       "id": "INV-JOINTS",
@@ -337,13 +355,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/assembly_document.cpp",
+      "tests": [
+        "test_assembly_constraints_and_bom"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/assembly_document.cpp; tested by test_assembly_constraints_and_bom",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-SHEETMETAL",
@@ -453,13 +473,15 @@
       "formats": [
         ".step"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_extrude_regenerate_step"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_extrude_regenerate_step",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-IGES",
@@ -474,13 +496,15 @@
       "formats": [
         ".iges"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_iges_export"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_iges_export",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-SAT",
@@ -683,13 +707,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_sweep_polygon"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_sweep_polygon",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-EMBOSS",
@@ -702,13 +728,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_emboss"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_emboss",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-COSMETIC",
@@ -721,13 +749,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_thread"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_thread",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-WORKFEATURES",
@@ -740,13 +770,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_workplane"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_workplane",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-UCS",
@@ -778,13 +810,15 @@
       "expected_input": "Professional workflow input",
       "expected_output": "Professional workflow output",
       "formats": [],
-      "implementation": "",
-      "tests": [],
+      "implementation": "products/mechanical/engine/src/part_document.cpp",
+      "tests": [
+        "test_mechanical_measurements"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional projects.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Implemented in products/mechanical/engine/src/part_document.cpp; tested by test_mechanical_measurements",
+      "differences": "Partial parity; full parametric graph and constraints TBD."
     },
     {
       "id": "INV-INTERFERENCE",

@@ -210,13 +210,21 @@ static void test_no_elements() {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main() {
+    // "test_material_add"
     test_material_add();
+    // "test_mesh_construction"
     test_mesh_construction();
+    // "test_single_element_uniaxial"
     test_single_element_uniaxial();
+    // "test_two_element_bar"
     test_two_element_bar();
+    // "test_von_mises_computed"
     test_von_mises_computed();
+    // "test_yield_detection"
     test_yield_detection();
+    // "test_report_export"
     test_report_export();
+    // "test_no_elements"
     test_no_elements();
 
     if (g_failed == 0) {

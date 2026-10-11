@@ -183,6 +183,129 @@ CommandResult handleChamfer(CommandContext& ctx, const std::vector<std::string>&
     return {result.ok, result.message, std::nullopt};
 }
 
+CommandResult handleMirror(CommandContext& ctx, const std::vector<std::string>& args) {
+    ctx.clearInputs();
+    bool eraseSource = false;
+    for (const auto& arg : args) {
+        const auto tok = normalizeToken(arg);
+        if (tok == "Y" || tok == "YES") {
+            eraseSource = true;
+            continue;
+        }
+        if (tok == "N" || tok == "NO") {
+            eraseSource = false;
+            continue;
+        }
+        std::string err;
+        if (!pushCoordinate(ctx, arg, err)) {
+            return errMsg("MIRROR: " + err);
+        }
+    }
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        for (const auto& ent : ctx.document().entities()) {
+            if (ctx.document().isEntitySelectable(ent)) {
+                selected.push_back(ent.id);
+            }
+        }
+    }
+    if (selected.empty()) {
+        return errMsg("MIRROR: no objects selected");
+    }
+    if (ctx.points().size() < 2) {
+        ctx.setPrompt(ctx.points().empty() ? "Specify first point of mirror line:"
+                                           : "Specify second point of mirror line:");
+        return okMsg("MIRROR: need 2 points for mirror line");
+    }
+    auto result = modify::mirrorEntities(ctx.document(), selected, ctx.points()[0],
+                                         ctx.points()[1], eraseSource);
+    ctx.clearInputs();
+    ctx.setPrompt("");
+    return {result.ok, result.message, std::nullopt};
+}
+
+CommandResult handleArray(CommandContext& ctx, const std::vector<std::string>& args) {
+    bool isPolar = false;
+    std::vector<double> numbers;
+    std::vector<geometry::Vec2> points;
+    for (const auto& arg : args) {
+        const auto tok = normalizeToken(arg);
+        if (tok == "P" || tok == "POLAR") {
+            isPolar = true;
+            continue;
+        }
+        if (tok == "R" || tok == "RECT" || tok == "RECTANGULAR") {
+            isPolar = false;
+            continue;
+        }
+        if (looksLikeCoordinate(arg)) {
+            geometry::Vec2 pt;
+            std::string err;
+            if (readUserPoint(ctx, arg, pt, err)) {
+                points.push_back(pt);
+            }
+        } else {
+            double n = 0.0;
+            if (parseNumberToken(arg, n)) {
+                numbers.push_back(n);
+            }
+        }
+    }
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        for (const auto& ent : ctx.document().entities()) {
+            if (ctx.document().isEntitySelectable(ent)) {
+                selected.push_back(ent.id);
+            }
+        }
+    }
+    if (selected.empty()) {
+        return errMsg("ARRAY: no objects selected");
+    }
+
+    if (isPolar) {
+        geometry::Vec2 center = points.empty() ? geometry::Vec2{0, 0} : points.front();
+        int count = numbers.empty() ? 4 : static_cast<int>(numbers[0]);
+        double angle = numbers.size() >= 2 ? numbers[1] : 360.0;
+        auto res = modify::arrayPolar(ctx.document(), selected, center, count, angle);
+        return {res.ok, res.message, std::nullopt};
+    } else {
+        int rows = numbers.size() >= 1 ? static_cast<int>(numbers[0]) : 2;
+        int cols = numbers.size() >= 2 ? static_cast<int>(numbers[1]) : 2;
+        double rowSpacing = numbers.size() >= 3 ? numbers[2] : 10.0;
+        double colSpacing = numbers.size() >= 4 ? numbers[3] : 10.0;
+        auto res = modify::arrayRectangular(ctx.document(), selected, rows, cols, rowSpacing, colSpacing);
+        return {res.ok, res.message, std::nullopt};
+    }
+}
+
+CommandResult handleStretch(CommandContext& ctx, const std::vector<std::string>& args) {
+    std::vector<geometry::Vec2> pts;
+    for (const auto& arg : args) {
+        if (looksLikeCoordinate(arg)) {
+            geometry::Vec2 pt;
+            std::string err;
+            if (readUserPoint(ctx, arg, pt, err)) {
+                pts.push_back(pt);
+            }
+        }
+    }
+    if (pts.size() < 3) {
+        ctx.setPrompt("Specify first corner, second corner, displacement vector:");
+        return okMsg("STRETCH: specify window min, window max, and displacement point");
+    }
+    auto selected = ctx.document().selectionOrdered();
+    if (selected.empty()) {
+        for (const auto& ent : ctx.document().entities()) {
+            if (ctx.document().isEntitySelectable(ent)) {
+                selected.push_back(ent.id);
+            }
+        }
+    }
+    auto res = modify::stretchEntities(ctx.document(), selected, pts[0], pts[1], pts[2]);
+    return {res.ok, res.message, std::nullopt};
+}
+
 } // namespace
 
 void registerModifyCommands(CommandRegistry& registry) {
@@ -233,6 +356,30 @@ void registerModifyCommands(CommandRegistry& registry) {
         .status = CommandStatus::ImplementedTested,
         .notes = "Chamfer two LINEs with distances",
         .handler = handleChamfer,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "MIRROR",
+        .label = "Mirror",
+        .aliases = {"MI"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Reflect selection across mirror line",
+        .handler = handleMirror,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "ARRAY",
+        .label = "Array",
+        .aliases = {"AR", "ARRAYRECT", "ARRAYPOLAR"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Rectangular or polar array copies of selection",
+        .handler = handleArray,
+    });
+    registry.registerCommand(CommandSpec{
+        .id = "STRETCH",
+        .label = "Stretch",
+        .aliases = {"S"},
+        .status = CommandStatus::ImplementedTested,
+        .notes = "Stretch vertices within crossing window",
+        .handler = handleStretch,
     });
 }
 

@@ -231,23 +231,37 @@ static void test_timeline() {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main() {
+    // "test_anim_curve_constant"
     test_anim_curve_constant();
+    // "test_anim_curve_linear_approx"
     test_anim_curve_linear_approx();
+    // "test_anim_curve_extrapolation"
     test_anim_curve_extrapolation();
+    // "test_anim_curve_replace_key"
     test_anim_curve_replace_key();
 
+    // "test_scene_hierarchy"
     test_scene_hierarchy();
+    // "test_world_matrix_translation"
     test_world_matrix_translation();
+    // "test_animated_node_translation"
     test_animated_node_translation();
 
+    // "test_mesh_add_and_retrieve"
     test_mesh_add_and_retrieve();
+    // "test_skinned_identity_deform"
     test_skinned_identity_deform();
+    // "test_skinned_translated_joint"
     test_skinned_translated_joint();
 
+    // "test_usda_export_header"
     test_usda_export_header();
+    // "test_usda_export_mesh"
     test_usda_export_mesh();
+    // "test_alembic_magic"
     test_alembic_magic();
 
+    // "test_timeline"
     test_timeline();
 
     if (g_failed == 0) {

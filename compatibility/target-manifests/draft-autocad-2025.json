@@ -792,13 +792,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/modify/src/modify_ops.cpp",
+      "tests": [
+        "test_mirror_and_stretch"
+      ],
       "manual_tests": [],
       "performance": "Linear in selected vertices.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Commands are recognized and rejected as not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "MIRROR reflects entities across two-point axis with optional eraseSource; STRETCH translates vertices within crossing window.",
+      "differences": "Mirror supported for LINE, CIRCLE, ARC, PLINE, TEXT, DIM, INSERT. Stretch supported for LINE endpoints and PLINE vertices."
     },
     {
       "id": "ACAD-ARRAY",
@@ -813,13 +815,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/modify/src/modify_ops.cpp",
+      "tests": [
+        "test_array_rectangular_and_polar"
+      ],
       "manual_tests": [],
       "performance": "Creation is linear in copy count.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "Rectangular array replicates grid across rows/columns; polar array rotates items around center across total angle.",
+      "differences": "Associative array parametric blocks are evaluated into copies in current release; path array not yet supported."
     },
     {
       "id": "ACAD-CONSTRAINTS",
@@ -1005,13 +1009,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_draft_audit_purge_matchprop_qselect"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional drawings.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "PURGE detects unreferenced block definitions and removes them while preserving blocks referenced by drawing inserts.",
+      "differences": "Block definition purge verified; layers and linetypes purge scheduled."
     },
     {
       "id": "ACAD-AUDIT",
@@ -1026,13 +1032,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_draft_audit_purge_matchprop_qselect"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional drawings.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "AUDIT evaluates entity, layer, and block database consistency and emits diagnostic audit report.",
+      "differences": "Integrity evaluation verified; automatic recovery journal integration ongoing."
     },
     {
       "id": "ACAD-SHEETSET",
@@ -1320,13 +1328,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_draft_audit_purge_matchprop_qselect"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional drawings.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "MATCHPROP transfers layerId, colorArgb, linetype, and lineweight overrides from primary selection to subsequent entities.",
+      "differences": "Direct property propagation verified; text style and hatch pattern matching planned."
     },
     {
       "id": "ACAD-QUICKSELECT",
@@ -1341,13 +1351,15 @@
       "formats": [
         ".mydesk"
       ],
-      "implementation": "",
-      "tests": [],
+      "implementation": "core/commands/src/draft_commands.cpp",
+      "tests": [
+        "test_draft_audit_purge_matchprop_qselect"
+      ],
       "manual_tests": [],
       "performance": "Must remain interactive on professional drawings.",
-      "status": "NOT_STARTED",
-      "evidence": "",
-      "differences": "Not implemented."
+      "status": "FUNCTIONAL",
+      "evidence": "QSELECT filters drawing database by entity type (LINE, CIRCLE, ARC, PLINE, TEXT, INSERT) and updates active selection set.",
+      "differences": "Entity type filter verified; property value range filter expanding."
     }
   ]
 }
