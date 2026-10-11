@@ -5,7 +5,7 @@
   "binary": "MyDeskFusion",
   "target_application": "Fusion",
   "target_version": "current",
-  "note": "MyDesk Fusion is a partial integrated parametric design, direct modeling, CAM, and electronics implementation targeting Autodesk Fusion. FUNCTIONAL entries describe only their explicitly tested subsets and are not complete parity.",
+  "note": "MyDesk Fusion is a partial integrated parametric design, direct modeling, CAM, electronics, and Qt desktop implementation targeting Autodesk Fusion. FUNCTIONAL entries describe only their explicitly tested subsets and are not complete parity.",
   "capabilities": [
     {
       "id": "FUSION-PARAMETRIC-TIMELINE",
@@ -19,12 +19,12 @@
       "expected_output": "Parametric solid body evaluated with correct volume",
       "formats": [".myfusion"],
       "implementation": "products/fusion/engine/src/fusion_document.cpp",
-      "tests": ["test_fusion_parametric_timeline"],
+      "tests": ["test_fusion_parametric_timeline", "test_fusion_feature_edit_undo_redo"],
       "manual_tests": [],
       "performance": "Instantaneous evaluation for standard part features",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Rectangle sketch extrusions regenerate as valid OCCT B-rep solids with kernel-derived topology, bounds, volume, and area. General sketches, constraints, topology naming, and most Fusion features remain incomplete."
+      "differences": "Rectangle sketch extrusions regenerate as valid OCCT B-rep solids with kernel-derived topology, bounds, volume, and area. Supported feature parameters are editable with validation and undo/redo. General sketches, constraints, topology naming, and most Fusion features remain incomplete."
     },
     {
       "id": "FUSION-DIRECT-MODELING",
@@ -114,12 +114,31 @@
       "expected_output": "Lossless serialization round-trip",
       "formats": [".myfusion"],
       "implementation": "products/fusion/engine/src/fusion_document.cpp",
-      "tests": ["test_fusion_native_roundtrip"],
+      "tests": ["test_fusion_native_roundtrip", "test_fusion_desktop_workflow"],
       "manual_tests": [],
       "performance": "In-memory JSON serialization",
       "status": "FUNCTIONAL",
       "evidence": "products/fusion/tests/test_fusion.cpp",
-      "differences": "Editable timeline inputs, selected CAM body, and stepdown round-trip and regenerate OCCT geometry; schema versioning, structural parsing, atomic file writes, and complete project state remain incomplete."
+      "differences": "Editable timeline inputs, selected CAM body, stepdown, and cursor round-trip and regenerate OCCT geometry; desktop project writes are atomic. Schema versioning, structural parsing, general B-rep payloads, and complete project state remain incomplete."
+    },
+    {
+      "id": "FUSION-DESKTOP-WORKFLOW",
+      "target_application": "Fusion",
+      "target_version": "current",
+      "category": "desktop",
+      "name": "Integrated design and manufacturing desktop workflow",
+      "command": "BROWSER / TIMELINE / PROPERTIES / MANUFACTURE",
+      "reference_behavior": "A persistent desktop workspace exposes component structure, chronological features, editable properties, viewport selection, manufacturing paths, undo/redo, persistence, and export.",
+      "expected_input": "Rectangle sketch, extrude parameters, CAM pocket parameters, PCB outline, edits, and file paths",
+      "expected_output": "Regenerated OCCT body, visible toolpath, recoverable edits, reopened native project, and posted G-code",
+      "formats": [".myfusion", ".nc", ".gcode"],
+      "implementation": "products/fusion/app/main_window.cpp",
+      "tests": ["test_fusion_desktop_workflow"],
+      "manual_tests": [],
+      "performance": "Interactive for the currently supported prismatic feature set",
+      "status": "FUNCTIONAL",
+      "evidence": "products/fusion/app/tests/test_fusion_ui.cpp",
+      "differences": "Verified only for the supported rectangle/extrude, planar push-pull, rectangular 2D pocket, and PCB-outline workflow. The viewport uses a body envelope and lacks arbitrary face selection, general B-rep tessellation, assemblies, drawings, simulation, cloud collaboration, and the wider Fusion feature set."
     }
   ]
 }

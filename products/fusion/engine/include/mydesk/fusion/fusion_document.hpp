@@ -92,7 +92,7 @@ public:
     FusionDocument();
 
     [[nodiscard]] const std::string& name() const { return name_; }
-    void setName(std::string name) { name_ = std::move(name); }
+    void setName(std::string name);
 
     // Timeline management
     FeatureId addSketchRectangle(std::string name, double width, double height);
@@ -106,6 +106,14 @@ public:
     [[nodiscard]] std::size_t timelineCursor() const { return timelineCursor_; }
     void setTimelineCursor(std::size_t cursor);
     void suppressFeature(FeatureId id, bool suppress);
+    bool renameFeature(FeatureId id, std::string name);
+    bool setFeatureParameter(FeatureId id, std::string_view parameter, double value);
+
+    [[nodiscard]] bool canUndo() const { return !undo_.empty(); }
+    [[nodiscard]] bool canRedo() const { return !redo_.empty(); }
+    bool undo();
+    bool redo();
+    void clearHistory();
 
     // Regeneration
     bool regenerate();
@@ -122,6 +130,17 @@ public:
     static FusionDocument deserializeNative(std::string_view json, std::string* error = nullptr);
 
 private:
+    struct Snapshot {
+        std::string name;
+        std::vector<TimelineEntry> timeline;
+        std::size_t timelineCursor{0};
+        FeatureId nextId{1};
+    };
+
+    [[nodiscard]] Snapshot snapshot() const;
+    void restore(const Snapshot& state);
+    void checkpoint();
+
     std::string name_{"Untitled_Fusion"};
     std::vector<TimelineEntry> timeline_;
     std::size_t timelineCursor_{0};
@@ -131,6 +150,8 @@ private:
     std::vector<CAMSetup> camSetups_;
     std::optional<ECADBoard> ecadBoard_;
     std::string lastError_;
+    std::vector<Snapshot> undo_;
+    std::vector<Snapshot> redo_;
 };
 
 } // namespace mydesk::fusion

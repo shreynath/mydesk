@@ -126,7 +126,54 @@ std::vector<double> passCoordinates(double minimum, double maximum, double spaci
 
 FusionDocument::FusionDocument() = default;
 
+FusionDocument::Snapshot FusionDocument::snapshot() const {
+    return {name_, timeline_, timelineCursor_, nextId_};
+}
+
+void FusionDocument::restore(const Snapshot& state) {
+    name_ = state.name;
+    timeline_ = state.timeline;
+    timelineCursor_ = state.timelineCursor;
+    nextId_ = state.nextId;
+    regenerate();
+}
+
+void FusionDocument::checkpoint() {
+    undo_.push_back(snapshot());
+    redo_.clear();
+}
+
+void FusionDocument::setName(std::string name) {
+    if (name == name_) return;
+    checkpoint();
+    name_ = std::move(name);
+}
+
+void FusionDocument::clearHistory() {
+    undo_.clear();
+    redo_.clear();
+}
+
+bool FusionDocument::undo() {
+    if (undo_.empty()) return false;
+    redo_.push_back(snapshot());
+    const auto state = undo_.back();
+    undo_.pop_back();
+    restore(state);
+    return true;
+}
+
+bool FusionDocument::redo() {
+    if (redo_.empty()) return false;
+    undo_.push_back(snapshot());
+    const auto state = redo_.back();
+    redo_.pop_back();
+    restore(state);
+    return true;
+}
+
 FeatureId FusionDocument::addSketchRectangle(std::string name, double width, double height) {
+    checkpoint();
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::Sketch;
@@ -140,6 +187,7 @@ FeatureId FusionDocument::addSketchRectangle(std::string name, double width, dou
 }
 
 FeatureId FusionDocument::addExtrude(std::string name, FeatureId sketchId, double depth) {
+    checkpoint();
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::Extrude;
@@ -153,6 +201,7 @@ FeatureId FusionDocument::addExtrude(std::string name, FeatureId sketchId, doubl
 }
 
 FeatureId FusionDocument::addDirectPushPull(std::string name, FeatureId solidId, double offset) {
+    checkpoint();
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::DirectPushPull;
@@ -167,6 +216,7 @@ FeatureId FusionDocument::addDirectPushPull(std::string name, FeatureId solidId,
 
 FeatureId FusionDocument::addCAMPocket(std::string name, FeatureId solidId, double toolDia,
                                        double depth, double stepover, double stepdown) {
+    checkpoint();
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::CAMOperation;
@@ -183,6 +233,7 @@ FeatureId FusionDocument::addCAMPocket(std::string name, FeatureId solidId, doub
 }
 
 FeatureId FusionDocument::addECADBoard(std::string name, double width, double height, double thickness) {
+    checkpoint();
     TimelineEntry e;
     e.id = nextId_++;
     e.kind = TimelineKind::ECADBoard;
@@ -197,18 +248,58 @@ FeatureId FusionDocument::addECADBoard(std::string name, double width, double he
 }
 
 void FusionDocument::setTimelineCursor(std::size_t cursor) {
-    timelineCursor_ = std::min(cursor, timeline_.size());
+    const auto bounded = std::min(cursor, timeline_.size());
+    if (bounded == timelineCursor_) return;
+    checkpoint();
+    timelineCursor_ = bounded;
     regenerate();
 }
 
 void FusionDocument::suppressFeature(FeatureId id, bool suppress) {
     for (auto& e : timeline_) {
         if (e.id == id) {
+            if (e.suppressed == suppress) return;
+            checkpoint();
             e.suppressed = suppress;
             break;
         }
     }
     regenerate();
+}
+
+bool FusionDocument::renameFeature(FeatureId id, std::string name) {
+    if (name.empty()) return false;
+    for (auto& entry : timeline_) {
+        if (entry.id != id) continue;
+        if (entry.name == name) return true;
+        checkpoint();
+        entry.name = std::move(name);
+        regenerate();
+        return true;
+    }
+    return false;
+}
+
+bool FusionDocument::setFeatureParameter(FeatureId id, std::string_view parameter, double value) {
+    if (!std::isfinite(value)) return false;
+    for (auto& entry : timeline_) {
+        if (entry.id != id) continue;
+        const auto found = entry.parameters.find(std::string(parameter));
+        if (found == entry.parameters.end()) return false;
+        if (found->second == value) return true;
+        const auto before = snapshot();
+        found->second = value;
+        if (!regenerate()) {
+            const std::string error = lastError_;
+            restore(before);
+            lastError_ = error;
+            return false;
+        }
+        undo_.push_back(before);
+        redo_.clear();
+        return true;
+    }
+    return false;
 }
 
 bool FusionDocument::regenerate() {
@@ -403,6 +494,7 @@ std::string FusionDocument::serializeNative() const {
     oss << "{\n";
     oss << "  \"format\": \"mydesk-fusion\",\n";
     oss << "  \"name\": \"" << escapeJson(name_) << "\",\n";
+    oss << "  \"timelineCursor\": " << timelineCursor_ << ",\n";
     oss << "  \"timeline\": [\n";
     for (std::size_t i = 0; i < timeline_.size(); ++i) {
         const auto& e = timeline_[i];
@@ -431,6 +523,8 @@ FusionDocument FusionDocument::deserializeNative(std::string_view json, std::str
         return doc;
     }
     extractString(json, "name", doc.name_);
+    double cursor = std::numeric_limits<double>::quiet_NaN();
+    extractNumber(json, "timelineCursor", cursor);
 
     // Parse timeline entries
     std::size_t search = 0;
@@ -448,7 +542,12 @@ FusionDocument FusionDocument::deserializeNative(std::string_view json, std::str
             entry.kind = static_cast<TimelineKind>(kind);
         }
         extractString(json.substr(idPos, 120), "name", entry.name);
-        entry.suppressed = (json.find("\"suppressed\": true", idPos) != std::string_view::npos);
+        const auto paramsEnd = json.find('}', idPos);
+        const auto objectEnd = paramsEnd == std::string_view::npos
+            ? std::string_view::npos : json.find('}', paramsEnd + 1);
+        const auto entryJson = json.substr(idPos, objectEnd == std::string_view::npos
+            ? std::string_view::npos : objectEnd - idPos + 1);
+        entry.suppressed = (entryJson.find("\"suppressed\": true") != std::string_view::npos);
 
         const auto paramsPos = json.find("\"params\":", idPos);
         if (paramsPos != std::string_view::npos) {
@@ -474,8 +573,11 @@ FusionDocument FusionDocument::deserializeNative(std::string_view json, std::str
         doc.nextId_ = std::max(doc.nextId_, entry.id + 1);
         search = idPos + 10;
     }
-    doc.timelineCursor_ = doc.timeline_.size();
+    doc.timelineCursor_ = std::isfinite(cursor)
+        ? std::min(static_cast<std::size_t>(std::max(0.0, cursor)), doc.timeline_.size())
+        : doc.timeline_.size();
     doc.regenerate();
+    doc.clearHistory();
     return doc;
 }
 

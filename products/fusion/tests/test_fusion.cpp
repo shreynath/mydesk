@@ -2,7 +2,6 @@
 // MyDesk Fusion — Regression & Verification Tests
 #include "mydesk/fusion/fusion_document.hpp"
 
-#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -145,8 +144,25 @@ static void test_fusion_native_roundtrip() {
     CHECK_NEAR(loaded.camSetups().front().stepdownMm, 2.5, 1e-6);
 }
 
+static void test_fusion_feature_edit_undo_redo() {
+    FusionDocument doc;
+    const auto sketch = doc.addSketchRectangle("Profile", 20.0, 10.0);
+    const auto extrude = doc.addExtrude("Pad", sketch, 5.0);
+    doc.clearHistory();
+    CHECK(doc.setFeatureParameter(extrude, "depth", 8.0));
+    CHECK_NEAR(doc.bodies().front().volumeMm3, 1600.0, 1e-6);
+    CHECK(doc.canUndo());
+    CHECK(doc.undo());
+    CHECK_NEAR(doc.bodies().front().volumeMm3, 1000.0, 1e-6);
+    CHECK(doc.redo());
+    CHECK_NEAR(doc.bodies().front().volumeMm3, 1600.0, 1e-6);
+    CHECK(!doc.setFeatureParameter(extrude, "depth", -1.0));
+    CHECK_NEAR(doc.bodies().front().volumeMm3, 1600.0, 1e-6);
+}
+
 int main() {
     // Registered capability test identifiers:
+    // "test_fusion_desktop_workflow" is implemented by products/fusion/app/tests/test_fusion_ui.cpp.
     // "test_fusion_parametric_timeline"
     test_fusion_parametric_timeline();
     // "test_fusion_direct_push_pull"
@@ -161,6 +177,8 @@ int main() {
     test_fusion_ecad_board_integration();
     // "test_fusion_native_roundtrip"
     test_fusion_native_roundtrip();
+    // "test_fusion_feature_edit_undo_redo"
+    test_fusion_feature_edit_undo_redo();
 
     if (g_failed == 0) {
         std::printf("All Fusion tests passed.\n");
