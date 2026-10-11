@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <variant>
 #include <vector>
 
 namespace mydesk::coordinate {
@@ -127,6 +128,8 @@ public:
     [[nodiscard]] const AggregatedModel* findModel(ModelId id) const;
     [[nodiscard]] const CoordinationElement* findElement(ElementId id) const;
     [[nodiscard]] const std::vector<AggregatedModel>& models() const { return models_; }
+    bool updateElement(ElementId elementId, std::string name, std::string category,
+                       const BoundingBox3D& bounds);
 
     ClashTestId createClashTest(std::string name, ClashType type, double tolerance = 0.001,
                                 double clearance = 0.05);
@@ -139,6 +142,7 @@ public:
     [[nodiscard]] bool canUndo() const { return !undoHistory_.empty(); }
     [[nodiscard]] bool canRedo() const { return !redoHistory_.empty(); }
     [[nodiscard]] const ClashTest* findClashTest(ClashTestId testId) const;
+    [[nodiscard]] const std::vector<ClashTest>& clashTests() const { return clashTests_; }
 
     [[nodiscard]] std::string exportBcfXml() const;
     [[nodiscard]] std::string serializeNative() const;
@@ -161,8 +165,20 @@ private:
         std::string beforeComments;
         std::string afterComments;
     };
-    std::vector<ReviewChange> undoHistory_;
-    std::vector<ReviewChange> redoHistory_;
+    struct ElementChange {
+        ElementId elementId{0};
+        std::string beforeName;
+        std::string afterName;
+        std::string beforeCategory;
+        std::string afterCategory;
+        BoundingBox3D beforeBounds;
+        BoundingBox3D afterBounds;
+        std::optional<OrientedBox3D> beforeOrientedBounds;
+        std::optional<OrientedBox3D> afterOrientedBounds;
+    };
+    using HistoryChange = std::variant<ReviewChange, ElementChange>;
+    std::vector<HistoryChange> undoHistory_;
+    std::vector<HistoryChange> redoHistory_;
 };
 
 } // namespace mydesk::coordinate

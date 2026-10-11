@@ -62,7 +62,7 @@
       "target_application": "Navisworks",
       "target_version": "2025",
       "category": "interoperability",
-      "name": "BIM Collaboration Format (BCF 2.1 XML) export and complete coordination-session persistence",
+      "name": "BCF VisualizationInfo XML export and native coordination-session persistence",
       "command": "ExportBCF / SaveSession",
       "reference_behavior": "Exports clash viewpoints and component identifiers to industry standard BCF XML structure and roundtrips multi-model coordination state natively.",
       "expected_input": "Coordinated multi-model session with oriented geometry, configured tests, selection sets, clash results, and review state",
@@ -79,7 +79,7 @@
       "performance": "Instantaneous XML export.",
       "status": "FUNCTIONAL",
       "evidence": "products/coordinate/tests/test_coordinate.cpp",
-      "differences": "Embedded PNG snapshots and ZIP-based multi-file BCF archive packaging are planned for the GUI release."
+      "differences": "Export is a standalone VisualizationInfo XML document, not a complete BCF topic/markup ZIP archive. Embedded PNG snapshots, topic metadata, and archive import are not implemented."
     },
     {
       "id": "NW-CLASH-REVIEW-WORKFLOW",
@@ -104,6 +104,35 @@
       "status": "FUNCTIONAL",
       "evidence": "products/coordinate/tests/test_coordinate.cpp",
       "differences": "Assignee, due date, batch disposition, external issue synchronization, and persisted undo history are not implemented."
+    },
+    {
+      "id": "NW-DESKTOP-COORDINATION-WORKSPACE",
+      "target_application": "Navisworks",
+      "target_version": "2025",
+      "category": "interface",
+      "name": "Interactive federated-model desktop coordination workspace",
+      "command": "MyDeskCoordinate desktop application",
+      "reference_behavior": "Provides persistent model hierarchy, an interactive 3D coordination viewport, selection and editable properties, Clash Detective setup/results/review, undo/redo, and document/export commands.",
+      "expected_input": "Two federated model records containing overlapping coordination elements and a configured hard clash test",
+      "expected_output": "The hierarchy and projected geometry are visible and selectable; engine-backed properties can be edited and undone; clash results appear for review; the native session can be saved and reopened",
+      "formats": [
+        ".mydesk-coord",
+        ".xml",
+        ".csv"
+      ],
+      "implementation": [
+        "products/coordinate/app/src/main_window.cpp",
+        "products/coordinate/app/src/coordination_viewport.cpp"
+      ],
+      "tests": [
+        "coordinate Qt document binding and property workflow",
+        "test_element_property_edit_undo_redo"
+      ],
+      "manual_tests": [],
+      "performance": "Viewport repaints projected box faces directly and is intended for current small coordination-box data sets; large-model GPU batching has not been implemented.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/coordinate/tests/test_coordinate_ui.cpp; products/coordinate/tests/test_coordinate.cpp",
+      "differences": "Source paths are federated but IFC/NWC/NWD/OBJ/STEP geometry import is not implemented. The viewport renders AABB/OBB coordination geometry with a CPU painter, not production mesh geometry. Section planes, saved viewpoints, measurement/redline tools, selection/search sets, quantification, animation, and renderer plugins are absent."
     }
   ]
 }

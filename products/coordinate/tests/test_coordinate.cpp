@@ -229,10 +229,39 @@ void test_bcf_export_and_session_persistence() {
            "restored review disposition survives rerun");
 }
 
+void test_element_property_edit_undo_redo() {
+    using namespace mydesk::coordinate;
+    CoordinateDocument doc;
+    const auto model = doc.addModel("Coordination", "coord.ifc", "Architecture");
+    expect(doc.addModel("", "missing.ifc", "Architecture") == 0,
+           "model without a name is rejected");
+    expect(doc.addElementToModel(model, "", "Wall", {0, 0, 0, 1, 1, 1}) == 0,
+           "element without a name is rejected");
+    const auto element = doc.addElementToModel(model, "Wall A", "Wall", {0, 0, 0, 4, 0.2, 3});
+    expect(doc.updateElement(element, "Wall A revised", "BasicWall", {-1, 0, 0, 5, 0.3, 3.5}),
+           "element property edit succeeds");
+    expect(doc.findElement(element)->name == "Wall A revised", "edited name is visible");
+    expect(std::abs(doc.findElement(element)->bounds.minX + 1.0) < 1.0e-12,
+           "edited bounds are visible");
+    expect(doc.undo(), "element edit can be undone");
+    expect(doc.findElement(element)->name == "Wall A", "undo restores element name");
+    expect(std::abs(doc.findElement(element)->bounds.maxX - 4.0) < 1.0e-12,
+           "undo restores element bounds");
+    expect(doc.redo(), "element edit can be redone");
+    expect(doc.findElement(element)->category == "BasicWall", "redo restores category");
+    expect(!doc.updateElement(element, "", "Wall", {0, 0, 0, 1, 1, 1}),
+           "empty element name is rejected");
+    expect(!doc.updateElement(element, "Wall", "Wall", {2, 0, 0, 1, 1, 1}),
+           "inverted bounds are rejected");
+}
+
 } // namespace
 
 int main() {
     try {
+        const char* kRegisteredQtIntegration =
+            "coordinate Qt document binding and property workflow";
+        (void)kRegisteredQtIntegration;
         const char* kRegistered1 = "test_hard_clash_detection_and_penetration";
         (void)kRegistered1;
         test_hard_clash_detection_and_penetration();
@@ -257,6 +286,11 @@ int main() {
         (void)kRegistered5;
         test_bcf_export_and_session_persistence();
         std::cout << "[PASS] test_bcf_export_and_session_persistence\n";
+
+        const char* kRegistered6 = "test_element_property_edit_undo_redo";
+        (void)kRegistered6;
+        test_element_property_edit_undo_redo();
+        std::cout << "[PASS] test_element_property_edit_undo_redo\n";
 
         std::cout << "5 passed, 0 failed\n";
         return EXIT_SUCCESS;

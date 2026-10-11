@@ -522,6 +522,9 @@ CoordinateDocument::CoordinateDocument() = default;
 
 ModelId CoordinateDocument::addModel(std::string name, std::string sourcePath,
                                      std::string discipline) {
+    if (name.empty() || discipline.empty()) {
+        return 0;
+    }
     AggregatedModel m;
     m.id = nextModelId_++;
     m.name = std::move(name);
@@ -533,7 +536,7 @@ ModelId CoordinateDocument::addModel(std::string name, std::string sourcePath,
 
 ElementId CoordinateDocument::addElementToModel(ModelId modelId, std::string name,
                                                 std::string category, const BoundingBox3D& bounds) {
-    if (!validBounds(bounds)) {
+    if (name.empty() || category.empty() || !validBounds(bounds)) {
         return 0;
     }
     for (auto& m : models_) {
@@ -554,7 +557,7 @@ ElementId CoordinateDocument::addElementToModel(ModelId modelId, std::string nam
 ElementId CoordinateDocument::addOrientedElementToModel(ModelId modelId, std::string name,
                                                         std::string category,
                                                         const OrientedBox3D& bounds) {
-    if (!bounds.valid()) {
+    if (name.empty() || category.empty() || !bounds.valid()) {
         return 0;
     }
     for (auto& model : models_) {
@@ -591,6 +594,46 @@ const CoordinationElement* CoordinateDocument::findElement(ElementId id) const {
         }
     }
     return nullptr;
+}
+
+bool CoordinateDocument::updateElement(ElementId elementId, std::string name,
+                                       std::string category, const BoundingBox3D& bounds) {
+    if (name.empty() || category.empty() || !validBounds(bounds)) {
+        return false;
+    }
+    for (auto& model : models_) {
+        for (auto& element : model.elements) {
+            if (element.id != elementId) {
+                continue;
+            }
+            if (element.name == name && element.category == category &&
+                element.bounds.minX == bounds.minX && element.bounds.minY == bounds.minY &&
+                element.bounds.minZ == bounds.minZ && element.bounds.maxX == bounds.maxX &&
+                element.bounds.maxY == bounds.maxY && element.bounds.maxZ == bounds.maxZ) {
+                return true;
+            }
+            ElementChange change;
+            change.elementId = elementId;
+            change.beforeName = element.name;
+            change.afterName = name;
+            change.beforeCategory = element.category;
+            change.afterCategory = category;
+            change.beforeBounds = element.bounds;
+            change.afterBounds = bounds;
+            change.beforeOrientedBounds = element.orientedBounds;
+            // Editing extents in the property inspector intentionally converts an OBB to an
+            // axis-aligned coordination primitive. Rotation-aware editing remains explicit.
+            change.afterOrientedBounds.reset();
+            undoHistory_.push_back(change);
+            redoHistory_.clear();
+            element.name = std::move(name);
+            element.category = std::move(category);
+            element.bounds = bounds;
+            element.orientedBounds.reset();
+            return true;
+        }
+    }
+    return false;
 }
 
 ClashTestId CoordinateDocument::createClashTest(std::string name, ClashType type, double tolerance,
@@ -757,8 +800,8 @@ bool CoordinateDocument::setClashResultReview(ClashTestId testId, ClashResultId 
                 if (result.status == status && result.comments == comments) {
                     return true;
                 }
-                undoHistory_.push_back({testId, resultId, result.status, status, result.comments,
-                                        comments});
+                undoHistory_.push_back(ReviewChange{testId, resultId, result.status, status,
+                                                     result.comments, comments});
                 redoHistory_.clear();
                 result.status = status;
                 result.comments = std::move(comments);
@@ -775,13 +818,28 @@ bool CoordinateDocument::undo() {
     }
     const auto change = undoHistory_.back();
     undoHistory_.pop_back();
-    for (auto& test : clashTests_) {
-        for (auto& result : test.results) {
-            if (test.id == change.testId && result.id == change.resultId) {
-                result.status = change.beforeStatus;
-                result.comments = change.beforeComments;
-                redoHistory_.push_back(change);
-                return true;
+    if (const auto* review = std::get_if<ReviewChange>(&change)) {
+        for (auto& test : clashTests_) {
+            for (auto& result : test.results) {
+                if (test.id == review->testId && result.id == review->resultId) {
+                    result.status = review->beforeStatus;
+                    result.comments = review->beforeComments;
+                    redoHistory_.push_back(change);
+                    return true;
+                }
+            }
+        }
+    } else if (const auto* edit = std::get_if<ElementChange>(&change)) {
+        for (auto& model : models_) {
+            for (auto& element : model.elements) {
+                if (element.id == edit->elementId) {
+                    element.name = edit->beforeName;
+                    element.category = edit->beforeCategory;
+                    element.bounds = edit->beforeBounds;
+                    element.orientedBounds = edit->beforeOrientedBounds;
+                    redoHistory_.push_back(change);
+                    return true;
+                }
             }
         }
     }
@@ -794,13 +852,28 @@ bool CoordinateDocument::redo() {
     }
     const auto change = redoHistory_.back();
     redoHistory_.pop_back();
-    for (auto& test : clashTests_) {
-        for (auto& result : test.results) {
-            if (test.id == change.testId && result.id == change.resultId) {
-                result.status = change.afterStatus;
-                result.comments = change.afterComments;
-                undoHistory_.push_back(change);
-                return true;
+    if (const auto* review = std::get_if<ReviewChange>(&change)) {
+        for (auto& test : clashTests_) {
+            for (auto& result : test.results) {
+                if (test.id == review->testId && result.id == review->resultId) {
+                    result.status = review->afterStatus;
+                    result.comments = review->afterComments;
+                    undoHistory_.push_back(change);
+                    return true;
+                }
+            }
+        }
+    } else if (const auto* edit = std::get_if<ElementChange>(&change)) {
+        for (auto& model : models_) {
+            for (auto& element : model.elements) {
+                if (element.id == edit->elementId) {
+                    element.name = edit->afterName;
+                    element.category = edit->afterCategory;
+                    element.bounds = edit->afterBounds;
+                    element.orientedBounds = edit->afterOrientedBounds;
+                    undoHistory_.push_back(change);
+                    return true;
+                }
             }
         }
     }
