@@ -37,10 +37,10 @@ Inspect the tree, tests, and manifest before claiming status.
 
 | Item | Status |
 |---|---|
-| Implemented products | **Draft** (`MyDeskDraft`), **Mechanical** (`MyDeskMechanical`, OCCT), **Buildings** (`MyDeskBuildings`, semantic BIM/IFC), **Civil** (`MyDeskCivil`, COGO/TIN/Alignments), **Coordinate** (`MyDeskCoordinate`, Navisworks-class clash detection), **Animate** (`MyDeskAnimate`, scene graph/AnimCurve/LBS/USD), **Mill** (`MyDeskMill`, toolpath strategies/G-code), **Simulation** (`MyDeskSimulation`, CST FEA/Von Mises) |
-| Other catalog products | `catalog-stub` until their engines land (Fusion, Studio, Surface, Infra, Vault) |
+| Implemented products | All fourteen catalog products have independent engines, persistence, tests, and Qt desktop entry points. Every product remains an alpha functional subset rather than parity. |
+| Desktop applications | Draft, Draft LT, Mechanical, Fusion, Buildings, Civil, Infra, Coordinate, Animate, Studio, Surface, Mill, Simulation, Vault |
 | Shared libraries | Draft: `core/*`. Domain-specific engines under `products/<id>/engine` |
-| Presets | `headless` (Draft), `mechanical`, `buildings`, `civil`, `coordinate`, `animate`, `mill`, `simulation` |
+| Presets | `headless`/`default` (Draft) plus one named preset for each of the other thirteen products |
 
 Draft is the AutoCAD-class application. Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault, and Draft LT are independent applications. Advance all products across the ecosystem. Do not restrict development to Draft.
 

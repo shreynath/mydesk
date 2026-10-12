@@ -1,6 +1,6 @@
 # MyDesk Architecture
 
-Status: v0.2 (2026-10-10) — aligned with ADR-0001 standalone products.
+Status: v0.3 (2026-10-11) — aligned with ADR-0001 standalone products.
 
 ## Goals
 
@@ -13,8 +13,8 @@ Status: v0.2 (2026-10-10) — aligned with ADR-0001 standalone products.
 ## Layout
 
 ```text
-products/draft/app    Qt shell → binary MyDeskDraft
-products/<id>/…       Future standalone apps (catalog-stub until real)
+products/<id>/app     Independent Qt desktop application and product binary
+products/<id>/engine  Product-owned computational model (Draft primarily uses core/*)
 core/commands         Draft command registry + Session (Draft-owned today)
 core/exchange         Native .mydesk + partial DXF
 core/document         Entities, layers, history
@@ -24,9 +24,11 @@ core/units            Unit system
 modules/draft         Keymap, snaps (migrate into products/draft or libs later)
 ```
 
-CMake: `MYDESK_PRODUCT=draft` (default). Other product ids fail configure until implemented.
+CMake: `MYDESK_PRODUCT=draft` is the default. All fourteen ids in `products/catalog.yaml` have
+dedicated configure/build presets and install exactly one standalone product.
 
-Dependency rule: `core/*` must not include Qt. Desktop UI mutates documents only via `Session` / commands.
+Dependency rule: `core/*` must not include Qt. Desktop interfaces mutate their own product document
+through commands, controllers, or validated engine transactions.
 
 ## Document model (Draft)
 

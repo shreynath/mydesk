@@ -2,7 +2,7 @@
 
 Statuses: `implemented-tested` · `partial` · `experimental` · `planned` · `unsupported`
 
-Last updated: 2026-10-10
+Last updated: 2026-10-11
 
 ## MyDesk Draft (standalone product)
 
@@ -42,8 +42,8 @@ Last updated: 2026-10-10
 | HATCH (`H`) solid from closed PLINE | partial | `test_text_hatch.cpp` |
 | Linetypes / attributes / xrefs | planned | |
 
-## Other catalog products
+## Other standalone products
 
 | Product | Status |
 |---|---|
-| Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault | catalog-stub — see `products/catalog.yaml` |
+| Draft LT, Mechanical, Fusion, Buildings, Civil, Coordinate, Infra, Animate, Studio, Surface, Mill, Simulation, Vault | alpha functional subsets with product-specific engines, Qt workspaces, native persistence, undo/redo, exports, and tests; see each target manifest for exact scope and missing capabilities |

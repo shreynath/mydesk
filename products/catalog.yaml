@@ -3,7 +3,7 @@
 # maturity: catalog-stub | scaffolding | alpha | beta | production
 
 schema_version: 1
-updated: 2026-10-10
+updated: 2026-10-11
 
 products:
   - id: draft
@@ -49,7 +49,7 @@ products:
     version_file: products/mechanical/VERSION
     cmake_product: mechanical
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: Inventor, versions: ["2025", "2026"] }
     docs: products/mechanical/docs
@@ -63,7 +63,7 @@ products:
     version_file: products/fusion/VERSION
     cmake_product: fusion
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     notes: Independent timeline-driven parametric, direct modeling, and CAM product.
     comparison_targets:
       - { vendor: Autodesk, product: Fusion, versions: ["current"] }
@@ -78,7 +78,7 @@ products:
     version_file: products/buildings/VERSION
     cmake_product: buildings
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: Revit, versions: ["2025", "2026"] }
     docs: products/buildings/docs
@@ -92,7 +92,7 @@ products:
     version_file: products/civil/VERSION
     cmake_product: civil
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: Civil 3D, versions: ["2025", "2026"] }
     docs: products/civil/docs
@@ -106,7 +106,7 @@ products:
     version_file: products/infra/VERSION
     cmake_product: infra
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: InfraWorks, versions: ["2025", "2026"] }
     docs: products/infra/docs
@@ -120,7 +120,7 @@ products:
     version_file: products/coordinate/VERSION
     cmake_product: coordinate
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: Navisworks, versions: ["2025", "2026"] }
     docs: products/coordinate/docs
@@ -134,7 +134,7 @@ products:
     version_file: products/animate/VERSION
     cmake_product: animate
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     notes: Standalone app; must not require users to install Blender.
     comparison_targets:
       - { vendor: Autodesk, product: Maya, versions: ["2025", "2026"] }
@@ -149,7 +149,7 @@ products:
     version_file: products/studio/VERSION
     cmake_product: studio
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     notes: Dedicated modifier-stack oriented 3D modeling and rendering application.
     comparison_targets:
       - { vendor: Autodesk, product: "3ds Max", versions: ["2025", "2026"] }
@@ -164,7 +164,7 @@ products:
     version_file: products/surface/VERSION
     cmake_product: surface
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     notes: Class-A precision NURBS surfacing, continuity evaluation, and reflection diagnostics.
     comparison_targets:
       - { vendor: Autodesk, product: Alias, versions: ["2025", "2026"] }
@@ -179,7 +179,7 @@ products:
     version_file: products/mill/VERSION
     cmake_product: mill
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: PowerMill, versions: ["2025", "2026"] }
     docs: products/mill/docs
@@ -193,7 +193,7 @@ products:
     version_file: products/simulation/VERSION
     cmake_product: simulation
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     comparison_targets:
       - { vendor: Autodesk, product: "Simulation Mechanical", versions: ["current"] }
       - { vendor: Autodesk, product: "Nastran In-CAD",        versions: ["current"] }
@@ -208,7 +208,7 @@ products:
     version_file: products/vault/VERSION
     cmake_product: vault
     platforms: [macos-arm64, macos-x86_64, windows-x86_64, linux-x86_64]
-    maturity: scaffolding
+    maturity: alpha
     notes: Engineering product data management, content addressing, locking, and BOM generation.
     comparison_targets:
       - { vendor: Autodesk, product: Vault, versions: ["2025", "2026"] }

@@ -16,7 +16,7 @@ Architecture decision: [`docs/DECISIONS/ADR-0001-standalone-products.md`](docs/D
 | Window/crossing selection, F3/F7/F8/F9 | **working** |
 | Native `.mydesk` round-trip | **working** |
 | DXF import/export (LINE/CIRCLE/ARC/LWPOLYLINE/LAYER) | **partial** |
-| DWG / RVT / ObjectARX / other products | **not implemented** (catalog stubs only) |
+| Proprietary formats and complete commercial parity | **not implemented**; exact subsets are recorded in target manifests |
 
 Draft status: [`products/draft/docs/`](products/draft/docs/) and [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md).
 
@@ -24,11 +24,15 @@ Draft status: [`products/draft/docs/`](products/draft/docs/) and [`docs/FEATURE_
 
 | Product | Target workflow | Maturity |
 |---|---|---|
-| **MyDesk Draft** | AutoCAD / LT class 2D CAD | alpha |
-| MyDesk Mechanical | Inventor class | catalog-stub |
-| MyDesk Fusion | Fusion class | catalog-stub |
-| MyDesk Buildings | Revit class BIM | catalog-stub |
-| MyDesk Civil / Coordinate / Infra / … | See catalog | catalog-stub |
+| **MyDesk Draft / Draft LT** | AutoCAD-class CAD / focused 2D drafting | alpha |
+| **MyDesk Mechanical / Fusion** | Parametric mechanical CAD / integrated CAD-CAM | alpha |
+| **MyDesk Buildings / Civil / Infra / Coordinate** | BIM, civil, infrastructure, coordination | alpha |
+| **MyDesk Animate / Studio / Surface** | Animation, modifier-stack DCC, industrial surfacing | alpha |
+| **MyDesk Mill / Simulation / Vault** | CAM, FEA, engineering PDM | alpha |
+
+All fourteen applications now have independent Qt desktop entry points and install rules. “Alpha”
+means a tested functional subset, not commercial parity or production readiness. Exact evidence and
+known gaps live in `compatibility/target-manifests/`.
 
 ## Build MyDesk Draft
 
@@ -69,7 +73,8 @@ Sample: [`samples/draft/hello_line.mydesk`](samples/draft/hello_line.mydesk).
 ## Repository map
 
 ```text
-products/draft/app/   MyDesk Draft Qt app (MyDeskDraft)
+products/<id>/app/    Independent product Qt applications
+products/<id>/engine/ Product-specific computational engines
 products/catalog.yaml Standalone product inventory
 core/                 Shared geometry, document, commands, exchange
 modules/draft/        Draft helpers (keymap, snaps)
