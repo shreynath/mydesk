@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           packages=(cmake ninja-build)
           case "${{ matrix.product }}" in
-            draft|mechanical|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
+            draft|draft-lt|mechanical|fusion|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
               packages+=(qt6-base-dev libgl1-mesa-dev)
               ;;
           esac
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           packages=(cmake ninja)
           case "${{ matrix.product }}" in
-            draft|mechanical|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
+            draft|draft-lt|mechanical|fusion|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
               packages+=(qt@6)
               ;;
           esac
@@ -71,7 +71,7 @@ jobs:
           fi
           brew install "${packages[@]}"
           case "${{ matrix.product }}" in
-            draft|mechanical|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
+            draft|draft-lt|mechanical|fusion|buildings|civil|coordinate|animate|studio|surface|mill|simulation|vault)
               echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
               ;;
           esac
@@ -86,7 +86,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Qt (Windows desktop products)
-        if: runner.os == 'Windows' && (matrix.product == 'draft' || matrix.product == 'mechanical' || matrix.product == 'buildings' || matrix.product == 'civil' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio' || matrix.product == 'surface' || matrix.product == 'mill' || matrix.product == 'simulation' || matrix.product == 'vault')
+        if: runner.os == 'Windows' && (matrix.product == 'draft' || matrix.product == 'draft-lt' || matrix.product == 'mechanical' || matrix.product == 'fusion' || matrix.product == 'buildings' || matrix.product == 'civil' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio' || matrix.product == 'surface' || matrix.product == 'mill' || matrix.product == 'simulation' || matrix.product == 'vault')
         shell: bash
         run: |
           set -euo pipefail
@@ -154,13 +154,15 @@ jobs:
           if-no-files-found: error
 
       - name: Desktop GUI binary smoke (macOS/Linux)
-        if: runner.os != 'Windows' && (matrix.product == 'draft' || matrix.product == 'mechanical' || matrix.product == 'buildings' || matrix.product == 'civil' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio' || matrix.product == 'surface' || matrix.product == 'mill' || matrix.product == 'simulation' || matrix.product == 'vault')
+        if: runner.os != 'Windows' && (matrix.product == 'draft' || matrix.product == 'draft-lt' || matrix.product == 'mechanical' || matrix.product == 'fusion' || matrix.product == 'buildings' || matrix.product == 'civil' || matrix.product == 'coordinate' || matrix.product == 'animate' || matrix.product == 'studio' || matrix.product == 'surface' || matrix.product == 'mill' || matrix.product == 'simulation' || matrix.product == 'vault')
         shell: bash
         run: |
           set -euo pipefail
           case "${{ matrix.product }}" in
             draft) binary=MyDeskDraft ;;
+            draft-lt) binary=MyDeskDraftLT ;;
             mechanical) binary=MyDeskMechanical ;;
+            fusion) binary=MyDeskFusion ;;
             buildings) binary=MyDeskBuildings ;;
             civil) binary=MyDeskCivil ;;
             coordinate) binary=MyDeskCoordinate ;;

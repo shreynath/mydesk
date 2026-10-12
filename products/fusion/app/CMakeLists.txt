@@ -32,7 +32,40 @@ if(MYDESK_BUILD_TESTS)
   set_tests_properties(mydesk_fusion_ui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
-if(COMMAND qt_generate_deploy_app_script)
+if(APPLE)
+  qt_generate_deploy_app_script(
+    TARGET MyDeskFusion
+    OUTPUT_SCRIPT fusion_deploy_script
+    NO_PLUGINS
+    NO_TRANSLATIONS)
+  install(SCRIPT ${fusion_deploy_script})
+  get_target_property(_mydesk_fusion_qtpaths Qt6::qtpaths IMPORTED_LOCATION)
+  execute_process(
+    COMMAND "${_mydesk_fusion_qtpaths}" --query QT_INSTALL_PLUGINS
+    OUTPUT_VARIABLE _mydesk_fusion_qt_plugins
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY)
+  file(REAL_PATH "${_mydesk_fusion_qt_plugins}/platforms/libqcocoa.dylib"
+    _mydesk_fusion_cocoa_plugin)
+  file(REAL_PATH "${_mydesk_fusion_qt_plugins}/styles/libqmacstyle.dylib"
+    _mydesk_fusion_mac_style_plugin)
+  install(FILES "${_mydesk_fusion_cocoa_plugin}" RENAME libqcocoa.dylib
+    DESTINATION "MyDeskFusion.app/Contents/PlugIns/platforms")
+  install(FILES "${_mydesk_fusion_mac_style_plugin}" RENAME libqmacstyle.dylib
+    DESTINATION "MyDeskFusion.app/Contents/PlugIns/styles")
+  install(CODE [[
+    foreach(_plugin "platforms/libqcocoa.dylib" "styles/libqmacstyle.dylib")
+      set(_plugin_path
+        "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/MyDeskFusion.app/Contents/PlugIns/${_plugin}")
+      execute_process(
+        COMMAND /usr/bin/install_name_tool -add_rpath "@loader_path/../../Frameworks" "${_plugin_path}"
+        RESULT_VARIABLE _patch_result ERROR_VARIABLE _patch_error)
+      if(NOT _patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not make Fusion Qt plugin relocatable: ${_patch_error}")
+      endif()
+    endforeach()
+  ]])
+else()
   qt_generate_deploy_app_script(
     TARGET MyDeskFusion
     OUTPUT_SCRIPT fusion_deploy_script
