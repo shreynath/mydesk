@@ -603,7 +603,7 @@ bool CivilDocument::renameProfile(ProfileId id, std::string name) {
 std::string CivilDocument::exportLandXml() const {
     std::ostringstream xml;
     xml << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    xml << "<LandXML xmlns=\"http://www.landxml.org/schema/LandXML-1.2\" version=\"1.2\" date=\"2026-10-10\">\n";
+    xml << "<LandXML xmlns=\"http://www.landxml.org/schema/LandXML-1.2\" version=\"1.2\" date=\"2026-10-11\">\n";
     xml << "  <Project name=\"" << escapeXml(name_) << "\"/>\n";
 
     // CgPoints

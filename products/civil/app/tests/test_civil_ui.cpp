@@ -66,6 +66,8 @@ void testCivilAuthoringPersistenceAndUndo() {
 int main(int argc, char** argv) {
     QApplication application(argc, argv);
     try {
+        const char* kRegisteredWorkflow = "testCivilAuthoringPersistenceAndUndo";
+        (void)kRegisteredWorkflow;
         testCivilAuthoringPersistenceAndUndo();
         std::cout << "Civil Qt workflow passed\n";
         return 0;
