@@ -99,6 +99,8 @@ public:
                       std::vector<RoadVertex> centerline);
     [[nodiscard]] const std::vector<ComponentRoad>& roads() const { return roads_; }
     [[nodiscard]] const ComponentRoad* findRoad(ElementId id) const;
+    bool updateRoad(ElementId id, std::string name, int numLanes, double laneWidth,
+                    double designSpeed);
     bool updateRoadCenterline(ElementId id, std::vector<RoadVertex> centerline);
     bool removeRoad(ElementId id);
 
@@ -112,11 +114,16 @@ public:
     // Bridges
     ElementId addBridge(std::string name, ElementId roadId, double startSta, double endSta, int piers);
     [[nodiscard]] const std::vector<BridgeStructure>& bridges() const { return bridges_; }
+    [[nodiscard]] const BridgeStructure* findBridge(ElementId id) const;
+    bool updateBridge(ElementId id, std::string name, double startSta, double endSta,
+                      int piers, double deckThickness);
 
     // City Buildings
     ElementId addBuilding(std::string name, std::string usage, double roofHeight,
                           std::vector<std::pair<double, double>> footprint);
     [[nodiscard]] const std::vector<CityBuilding>& buildings() const { return buildings_; }
+    [[nodiscard]] const CityBuilding* findBuilding(ElementId id) const;
+    bool updateBuilding(ElementId id, std::string name, std::string usage, double roofHeight);
 
     // Interoperability & GeoJSON
     [[nodiscard]] std::string exportGeoJson() const;

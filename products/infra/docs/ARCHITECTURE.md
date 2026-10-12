@@ -26,12 +26,23 @@ MyDesk Infra is a dedicated standalone conceptual infrastructure design applicat
   - Model-changing operations checkpoint document state for undo/redo.
   - Road centerlines remain editable; deleting a road also removes dependent bridges and can be undone as one transaction.
 - **Application Integration**:
-  - `MyDeskInfra <project.myinfra>` opens and validates a real project.
-  - `--earthworks <road-id> [station-interval-m]` runs the corridor engine on persisted project geometry.
+  - The Qt workspace owns a model browser, infrastructure properties, and a conceptual 3D viewport.
+  - Terrain is rendered as an elevation-shaded DEM mesh; roads, bridge decks, and extruded
+    building footprints are drawn from the same `InfraDocument` used for analysis and persistence.
+  - Creation commands generate an editable terrain context, component road, bridge, and city
+    building. Selection and property changes call validated engine transactions.
+  - Corridor earthwork results are calculated from the selected road and active DEM. Native
+    `.myinfra` and GeoJSON use independent open/save/export workflows.
 
 ## Current limits
 
-The earthwork engine currently evaluates a constant-width, level formation surface. Superelevation, daylight side slopes, material strata, haul balancing, tunnels, water features, LandXML, coordinate transformations, and interactive desktop editing remain incomplete and are not claimed as parity.
+This is a substantive conceptual-planning slice, not InfraWorks parity. The earthwork engine
+currently evaluates a constant-width, level formation surface. Superelevation, daylight side
+slopes, material strata, haul balancing, tunnels, water features, drainage, LandXML, raster/point
+cloud import, coordinate transformations, proposal comparison, cloud collaboration, and
+large-city GPU qualification remain incomplete. Road centerline vertices are editable through the
+engine but do not yet have viewport grips; bridge and building geometry use scoped parametric
+records rather than production structural or architectural models.
 
 - **Binary**: `MyDeskInfra`.
 - **Identity**: Bundle `app.mydesk.infra`.

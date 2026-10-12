@@ -139,6 +139,25 @@
       "status": "FUNCTIONAL",
       "evidence": "products/infra/tests/test_infra.cpp",
       "differences": "Constant-width level formation and DEM terrain are supported; superelevation, daylight side slopes, strata, and haul balancing remain incomplete."
+    },
+    {
+      "id": "INFRA-DESKTOP-MODEL-WORKSPACE",
+      "target_application": "InfraWorks",
+      "target_version": "2025",
+      "category": "desktop",
+      "name": "Persistent infrastructure browser, 3D context viewport, properties, history, and files",
+      "command": "MyDeskInfra",
+      "reference_behavior": "A standalone infrastructure workspace creates, selects, visualizes, edits, analyzes, saves, reopens, and exports the implemented terrain, road, bridge, and building model subset.",
+      "expected_input": "Procedural DEM, component road, bridge, city building, and road property edit",
+      "expected_output": "Selectable 3D context model; property edit survives redo and native reopen; GeoJSON contains the project feature collection",
+      "formats": [".myinfra", ".geojson"],
+      "implementation": "products/infra/app/main_window.cpp",
+      "tests": ["test_infra_qt_model_workflow"],
+      "manual_tests": [],
+      "performance": "CPU conceptual viewport is tested with a 21x21 DEM and small feature sets.",
+      "status": "FUNCTIONAL",
+      "evidence": "products/infra/app/tests/test_infra_ui.cpp",
+      "differences": "No GIS/raster import, coordinate transformation, proposal comparison, road grip editing, production labels, cloud collaboration, or large-model GPU renderer."
     }
   ]
 }

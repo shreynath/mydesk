@@ -1,13 +1,35 @@
-# MyDesk Infra application target
-add_executable(MyDeskInfra main.cpp)
-target_link_libraries(MyDeskInfra PRIVATE mydesk::infra_engine)
-
-set_target_properties(MyDeskInfra PROPERTIES
-  OUTPUT_NAME "MyDeskInfra"
-  MACOSX_BUNDLE TRUE
-  WIN32_EXECUTABLE TRUE
-  MACOSX_BUNDLE_BUNDLE_NAME "MyDesk Infra"
-  MACOSX_BUNDLE_GUI_IDENTIFIER "app.mydesk.infra"
-)
-
+set(CMAKE_AUTOMOC ON)
+qt_add_library(mydesk_infra_desktop STATIC main_window.cpp main_window.hpp infra_viewport.cpp infra_viewport.hpp)
+target_include_directories(mydesk_infra_desktop PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mydesk_infra_desktop PUBLIC mydesk::infra_engine Qt6::Widgets Qt6::Gui)
+qt_add_executable(MyDeskInfra main.cpp)
+target_link_libraries(MyDeskInfra PRIVATE mydesk_infra_desktop)
+set_target_properties(MyDeskInfra PROPERTIES OUTPUT_NAME "MyDeskInfra" MACOSX_BUNDLE TRUE WIN32_EXECUTABLE TRUE MACOSX_BUNDLE_BUNDLE_NAME "MyDesk Infra" MACOSX_BUNDLE_GUI_IDENTIFIER "app.mydesk.infra")
 install(TARGETS MyDeskInfra BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+if(MYDESK_BUILD_TESTS)
+  find_package(Qt6 COMPONENTS Test REQUIRED)
+  qt_add_executable(mydesk_infra_ui_tests tests/test_infra_ui.cpp)
+  target_link_libraries(mydesk_infra_ui_tests PRIVATE mydesk_infra_desktop Qt6::Test)
+  add_test(NAME mydesk_infra_ui_tests COMMAND mydesk_infra_ui_tests)
+  set_tests_properties(mydesk_infra_ui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+if(APPLE)
+  qt_generate_deploy_app_script(TARGET MyDeskInfra OUTPUT_SCRIPT infra_deploy_script NO_PLUGINS NO_TRANSLATIONS)
+  install(SCRIPT ${infra_deploy_script})
+  get_target_property(_infra_qtpaths Qt6::qtpaths IMPORTED_LOCATION)
+  execute_process(COMMAND "${_infra_qtpaths}" --query QT_INSTALL_PLUGINS OUTPUT_VARIABLE _infra_plugins OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+  file(REAL_PATH "${_infra_plugins}/platforms/libqcocoa.dylib" _infra_cocoa)
+  file(REAL_PATH "${_infra_plugins}/styles/libqmacstyle.dylib" _infra_style)
+  install(FILES "${_infra_cocoa}" RENAME libqcocoa.dylib DESTINATION "MyDeskInfra.app/Contents/PlugIns/platforms")
+  install(FILES "${_infra_style}" RENAME libqmacstyle.dylib DESTINATION "MyDeskInfra.app/Contents/PlugIns/styles")
+  install(CODE [[foreach(_p "platforms/libqcocoa.dylib" "styles/libqmacstyle.dylib")
+    set(_path "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/MyDeskInfra.app/Contents/PlugIns/${_p}")
+    execute_process(COMMAND /usr/bin/install_name_tool -add_rpath "@loader_path/../../Frameworks" "${_path}" RESULT_VARIABLE _r ERROR_VARIABLE _e)
+    if(NOT _r EQUAL 0)
+      message(FATAL_ERROR "Could not make Infra Qt plugin relocatable: ${_e}")
+    endif()
+  endforeach()]])
+else()
+  qt_generate_deploy_app_script(TARGET MyDeskInfra OUTPUT_SCRIPT infra_deploy_script INCLUDE_PLUGIN_TYPES platforms styles NO_TRANSLATIONS NO_UNSUPPORTED_PLATFORM_ERROR)
+  install(SCRIPT ${infra_deploy_script})
+endif()

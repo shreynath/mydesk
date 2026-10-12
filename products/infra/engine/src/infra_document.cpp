@@ -214,6 +214,19 @@ const ComponentRoad* InfraDocument::findRoad(ElementId id) const {
     return nullptr;
 }
 
+bool InfraDocument::updateRoad(ElementId id, std::string name, int numLanes,
+                               double laneWidth, double designSpeed) {
+    if (name.empty() || numLanes < 1 || !std::isfinite(laneWidth) || laneWidth <= 0.0 ||
+        !std::isfinite(designSpeed) || designSpeed <= 0.0) return false;
+    const auto found = std::find_if(roads_.begin(), roads_.end(),
+        [id](const ComponentRoad& road) { return road.id == id; });
+    if (found == roads_.end()) return false;
+    checkpoint();
+    found->name = std::move(name); found->numLanes = numLanes;
+    found->laneWidthMeters = laneWidth; found->designSpeedKmh = designSpeed;
+    return true;
+}
+
 bool InfraDocument::updateRoadCenterline(ElementId id, std::vector<RoadVertex> centerline) {
     if (centerline.size() < 2 || std::any_of(centerline.begin(), centerline.end(), [](const RoadVertex& point) {
             return !std::isfinite(point.easting) || !std::isfinite(point.northing) || !std::isfinite(point.elevation);
@@ -346,6 +359,27 @@ ElementId InfraDocument::addBridge(std::string name, ElementId roadId, double st
     return bridges_.back().id;
 }
 
+const BridgeStructure* InfraDocument::findBridge(ElementId id) const {
+    const auto found = std::find_if(bridges_.begin(), bridges_.end(),
+        [id](const BridgeStructure& bridge) { return bridge.id == id; });
+    return found == bridges_.end() ? nullptr : &*found;
+}
+
+bool InfraDocument::updateBridge(ElementId id, std::string name, double startSta, double endSta,
+                                 int piers, double deckThickness) {
+    const auto found = std::find_if(bridges_.begin(), bridges_.end(),
+        [id](const BridgeStructure& bridge) { return bridge.id == id; });
+    if (found == bridges_.end() || name.empty() || !std::isfinite(startSta) ||
+        !std::isfinite(endSta) || startSta < 0.0 || endSta <= startSta || piers < 0 ||
+        !std::isfinite(deckThickness) || deckThickness <= 0.0) return false;
+    const auto* road = findRoad(found->roadId);
+    if (!road || endSta > road->totalLengthMeters() + 1e-9) return false;
+    checkpoint();
+    found->name = std::move(name); found->startStation = startSta; found->endStation = endSta;
+    found->pierCount = piers; found->deckThicknessMeters = deckThickness;
+    return true;
+}
+
 ElementId InfraDocument::addBuilding(std::string name, std::string usage, double roofHeight,
                                      std::vector<std::pair<double, double>> footprint) {
     if (name.empty() || usage.empty() || !std::isfinite(roofHeight) || roofHeight <= 0.0 || footprint.size() < 3 ||
@@ -367,6 +401,24 @@ ElementId InfraDocument::addBuilding(std::string name, std::string usage, double
     }
     buildings_.push_back(std::move(b));
     return buildings_.back().id;
+}
+
+const CityBuilding* InfraDocument::findBuilding(ElementId id) const {
+    const auto found = std::find_if(buildings_.begin(), buildings_.end(),
+        [id](const CityBuilding& building) { return building.id == id; });
+    return found == buildings_.end() ? nullptr : &*found;
+}
+
+bool InfraDocument::updateBuilding(ElementId id, std::string name, std::string usage,
+                                   double roofHeight) {
+    const auto found = std::find_if(buildings_.begin(), buildings_.end(),
+        [id](const CityBuilding& building) { return building.id == id; });
+    if (found == buildings_.end() || name.empty() || usage.empty() ||
+        !std::isfinite(roofHeight) || roofHeight <= 0.0) return false;
+    checkpoint();
+    found->name = std::move(name); found->usageCategory = std::move(usage);
+    found->roofHeightMeters = roofHeight;
+    return true;
 }
 
 std::string InfraDocument::exportGeoJson() const {
